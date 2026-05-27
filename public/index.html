@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家庭基金账目管理系统 - Premium Fund Ledger</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Custom Style -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+  <!-- Background Blur Blobs -->
+  <div class="blur-blob blob-1"></div>
+  <div class="blur-blob blob-2"></div>
+  <div class="blur-blob blob-3"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-logo">
+        <svg class="icon-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
+        <div class="logo-text">
+          <h1>家庭基金账目管理系统</h1>
+          <span class="sub-logo">Family Private Wealth & NAV Ledger</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="system-time" id="system-time">2026-05-26 12:00:00</span>
+        <div class="cnh-rate-config flex-center" title="手动修改或一键同步全局 USD/CNH 汇率">
+          <span class="rate-label">CNH 汇率:</span>
+          <input type="number" id="input-cnh-rate" step="0.0001" min="0.0001" value="7.2000" class="rate-input">
+          <button id="btn-sync-rate" class="btn-sync-rate" title="从全球公开接口自动同步最新汇率">🔄</button>
+        </div>
+        <div class="theme-selector-group">
+          <button class="theme-btn" id="theme-btn-system" data-theme-btn="system">🖥️ 系统</button>
+          <button class="theme-btn" id="theme-btn-light" data-theme-btn="light">☀️ 浅色</button>
+          <button class="theme-btn" id="theme-btn-dark" data-theme-btn="dark">🌙 深色</button>
+        </div>
+        <button id="btn-member-panel" class="btn btn-secondary flex-center">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          家庭成员管理
+        </button>
+        <button id="btn-backup-panel" class="btn btn-secondary flex-center">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+          </svg>
+          数据备份/导入
+        </button>
+      </div>
+    </header>
+
+    <!-- ETF ATH Performance Widget -->
+    <section class="etf-ath-bar glass-panel premium-border" id="etf-ath-container">
+      <div class="panel-header">
+        <h2 class="panel-title">
+          <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 6l-9.5 9.5-5-5L1 18" />
+            <polyline points="17 6 23 6 23 12" />
+          </svg>
+          美股旗舰 ETF 历史新高 (ATH) 追踪 (盘前盘后)
+        </h2>
+        <button id="btn-config-etfs" class="btn btn-secondary flex-center" style="padding: 6px 12px; font-size: 0.78rem; gap: 4px;" title="配置展示的追踪标的（支持最多8个）">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          配置标的
+        </button>
+      </div>
+      <div class="etf-ath-cards" id="etf-ath-cards-container">
+        <div class="etf-ath-card loading">
+          <span class="loading-text">正在从 Yahoo Finance 同步美股最新 ATH 与回调数据...</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Dashboard Metrics Panel -->
+    <section class="glass-panel premium-border">
+      <div class="panel-header">
+        <h2 class="panel-title">
+          <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+            <line x1="15" y1="3" x2="15" y2="21" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+            <line x1="3" y1="15" x2="21" y2="15" />
+          </svg>
+          基金数据看板
+        </h2>
+        <span class="panel-badge badge-green">实时数据核算</span>
+      </div>
+      <div class="metrics-grid">
+        <!-- Total NAV Card -->
+        <div class="metric-card premium-border">
+          <div class="card-glow glow-cyan"></div>
+          <div class="metric-info">
+            <span class="metric-label">基金总资产 (Total Assets)</span>
+            <div class="metric-value font-outfit" id="fund-total-nav">$0.00</div>
+            <div class="metric-sub" id="fund-total-shares">总份额: 0.0000 份</div>
+          </div>
+          <div class="metric-icon bg-cyan-soft">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="1" x2="12" y2="23" />
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Unit NAV Card -->
+        <div class="metric-card premium-border">
+          <div class="card-glow glow-blue"></div>
+          <div class="metric-info">
+            <span class="metric-label">基金单位净值 (NAV / Share)</span>
+            <div class="metric-value font-outfit text-cyan" id="fund-nav-per-share">1.0000</div>
+            <div class="metric-sub" id="nav-indicator">已与市场最新同步</div>
+          </div>
+          <div class="metric-icon bg-blue-soft">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Total Profit Card -->
+        <div class="metric-card premium-border">
+          <div class="card-glow glow-green"></div>
+          <div class="metric-info">
+            <span class="metric-label">累计总收益 (Net Gains)</span>
+            <div class="metric-value font-outfit text-green" id="fund-total-profit">$0.00</div>
+            <span class="metric-sub" id="fund-principal">累计净投入: $0.00</span>
+          </div>
+          <div class="metric-icon bg-green-soft">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 6l-9.5 9.5-5-5L1 18" />
+              <polyline points="17 6 23 6 23 12" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Return Rate Card -->
+        <div class="metric-card premium-border">
+          <div class="card-glow glow-magenta"></div>
+          <div class="metric-info">
+            <span class="metric-label">累计总收益率 (Total ROI)</span>
+            <div class="metric-value font-outfit text-magenta" id="fund-profit-rate">0.00%</div>
+            <span class="metric-sub">家庭合作投资收益率</span>
+          </div>
+          <div class="metric-icon bg-magenta-soft">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 12h8" />
+              <path d="M12 8v8" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Content Area -->
+    <main class="dashboard-layout">
+      <!-- Left Column: Charts and Member Portfolios -->
+      <div class="layout-left">
+        <!-- Members Showcase -->
+        <section class="glass-panel premium-border">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              家庭成员资产比例
+            </h2>
+            <span class="panel-badge" id="member-count-badge">成员人数: 0 人</span>
+          </div>
+
+          <div class="members-grid" id="members-grid-container">
+            <!-- 成员卡片将由 app.js 动态渲染 -->
+          </div>
+        </section>
+
+        <!-- Dynamic Visualization Charts -->
+        <section class="glass-panel premium-border">
+          <div class="panel-header" style="margin-bottom: 12px;">
+            <h2 class="panel-title">
+              <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+              基金趋势与分布分析
+            </h2>
+            <div class="tab-buttons" style="display: flex; gap: 8px;">
+              <button class="tab-btn active" data-chart-tab="nav">净值/资产走势</button>
+              <button class="tab-btn" data-chart-tab="shares">成员占比</button>
+            </div>
+          </div>
+
+          <!-- Chart Control Dock (Comparative checkboxes & time slicer in a spacious new row) -->
+          <div class="chart-controls-dock" id="trend-comparisons-ctrl">
+            <div class="comparisons-checkboxes" style="display: flex; align-items: center; gap: 16px;">
+              <label class="checkbox-inline flex-center"
+                style="cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none;">
+                <input type="checkbox" id="chk-comp-assets"
+                  style="cursor: pointer; accent-color: var(--color-purple);"> 基金总资产
+              </label>
+              <label class="checkbox-inline flex-center"
+                style="cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none;">
+                <input type="checkbox" id="chk-comp-nav" checked
+                  style="cursor: pointer; accent-color: var(--color-primary);"> 单位净值
+              </label>
+              <label class="checkbox-inline flex-center"
+                style="cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none;">
+                <input type="checkbox" id="chk-comp-sp500" checked style="cursor: pointer; accent-color: #f59e0b;">
+                标普500指数
+              </label>
+              <label class="checkbox-inline flex-center"
+                style="cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none;">
+                <input type="checkbox" id="chk-comp-ndx" checked style="cursor: pointer; accent-color: #ec4899;">
+                纳斯达克100指数
+              </label>
+            </div>
+
+            <!-- Segmented Time Horizon Slicer -->
+            <div class="time-slicer-group" id="time-slicer-group"
+              style="display: flex; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 2px; border-radius: 6px; gap: 2px;">
+              <button class="time-slice-btn active" data-time-slice="ALL">自成立以来</button>
+              <button class="time-slice-btn" data-time-slice="YTD">今年以来</button>
+              <button class="time-slice-btn" data-time-slice="1Y">近1年</button>
+              <button class="time-slice-btn" data-time-slice="6M">近6M</button>
+              <button class="time-slice-btn" data-time-slice="3M">近3M</button>
+              <button class="time-slice-btn" data-time-slice="1M">近1M</button>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <!-- NAV Trend Line Chart -->
+            <div class="chart-container active" id="chart-tab-nav-container">
+              <canvas id="navTrendChart"></canvas>
+            </div>
+            <!-- Member Allocation Donut Chart -->
+            <div class="chart-container" id="chart-tab-shares-container">
+              <canvas id="memberAllocationChart"></canvas>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Operations Panel -->
+      <div class="layout-right">
+        <!-- Quick Operations -->
+        <section class="glass-panel premium-border operations-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <line x1="12" y1="8" x2="12" y2="16" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+              </svg>
+              基金账目登记录入
+            </h2>
+            <span class="panel-badge badge-green">管理员模式</span>
+          </div>
+
+          <div class="operation-tabs">
+            <button class="op-tab-btn active" id="tab-btn-tx">出入金登记</button>
+            <button class="op-tab-btn" id="tab-btn-val">估值调整</button>
+            <button class="op-tab-btn" id="tab-btn-tf">内部份额转让</button>
+          </div>
+
+          <!-- Transaction Form -->
+          <form id="form-transaction" class="op-form active">
+            <div class="form-group">
+              <label for="tx-member">选择家庭成员</label>
+              <select id="tx-member" class="select-input" required>
+                <!-- 动态由 app.js 加载选项 -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>账目方向</label>
+              <div class="type-selector-grid">
+                <input type="radio" name="txType" id="t-select-deposit" value="deposit" checked>
+                <label for="t-select-deposit" class="selector-btn deposit-label">
+                  <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  入金 (存入/追加)
+                </label>
+
+                <input type="radio" name="txType" id="t-select-withdraw" value="withdraw">
+                <label for="t-select-withdraw" class="selector-btn withdraw-label">
+                  <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  出金 (提现/赎回)
+                </label>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tx-amount">金额 (USD)</label>
+                <div class="input-wrapper text-glow">
+                  <span class="currency-prefix">$</span>
+                  <input type="number" id="tx-amount" step="0.01" min="0.01" required placeholder="0.00">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="tx-cnh-amount">对应人民币 (CNH)</label>
+                <div class="input-wrapper text-glow">
+                  <span class="currency-prefix">¥</span>
+                  <input type="number" id="tx-cnh-amount" step="0.01" min="0.01" required placeholder="0.00"
+                    title="手动填入该笔交易所对应的人民币数额">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tx-date">交易日期</label>
+                <input type="date" id="tx-date" required>
+              </div>
+              <div class="form-group">
+                <label for="tx-remark">备注说明</label>
+                <input type="text" id="tx-remark" placeholder="例如：首次入金、银行存款等">
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block flex-center gap-2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                style="width: 18px; height: 18px;">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              提交保存交易
+            </button>
+          </form>
+
+          <!-- Valuation Update Form -->
+          <form id="form-valuation" class="op-form">
+            <div class="info-alert">
+              <svg class="info-alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <p>市值估值更新是根据投资账户最新总资产（如现金+股票持仓市值）进行重估，以此生成新的基金单位净值。</p>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="val-total-nav">最新基金总资产 (USD)</label>
+                <div class="input-wrapper text-glow">
+                  <span class="currency-prefix">$</span>
+                  <input type="number" id="val-total-nav" step="0.01" min="0" required placeholder="0.00">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="val-date">估值重估日期</label>
+                <input type="date" id="val-date" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="val-remark">估值调整备注</label>
+              <input type="text" id="val-remark" placeholder="例如：定期周日估值核算、股票账户总值核定等">
+            </div>
+
+            <button type="submit" class="btn btn-magenta btn-block flex-center gap-2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                style="width: 18px; height: 18px;">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+              重估资产与单位净值
+            </button>
+          </form>
+
+          <!-- Transfer Form -->
+          <form id="form-transfer" class="op-form">
+            <div class="info-alert"
+              style="background: rgba(0, 153, 255, 0.08); border-color: rgba(0, 153, 255, 0.15); color: var(--color-primary);">
+              <svg class="info-alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="color: var(--color-primary);">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <p>内部份额转让支持将一名家庭出资人的部分或全部基金份额，以特定的成交汇率，无缝转移给另一名出资人，基金总额保持守恒。</p>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tf-from-member">出让方成员 (From)</label>
+                <select id="tf-from-member" class="select-input" required>
+                  <!-- 动态加载 -->
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="tf-to-member">受让方成员 (To)</label>
+                <select id="tf-to-member" class="select-input" required>
+                  <!-- 动态加载 -->
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tf-amount">转让金额 (USD)</label>
+                <div class="input-wrapper text-glow">
+                  <span class="currency-prefix">$</span>
+                  <input type="number" id="tf-amount" step="0.01" min="0.01" required placeholder="0.00">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="tf-rate">受让汇率 (CNH Rate)</label>
+                <div class="input-wrapper text-glow" style="position: relative;">
+                  <input type="number" id="tf-rate" step="0.0001" min="0.0001" required placeholder="7.2000"
+                    style="padding-left: 12px; width: 100%;">
+                  <span id="tf-cnh-display"
+                    style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 0.68rem; font-weight: 600; color: var(--color-green); pointer-events: none;">折合
+                    CNH: ≈ ¥0.00</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="tf-date">划转日期</label>
+                <input type="date" id="tf-date" required>
+              </div>
+              <div class="form-group">
+                <label for="tf-remark">转让原因说明 (Remark)</label>
+                <input type="text" id="tf-remark" required placeholder="请说明转让的具体原委原因">
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block flex-center gap-2"
+              style="background: var(--grad-cyan); border-color: rgba(0, 242, 254, 0.2); color: #000; font-weight: 700;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                style="width: 18px; height: 18px;">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+              提交保存内部转让
+            </button>
+          </form>
+        </section>
+      </div>
+    </main>
+
+    <!-- Ledger Block - Full width Transaction Log -->
+    <section class="glass-panel premium-border ledger-section">
+      <div class="panel-header">
+        <h2 class="panel-title">
+          <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
+          历史账目流水日志 (Audit Ledger)
+        </h2>
+        <div class="ledger-filters">
+          <select id="filter-member" class="select-input">
+            <option value="all">所有流水对象</option>
+            <!-- 动态加载成员选项 -->
+            <option value="system">系统/估值</option>
+          </select>
+          <select id="filter-type" class="select-input">
+            <option value="all">所有流水类型</option>
+            <option value="deposit">入金 (Deposit)</option>
+            <option value="withdraw">出金 (Withdraw)</option>
+            <option value="valuation">估值重估 (Valuation)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>流水明细项</th>
+              <th>类型</th>
+              <th>出资/估值金额 (USD / CNH)</th>
+              <th>产生份额变动</th>
+              <th>当时折算单位净值</th>
+              <th>结算后份额</th>
+              <th>结算后总市值</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="ledger-tbody">
+            <!-- Dynamic data will be generated here -->
+            <tr class="empty-row">
+              <td colspan="9" style="text-align: center; color: var(--color-text-muted); padding: 40px 0;">
+                暂无账目流水，请在右侧录入第一笔入金以开始管理
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Backup & Restore Modal -->
+  <div class="modal-overlay" id="backup-modal">
+    <div class="modal-content glass-panel premium-border">
+      <div class="modal-header">
+        <h3>数据备份与灾备恢复</h3>
+        <button class="btn-close" id="btn-close-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="backup-section">
+          <h4>📥 备份导出数据</h4>
+          <p class="section-desc">将系统内所有的家庭出入金及估值记录打包导出为 `family_fund_data.json` 格式。您可以安全地保存在本地或 Synology
+            云端，防止设备丢失造成数据丢失。</p>
+          <a href="/api/backup/export" class="btn btn-primary flex-center gap-2" download>
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            一键下载 JSON 数据包
+          </a>
+        </div>
+
+        <hr class="modal-divider">
+
+        <div class="backup-section">
+          <h4>📤 灾备导入数据</h4>
+          <p class="section-desc">从您之前导出的 JSON 数据包中恢复所有账目。<strong>警告：导入新数据将完全覆盖当前的本地数据！</strong> 建议操作前先导出备份。</p>
+          <div class="file-upload-wrapper">
+            <input type="file" id="file-import" accept=".json" style="display: none;">
+            <button class="btn btn-secondary flex-center gap-2" id="btn-trigger-upload">
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+              </svg>
+              选择 JSON 备份文件
+            </button>
+            <span class="file-name-label" id="file-name-label">未选择任何文件</span>
+          </div>
+          <button class="btn btn-magenta flex-center gap-2 btn-block mt-3" id="btn-confirm-import" disabled>
+            确认恢复导入数据
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 家庭成员管理模态框 (Member Editor Modal) -->
+  <div class="modal-overlay" id="member-modal">
+    <div class="modal-content glass-panel premium-border">
+      <div class="modal-header">
+        <h3>家庭成员管理</h3>
+        <button class="btn-close" id="btn-close-member-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="section-desc">在此可以添加新的出资人，或重命名已存在成员。为了数据完整性，已有出入金记录的成员将限制删除，仅支持重命名修改。</p>
+
+        <!-- Add New Member Form -->
+        <form id="form-add-member" class="member-add-form">
+          <div class="form-group">
+            <label for="new-member-name">添加家庭成员</label>
+            <div class="input-inline-btn">
+              <input type="text" id="new-member-name" placeholder="输入成员姓名 (如: 叔叔、表哥等)" required>
+              <button type="submit" class="btn btn-primary">添加</button>
+            </div>
+          </div>
+        </form>
+
+        <hr class="modal-divider">
+
+        <!-- Members List -->
+        <div class="members-edit-section">
+          <label style="margin-bottom: 8px; display: block;">当前成员列表</label>
+          <div class="members-edit-list" id="members-edit-list">
+            <!-- 动态渲染成员项，含重命名和删除功能 -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑账目记录模态框 (Edit Event Modal) -->
+  <div class="modal-overlay" id="edit-event-modal">
+    <div class="modal-content glass-panel premium-border">
+      <div class="modal-header">
+        <h3 id="edit-modal-title">修改账目记录</h3>
+        <button class="btn-close" id="btn-close-edit-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-edit-event" class="op-form active">
+          <!-- 隐藏的事件ID和类型 -->
+          <input type="hidden" id="edit-event-id">
+          <input type="hidden" id="edit-event-type">
+
+          <!-- 划转出让方与受让方 (仅划转转让类型显示) -->
+          <div class="form-row" id="edit-group-transfer-members" style="display: none;">
+            <div class="form-group">
+              <label for="edit-from-member">出让方成员</label>
+              <select id="edit-from-member" class="select-input">
+                <!-- 动态填充 -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="edit-to-member">受让方成员</label>
+              <select id="edit-to-member" class="select-input">
+                <!-- 动态填充 -->
+              </select>
+            </div>
+          </div>
+
+          <!-- 成员选择 (仅交易类型显示) -->
+          <div class="form-group" id="edit-group-member">
+            <label for="edit-member">出资家庭成员</label>
+            <select id="edit-member" class="select-input">
+              <!-- 动态填充 -->
+            </select>
+          </div>
+
+          <!-- 美元金额 / 人民币金额 / 估值金额 / 受让汇率 -->
+          <div class="form-row">
+            <div class="form-group" id="edit-group-amount">
+              <label id="edit-label-amount" for="edit-amount">美元金额 (USD)</label>
+              <div class="input-wrapper text-glow">
+                <span class="currency-prefix">$</span>
+                <input type="number" id="edit-amount" step="0.01" min="0.01" placeholder="0.00">
+              </div>
+            </div>
+            <!-- 人民币本金 (仅交易类型显示) -->
+            <div class="form-group" id="edit-group-cnh-amount">
+              <label for="edit-cnh-amount">对应人民币金额 (CNH)</label>
+              <div class="input-wrapper text-glow">
+                <span class="currency-prefix">¥</span>
+                <input type="number" id="edit-cnh-amount" step="0.01" min="0.01" placeholder="0.00">
+              </div>
+            </div>
+            <!-- 受让汇率 (仅转让类型显示) -->
+            <div class="form-group" id="edit-group-cnh-rate" style="display: none;">
+              <label for="edit-cnh-rate">受让汇率</label>
+              <div class="input-wrapper text-glow">
+                <input type="number" id="edit-cnh-rate" step="0.0001" min="0.0001" placeholder="7.2000">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="edit-date">交易日期</label>
+              <input type="date" id="edit-date" required>
+            </div>
+            <div class="form-group">
+              <label for="edit-remark">备注说明</label>
+              <input type="text" id="edit-remark" placeholder="修改备注...">
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block flex-center gap-2 mt-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              style="width: 18px; height: 18px;">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
+            </svg>
+            确认修改并重新核算
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <!-- ETF 标的配置模态框 (ETF Config Modal) -->
+  <div class="modal-overlay" id="etf-config-modal">
+    <div class="modal-content glass-panel premium-border" style="width: 520px;">
+      <div class="modal-header">
+        <h3>配置展示标的 (最多8个)</h3>
+        <button class="btn-close" id="btn-close-etf-config-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="section-desc">修改或新增顶栏展示的股票或 ETF 追踪标的（最多支持 8 个）。代码输入后将自动转为大写，并实时从 Yahoo Finance 抓取高点及当前跌幅。</p>
+        
+        <div id="etf-config-list" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; max-height: 320px; overflow-y: auto; padding-right: 4px;">
+          <!-- 动态生成标的配置行 -->
+        </div>
+
+        <button class="btn btn-secondary flex-center gap-2 btn-block" id="btn-add-etf-row" style="border-style: dashed; background: rgba(255,255,255,0.01);">
+          ➕ 添加追踪标的
+        </button>
+
+        <hr class="modal-divider">
+
+        <button class="btn btn-primary btn-block flex-center gap-2" id="btn-save-etf-config">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px; height: 18px;">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <polyline points="17 21 17 13 7 13 7 21" />
+            <polyline points="7 3 7 8 15 8" />
+          </svg>
+          保存标的配置并刷新
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dynamic Notifications -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Main JavaScript App -->
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+
+</html>

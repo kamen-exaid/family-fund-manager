@@ -1,0 +1,84 @@
+# =========================================================================
+# 基金账目管理系统 - Git 忽略规则配置 (.gitignore)
+# =========================================================================
+
+# --- 依赖库 (Dependencies) ---
+node_modules/
+jspm_packages/
+web_modules/
+
+# --- 本地动态数据与备份 (Local Data & Backups) ---
+# 忽略自动生成的数据库备份目录
+backups/
+# 忽略打包归档的旧版本 zip 压缩包
+a_归档/
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# 忽略本地运行时的动态数据库文件 (避免把测试数据/隐私账目推送到公开仓库)
+# 如果需要保留默认模板，可创建 data/db.json.template，而将实际的 db.json 忽略
+data/db.json
+# 如果 config.json 中包含敏感配置（如 API 密钥、密码等），建议予以忽略
+# data/config.json
+
+# --- 日志与调试文件 (Logs & Diagnostics) ---
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# --- 运行时与进程管理 (Runtime & Process) ---
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# --- 测试与覆盖率 (Test & Coverage) ---
+coverage/
+*.lcov
+.nyc_output/
+
+# --- 编译器/构建缓存与输出 (Build & Cache) ---
+.npm
+.eslintcache
+.stylelintcache
+.cache/
+.parcel-cache/
+.tsbuildinfo
+build/
+dist/
+out/
+
+# --- 环境配置文件 (Sensitive Environment Variables) ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# --- 常见 IDE / 编辑器配置 (Editor & IDE) ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.project
+.classpath
+.settings/
+
+# --- 操作系统临时文件 (OS Metadata) ---
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
