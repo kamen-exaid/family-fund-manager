@@ -663,15 +663,33 @@ async function fetchEtfAthData() {
       const timestamps = result.timestamp || [];
       const meta = result.meta;
 
-      // 获取美东今天日期（Yahoo 数据是美东日期）
-      const todayStr = new Date(Date.now() - 4 * 3600 * 1000).toISOString().split('T')[0];
+      // 1. 获取当前美东时间（America/New_York）的年月日和小时
+      const estFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+      const estParts = estFormatter.formatToParts(new Date());
+      const estMap = {};
+      estParts.forEach(p => estMap[p.type] = p.value);
+      
+      const todayStr = `${estMap.year}-${estMap.month}-${estMap.day}`;
+      const estHour = parseInt(estMap.hour, 10);
+      
+      // 美盘盘后晚上 8 点结束后即可按最新数据走。因此 20:00 前需要排除今天未收盘数据，20:00 及之后不再排除
+      const shouldExcludeToday = estHour < 20;
 
       let ath = 0;
       let athDate = '';
       for (let i = 0; i < highs.length; i++) {
         if (highs[i] !== null && highs[i] !== undefined) {
           const dateStr = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
-          if (dateStr === todayStr) continue; // 排除今天数据
+          if (shouldExcludeToday && dateStr === todayStr) continue; // 排除今天数据
 
           if (highs[i] > ath) {
             ath = highs[i];
@@ -680,13 +698,13 @@ async function fetchEtfAthData() {
         }
       }
 
-      // 获取排除了今天的上个交易日收盘价与日期
+      // 获取上个交易日收盘价与日期（根据 shouldExcludeToday 判定是否包含今天）
       let regularClose = meta.regularMarketPrice; // fallback
       let regularCloseDate = '';
       for (let i = closes.length - 1; i >= 0; i--) {
         if (closes[i] !== null && closes[i] !== undefined) {
           const dateStr = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
-          if (dateStr === todayStr) continue; // 排除今天
+          if (shouldExcludeToday && dateStr === todayStr) continue; // 排除今天
           regularClose = closes[i];
           regularCloseDate = dateStr;
           break;

@@ -1913,6 +1913,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return name.substring(0, 2).toUpperCase();
   }
 
+  // 极简日期格式化工具 (YYYY-MM-DD -> MM/DD)
+  function formatMonthDay(dateStr) {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[1]}/${parts[2]}`;
+    }
+    return dateStr;
+  }
+
   // 加载并渲染美股 ETF ATH 历史及收盘价格回调数据
   async function loadEtfAthData() {
     const container = document.getElementById('etf-ath-cards-container');
@@ -1937,22 +1947,26 @@ document.addEventListener('DOMContentLoaded', () => {
         
         return `
           <div class="etf-ath-card premium-border" title="${item.longName}">
-            <div class="etf-info-main">
+            <div class="etf-card-header">
               <span class="etf-ticker font-outfit">${ticker}</span>
-              <span class="etf-name">${item.name || ticker}</span>
+              <span class="etf-name" title="${item.name || ticker}">${item.name || ticker}</span>
             </div>
-            <div class="etf-metrics-grid">
-              <div class="etf-metric-sub">
-                <span class="sub-label">历史新高 (ATH) <span style="font-size: 0.65rem; color: var(--color-text-muted); font-weight: normal; letter-spacing: 0;">(${item.athDate || '暂无'})</span></span>
-                <span class="sub-val font-outfit text-cyan" style="font-weight: 700;">$${item.ath.toFixed(2)}</span>
+            <div class="etf-card-body">
+              <div class="etf-prices-col">
+                <div class="price-row">
+                  <span class="price-lbl">ATH</span>
+                  <span class="price-val text-cyan font-outfit">$${item.ath.toFixed(2)}</span>
+                  <span class="price-date">(${formatMonthDay(item.athDate)})</span>
+                </div>
+                <div class="price-row" style="margin-top: 1px;">
+                  <span class="price-lbl">收盘</span>
+                  <span class="price-val font-outfit" style="color: var(--color-text-main);">$${item.regularClose.toFixed(2)}</span>
+                  <span class="price-date">(${formatMonthDay(item.regularCloseDate)})</span>
+                </div>
               </div>
-              <div class="etf-metric-sub">
-                <span class="sub-label">上个交易日收盘价 <span style="font-size: 0.65rem; color: var(--color-text-muted); font-weight: normal; letter-spacing: 0;">(${item.regularCloseDate || '暂无'})</span></span>
-                <span class="sub-val font-outfit">$${item.regularClose.toFixed(2)}</span>
-              </div>
-              <div class="etf-metric-sub">
-                <span class="sub-label">从 ATH 回调幅度</span>
-                <span class="sub-val font-outfit ${drawdownClass}" style="font-weight: 700;">${drawdownPrefix}${item.drawdown.toFixed(2)}%</span>
+              <div class="etf-drawdown-col ${drawdownClass}">
+                <span class="drawdown-lbl">较ATH回调</span>
+                <span class="drawdown-val font-outfit">${drawdownPrefix}${item.drawdown.toFixed(2)}%</span>
               </div>
             </div>
           </div>

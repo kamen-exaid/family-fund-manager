@@ -1941,11 +1941,12 @@ body.theme-light .scale-slice-btn.active {
   transform: translateY(-2px);
 }
 
-.etf-info-main {
+.etf-card-header {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  min-width: 0;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
 }
 
 .etf-ticker {
@@ -1954,6 +1955,7 @@ body.theme-light .scale-slice-btn.active {
   color: var(--color-text-main);
   letter-spacing: -0.5px;
   line-height: 1.05;
+  flex-shrink: 0;
 }
 
 .etf-name {
@@ -1964,50 +1966,74 @@ body.theme-light .scale-slice-btn.active {
   font-size: clamp(0.58rem, 1.1vh, 0.68rem);
   color: var(--color-text-muted);
   font-weight: 500;
+  text-align: right;
 }
 
-.etf-metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
+.etf-card-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   border-top: 1px dashed var(--color-card-divider);
-  padding-top: 5px;
-  margin-top: 0;
+  padding-top: 6px;
+  gap: 8px;
+  width: 100%;
 }
 
-.etf-metric-sub {
+.etf-prices-col {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 2px;
+  flex: 1;
   min-width: 0;
 }
 
-.sub-label {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 0.7rem;
   white-space: nowrap;
-  font-size: clamp(0.5rem, 0.95vh, 0.58rem);
+}
+
+.price-lbl {
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+  width: 26px;
+  flex-shrink: 0;
+}
+
+.price-val {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.price-date {
+  color: var(--color-text-muted);
+  font-size: 0.6rem;
+  transform: scale(0.95);
+  transform-origin: left center;
+}
+
+.etf-drawdown-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.drawdown-lbl {
+  font-size: 0.55rem;
   color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
+  margin-bottom: 1px;
 }
 
-.sub-val {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: clamp(0.58rem, 1.15vh, 0.72rem);
-  font-weight: 700;
-  color: var(--color-text-main);
-  text-align: left;
-}
-
-.drawdown-percent {
-  font-size: clamp(0.56rem, 1.05vh, 0.68rem);
-  padding-left: 2px;
+.drawdown-val {
+  font-size: clamp(0.85rem, 1.65vh, 1.05rem);
+  font-weight: 800;
 }
 
 .etf-ath-card.loading {
