@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let memberAllocationChart = null;
   let currentTheme = 'system';
   let currentFilteredHistory = [];
+  let currentTrendStatSeries = [];
+  let isTrendStatsHovering = false;
 
   // --- DOM 元素定义 ---
   const elSystemTime = document.getElementById('system-time');
@@ -39,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const chkCompAssets = document.getElementById('chk-comp-assets');
   const chkCompSp500 = document.getElementById('chk-comp-sp500');
   const chkCompNdx = document.getElementById('chk-comp-ndx');
+  const elTrendStatsGrid = document.getElementById('trend-stats-grid');
 
   // Operation Tabs & Forms
   const btnTabTx = document.getElementById('tab-btn-tx');
@@ -323,6 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
       navTrendChart.options.scales['y-assets'].display = showAssets;
 
       navTrendChart.update();
+      renderCharts();
     };
 
     chkCompNav.addEventListener('change', updateCompVisibility);
@@ -1440,6 +1444,66 @@ document.addEventListener('DOMContentLoaded', () => {
     editEventModal.classList.add('active');
   }
 
+  function calculateTrendStats(values) {
+    const cleanValues = values.filter(v => Number.isFinite(v) && v > 0);
+    if (cleanValues.length === 0) {
+      return { gain: 0, maxDrawdown: 0 };
+    }
+
+    const first = cleanValues[0];
+    const last = cleanValues[cleanValues.length - 1];
+    let peak = first;
+    let maxDrawdown = 0;
+
+    cleanValues.forEach(value => {
+      peak = Math.max(peak, value);
+      const drawdown = value / peak - 1;
+      maxDrawdown = Math.min(maxDrawdown, drawdown);
+    });
+
+    return {
+      gain: last / first - 1,
+      maxDrawdown
+    };
+  }
+
+  function formatSignedPercent(value) {
+    const pct = value * 100;
+    const sign = pct > 0 ? '+' : '';
+    return `${sign}${pct.toFixed(2)}%`;
+  }
+
+  function renderTrendStatsCards(seriesList, activeIndex = null) {
+    if (!elTrendStatsGrid) return;
+
+    const visibleSeries = seriesList.filter(series => series.visible);
+    if (visibleSeries.length === 0) {
+      elTrendStatsGrid.innerHTML = '<div class="trend-stat-empty">勾选上方指标后显示区间涨幅与最大回撤</div>';
+      return;
+    }
+
+    elTrendStatsGrid.innerHTML = visibleSeries.map(series => {
+      const hasActivePoint = Number.isInteger(activeIndex) && activeIndex >= 0;
+      const endIndex = hasActivePoint ? Math.min(activeIndex, series.values.length - 1) : series.values.length - 1;
+      const statsValues = series.values.slice(0, endIndex + 1);
+      const stats = calculateTrendStats(statsValues);
+      const gainClass = stats.gain >= 0 ? 'positive' : 'negative';
+      const dateLabel = hasActivePoint && series.dates?.[endIndex]
+        ? `<div class="trend-stat-date">截至 ${series.dates[endIndex]}</div>`
+        : '';
+      return `
+        <div class="trend-stat-card" style="--series-color: ${series.color};">
+          <div class="trend-stat-name">${series.label}</div>
+          ${dateLabel}
+          <div class="trend-stat-values">
+            <span><em>涨幅</em><strong class="${gainClass}">${formatSignedPercent(stats.gain)}</strong></span>
+            <span><em>最大回撤</em><strong class="negative">${formatSignedPercent(stats.maxDrawdown)}</strong></span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
   // 5. 图表可视化绘制模块 (USD/动态成员自适应)
   function renderCharts() {
     if (!appState) return;
@@ -1499,6 +1563,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const chartTotalNAVData = totalNAVData.length > 0 ? totalNAVData : [0.00];
     const chartSpxData = sp500Data.length > 0 ? sp500Data : [1.0000];
     const chartNdxData = ndxData.length > 0 ? ndxData : [1.0000];
+
+    currentTrendStatSeries = [
+      {
+        label: '单位净值',
+        color: '#00f2fe',
+        values: chartNavData,
+        dates: chartLabels,
+        visible: chkCompNav.checked
+      },
+      {
+        label: '标普500指数',
+        color: '#f59e0b',
+        values: chartSpxData,
+        dates: chartLabels,
+        visible: chkCompSp500.checked
+      },
+      {
+        label: '纳斯达克100指数',
+        color: '#ec4899',
+        values: chartNdxData,
+        dates: chartLabels,
+        visible: chkCompNdx.checked
+      }
+    ];
+    renderTrendStatsCards(currentTrendStatSeries);
 
     // 对数坐标功能已移除
 
@@ -1599,6 +1688,15 @@ document.addEventListener('DOMContentLoaded', () => {
             mode: 'index',
             intersect: false
           },
+          onHover: (_event, activeElements) => {
+            if (activeElements.length > 0) {
+              isTrendStatsHovering = true;
+              renderTrendStatsCards(currentTrendStatSeries, activeElements[0].index);
+            } else {
+              isTrendStatsHovering = false;
+              renderTrendStatsCards(currentTrendStatSeries);
+            }
+          },
           plugins: {
             legend: {
               labels: {
@@ -1697,6 +1795,27 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       });
+    }
+
+    if (!ctxNav.canvas.dataset.trendStatsLeaveBound) {
+      const restoreTrendStats = () => {
+        isTrendStatsHovering = false;
+        renderTrendStatsCards(currentTrendStatSeries);
+      };
+      const restoreTrendStatsWhenOutside = (event) => {
+        if (!isTrendStatsHovering) return;
+        const rect = ctxNav.canvas.getBoundingClientRect();
+        const isInsideChart = event.clientX >= rect.left
+          && event.clientX <= rect.right
+          && event.clientY >= rect.top
+          && event.clientY <= rect.bottom;
+        if (!isInsideChart) restoreTrendStats();
+      };
+      ctxNav.canvas.addEventListener('mouseleave', restoreTrendStats);
+      ctxNav.canvas.addEventListener('mouseout', restoreTrendStats);
+      ctxNav.canvas.addEventListener('pointerleave', restoreTrendStats);
+      document.addEventListener('mousemove', restoreTrendStatsWhenOutside);
+      ctxNav.canvas.dataset.trendStatsLeaveBound = 'true';
     }
 
     // B. 成员占比图 (Member Donut Chart - 动态成员支持)
