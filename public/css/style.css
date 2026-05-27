@@ -346,6 +346,7 @@ body {
 
 .system-time {
   font-family: 'Outfit', sans-serif;
+  font-variant-numeric: tabular-nums; /* Monospaced numbers to prevent digit width jitter */
   font-size: 0.85rem;
   color: var(--color-text-muted);
   background: rgba(255, 255, 255, 0.03);
@@ -353,6 +354,9 @@ body {
   border-radius: 8px;
   border: 1px solid var(--color-panel-border);
   white-space: nowrap;
+  min-width: 156px; /* Lock container width */
+  text-align: center;
+  display: inline-block;
 }
 
 /* 按钮设计 */
