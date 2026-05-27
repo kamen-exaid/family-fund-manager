@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let navTrendChart = null;
   let memberAllocationChart = null;
   let currentTheme = 'system';
+  let currentFilteredHistory = [];
 
   // --- DOM 元素定义 ---
   const elSystemTime = document.getElementById('system-time');
@@ -764,21 +765,46 @@ document.addEventListener('DOMContentLoaded', () => {
         nav: '#00f2fe',
         assets: '#8b5cf6',
         sp500: '#f59e0b',
-        ndx: '#ec4899'
+        ndx: '#ec4899',
+        deposit: '#10b981',
+        withdraw: '#f43f5e',
+        transfer: '#00f2fe'
       } : {
         nav: '#0284c7',   // 深天蓝 (Sky-600)
         assets: '#7c3aed',  // 皇家紫 (Purple-600)
         sp500: '#b45309',   // 琥珀棕 (Amber-700)
-        ndx: '#be185d'    // 玫瑰红 (Pink-700)
+        ndx: '#be185d',    // 玫瑰红 (Pink-700)
+        deposit: '#047857',
+        withdraw: '#be185d',
+        transfer: '#0284c7'
+      };
+
+      const getPointColorsList = (historyList, defaultColor) => {
+        if (!historyList || historyList.length === 0) {
+          return [defaultColor];
+        }
+        return historyList.map(h => {
+          if (h.type === 'deposit') return colors.deposit;
+          if (h.type === 'withdraw') return colors.withdraw;
+          if (h.type === 'transfer') return colors.transfer;
+          return defaultColor;
+        });
       };
 
       if (navTrendChart.data.datasets[0]) {
         navTrendChart.data.datasets[0].borderColor = colors.assets;
-        navTrendChart.data.datasets[0].pointBackgroundColor = colors.assets;
+        const ptColors = getPointColorsList(currentFilteredHistory, colors.assets);
+        navTrendChart.data.datasets[0].pointBackgroundColor = ptColors;
+        navTrendChart.data.datasets[0].pointBorderColor = ptColors;
+        navTrendChart.data.datasets[0].pointHoverBackgroundColor = ptColors;
+        navTrendChart.data.datasets[0].pointHoverBorderColor = ptColors;
       }
       if (navTrendChart.data.datasets[1]) {
         navTrendChart.data.datasets[1].borderColor = colors.nav;
         navTrendChart.data.datasets[1].pointBackgroundColor = colors.nav;
+        navTrendChart.data.datasets[1].pointBorderColor = 'transparent';
+        navTrendChart.data.datasets[1].pointHoverBackgroundColor = colors.nav;
+        navTrendChart.data.datasets[1].pointHoverBorderColor = 'transparent';
         const ctxNav = document.getElementById('navTrendChart').getContext('2d');
         navTrendChart.data.datasets[1].backgroundColor = isDarkTheme
           ? createChartGradient(ctxNav, 'rgba(0, 242, 254, 0.15)', 'rgba(0, 242, 254, 0.0)')
@@ -787,10 +813,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (navTrendChart.data.datasets[2]) {
         navTrendChart.data.datasets[2].borderColor = colors.sp500;
         navTrendChart.data.datasets[2].pointBackgroundColor = colors.sp500;
+        navTrendChart.data.datasets[2].pointBorderColor = colors.sp500;
+        navTrendChart.data.datasets[2].pointHoverBackgroundColor = colors.sp500;
+        navTrendChart.data.datasets[2].pointHoverBorderColor = colors.sp500;
       }
       if (navTrendChart.data.datasets[3]) {
         navTrendChart.data.datasets[3].borderColor = colors.ndx;
         navTrendChart.data.datasets[3].pointBackgroundColor = colors.ndx;
+        navTrendChart.data.datasets[3].pointBorderColor = colors.ndx;
+        navTrendChart.data.datasets[3].pointHoverBackgroundColor = colors.ndx;
+        navTrendChart.data.datasets[3].pointHoverBorderColor = colors.ndx;
       }
 
       navTrendChart.update();
@@ -1448,6 +1480,8 @@ document.addEventListener('DOMContentLoaded', () => {
       filteredHistory = [navHistory[navHistory.length - 1]];
     }
 
+    currentFilteredHistory = filteredHistory;
+
     // 重新对齐基点：区间开始处的净值及指数均重置为 1.0000 
     const baseItem = filteredHistory[0] || { navPerShare: 1.0000, sp500NAV: 1.0000, ndxNAV: 1.0000 };
     const baseNav = baseItem.navPerShare || 1.0000;
@@ -1491,8 +1525,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 动态显示/隐藏右侧 Y 轴
       navTrendChart.options.scales['y-assets'].display = chkCompAssets.checked;
-
-      navTrendChart.update();
     } else {
       navTrendChart = new Chart(ctxNav, {
         type: 'line',
@@ -1594,6 +1626,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     label += context.parsed.y.toFixed(3);
                   }
                   return label;
+                },
+                afterBody: function (context) {
+                  if (!context || context.length === 0) return [];
+                  const index = context[0].dataIndex;
+                  const h = currentFilteredHistory[index];
+                  if (!h || !h.type || h.type === 'valuation') return [];
+
+                  const lines = [];
+                  lines.push('---------------------');
+                  if (h.type === 'deposit') {
+                    const mName = membersList.find(m => m.id === h.member)?.name || '未知';
+                    lines.push(`入金详情：`);
+                    lines.push(`   出资人: ${mName}`);
+                    lines.push(`   金额: $${formatMoney(h.amount)}`);
+                    if (h.cnhAmount) {
+                      lines.push(`   折合人民币: ¥${formatMoney(h.cnhAmount)}`);
+                    }
+                  } else if (h.type === 'withdraw') {
+                    const mName = membersList.find(m => m.id === h.member)?.name || '未知';
+                    lines.push(`出金详情：`);
+                    lines.push(`   提取人: ${mName}`);
+                    lines.push(`   金额: $${formatMoney(h.amount)}`);
+                  } else if (h.type === 'transfer') {
+                    const fromName = membersList.find(m => m.id === h.fromMember)?.name || '未知';
+                    const toName = membersList.find(m => m.id === h.toMember)?.name || '未知';
+                    lines.push(`转让详情：`);
+                    lines.push(`   从: ${fromName} 至: ${toName}`);
+                    lines.push(`   金额: $${formatMoney(h.amount)}`);
+                    if (h.cnhRate) {
+                      lines.push(`   受让汇率: ${h.cnhRate.toFixed(4)}`);
+                    }
+                  }
+                  if (h.remark) {
+                    lines.push(`   备注: ${h.remark}`);
+                  }
+                  return lines;
                 }
               }
             }
