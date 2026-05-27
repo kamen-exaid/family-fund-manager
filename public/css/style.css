@@ -616,24 +616,40 @@ body {
   display: grid;
   grid-template-columns: 1.8fr 1.2fr;
   gap: 24px;
+  align-items: stretch;
 }
 
 .layout-left {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
+  display: contents;
 }
 
 .layout-right {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  grid-column: 2;
+  order: 3;
+}
+
+.layout-left>section:first-child {
+  grid-column: 1;
+  order: 2;
+  height: 100%;
+}
+
+.layout-left>section:last-child {
+  grid-column: 1 / -1;
+  order: 1;
+}
+
+.layout-left>section:last-child .chart-wrapper {
+  height: 340px;
 }
 
 /* 成员面板卡片 */
 .members-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
   gap: 16px;
 }
 
@@ -791,7 +807,7 @@ body {
 
 .operation-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   background: rgba(0, 0, 0, 0.2);
   padding: 4px;
@@ -1256,6 +1272,13 @@ body.theme-light .modal-content {
 @media (max-width: 1024px) {
   .dashboard-layout {
     grid-template-columns: 1fr;
+  }
+
+  .layout-right,
+  .layout-left>section:first-child,
+  .layout-left>section:last-child {
+    grid-column: 1;
+    height: auto;
   }
 
   .members-grid {
