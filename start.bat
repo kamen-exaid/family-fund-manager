@@ -11,7 +11,7 @@ if not exist node_modules goto INSTALL_DEPS
 echo [System] Starting server and opening browser...
 start /b cmd /c "timeout /t 2 >nul && start http://localhost:3000"
 npm start
-exit
+pause
 
 :INSTALL_DEPS
 echo [System] Installing dependencies, please wait...
