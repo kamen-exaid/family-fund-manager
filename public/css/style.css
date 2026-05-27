@@ -5,6 +5,9 @@
 
 /* --- 默认明亮毛玻璃主题 (Light Mode - Standard) --- */
 :root {
+  --fixed-panel-width: clamp(400px, 25vw, 460px);
+  --fixed-panel-gutter: 20px;
+  --fixed-panel-top: 24px;
   --color-bg: #f4f6fa;
   --color-panel-bg: rgba(255, 255, 255, 0.45);
   --color-panel-border: rgba(0, 0, 0, 0.07);
@@ -274,9 +277,10 @@ body {
 
 /* 核心布局 */
 .app-container {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 24px 20px;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 24px calc(var(--fixed-panel-width) + var(--fixed-panel-gutter) * 2) 24px 20px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -614,7 +618,7 @@ body {
 /* 主区域网格布局 */
 .dashboard-layout {
   display: grid;
-  grid-template-columns: 1.8fr 1.2fr;
+  grid-template-columns: 1fr;
   gap: 24px;
   align-items: stretch;
 }
@@ -627,7 +631,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  grid-column: 2;
+  position: fixed;
+  top: var(--fixed-panel-top);
+  right: var(--fixed-panel-gutter);
+  bottom: var(--fixed-panel-top);
+  width: var(--fixed-panel-width);
+  z-index: 40;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   order: 3;
 }
 
@@ -802,7 +813,12 @@ body {
 .operations-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 0 0 auto;
+  padding: 18px !important;
+}
+
+.operations-panel .panel-header {
+  margin-bottom: 12px !important;
 }
 
 .operation-tabs {
@@ -813,14 +829,14 @@ body {
   padding: 4px;
   border-radius: 10px;
   border: 1px solid var(--color-panel-border);
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .op-tab-btn {
   background: transparent;
   border: none;
   color: var(--color-text-muted);
-  padding: 10px;
+  padding: 8px;
   border-radius: 8px;
   font-size: 0.85rem;
   font-weight: 600;
@@ -838,7 +854,7 @@ body {
 .op-form {
   display: none;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .op-form.active {
@@ -850,6 +866,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.operations-panel .form-group {
+  gap: 6px;
 }
 
 .form-row {
@@ -876,6 +896,17 @@ input[type="date"],
   font-size: 0.875rem;
   transition: all 0.2s ease;
   outline: none;
+}
+
+.operations-panel input[type="text"],
+.operations-panel input[type="number"],
+.operations-panel input[type="date"],
+.operations-panel .select-input {
+  padding: 8px 10px;
+}
+
+.operations-panel .input-wrapper input {
+  font-size: 1rem;
 }
 
 .select-input option {
@@ -946,6 +977,14 @@ input:focus,
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
+}
+
+.operations-panel .selector-btn {
+  padding: 8px;
+}
+
+.operations-panel .btn-block {
+  padding: 10px;
 }
 
 .selector-btn:hover {
@@ -1270,11 +1309,26 @@ body.theme-light .modal-content {
 
 /* 响应式适配 */
 @media (max-width: 1024px) {
+  .app-container {
+    padding: 24px 20px;
+  }
+
   .dashboard-layout {
     grid-template-columns: 1fr;
   }
 
-  .layout-right,
+  .layout-right {
+    position: static;
+    width: auto;
+    overflow: visible;
+  }
+
+  .etf-ath-bar {
+    position: static;
+    width: auto;
+    overflow: visible;
+  }
+
   .layout-left>section:first-child,
   .layout-left>section:last-child {
     grid-column: 1;
@@ -1802,7 +1856,34 @@ body.theme-light .scale-slice-btn.active {
 
 /* --- 美股旗舰 ETF ATH 顶栏与卡片样式 (ETF ATH Bar) --- */
 .etf-ath-bar {
-  padding: 20px 24px !important;
+  position: fixed;
+  top: 500px;
+  right: var(--fixed-panel-gutter);
+  bottom: var(--fixed-panel-top);
+  width: var(--fixed-panel-width);
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px !important;
+}
+
+.etf-ath-bar .panel-header {
+  flex: 0 0 auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px !important;
+}
+
+.etf-ath-bar .panel-title {
+  font-size: 1rem !important;
+  line-height: 1.2;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.etf-ath-bar #btn-config-etfs {
+  flex-shrink: 0;
 }
 
 .etf-ath-title-wrapper {
@@ -1827,20 +1908,26 @@ body.theme-light .scale-slice-btn.active {
 }
 
 .etf-ath-cards {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .etf-ath-card {
   background: var(--color-card-bg);
   border: 1px solid var(--color-card-border);
   box-shadow: var(--color-card-shadow);
-  border-radius: 12px;
-  padding: 12px 16px;
+  border-radius: 10px;
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(7px, 1vh, 10px) 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   backdrop-filter: blur(12px);
@@ -1857,54 +1944,69 @@ body.theme-light .scale-slice-btn.active {
 .etf-info-main {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .etf-ticker {
-  font-size: 1.18rem;
+  font-size: clamp(0.82rem, 1.6vh, 1.05rem);
   font-weight: 800;
   color: var(--color-text-main);
   letter-spacing: -0.5px;
+  line-height: 1.05;
 }
 
 .etf-name {
-  font-size: 0.72rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(0.58rem, 1.1vh, 0.68rem);
   color: var(--color-text-muted);
   font-weight: 500;
 }
 
 .etf-metrics-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
   border-top: 1px dashed var(--color-card-divider);
-  padding-top: 8px;
-  margin-top: 2px;
+  padding-top: 5px;
+  margin-top: 0;
 }
 
 .etf-metric-sub {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
 }
 
 .sub-label {
-  font-size: 0.62rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(0.5rem, 0.95vh, 0.58rem);
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
 .sub-val {
-  font-size: 0.8rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(0.58rem, 1.15vh, 0.72rem);
   font-weight: 700;
   color: var(--color-text-main);
-  text-align: right;
+  text-align: left;
 }
 
 .drawdown-percent {
-  font-size: 0.72rem;
+  font-size: clamp(0.56rem, 1.05vh, 0.68rem);
   padding-left: 2px;
 }
 
