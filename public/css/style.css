@@ -6,7 +6,7 @@
 /* --- 默认明亮毛玻璃主题 (Light Mode - Standard) --- */
 :root {
   --fixed-panel-width: clamp(400px, 25vw, 460px);
-  --fixed-panel-gutter: 20px;
+  --fixed-panel-gutter: 40px;
   --fixed-panel-top: 24px;
   --color-bg: #f4f6fa;
   --color-panel-bg: rgba(255, 255, 255, 0.45);
@@ -277,13 +277,21 @@ body {
 
 /* 核心布局 */
 .app-container {
-  max-width: none;
+  max-width: 1600px;
   width: 100%;
-  margin: 0;
-  padding: 24px calc(var(--fixed-panel-width) + var(--fixed-panel-gutter) * 2) 24px 20px;
+  margin: 0 auto;
+  padding: 24px calc(var(--fixed-panel-width) + var(--fixed-panel-gutter) + 40px) 24px 40px;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  position: relative;
+}
+
+@media (min-width: 1600px) {
+  .layout-right,
+  .etf-ath-bar {
+    right: calc((100vw - 1600px) / 2 + var(--fixed-panel-gutter)) !important;
+  }
 }
 
 /* 头部样式 */
@@ -296,6 +304,8 @@ body {
   border: 1px solid var(--color-panel-border);
   border-radius: 16px;
   backdrop-filter: blur(20px);
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .header-logo {
@@ -330,7 +340,8 @@ body {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .system-time {
@@ -341,6 +352,7 @@ body {
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid var(--color-panel-border);
+  white-space: nowrap;
 }
 
 /* 按钮设计 */
@@ -356,6 +368,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
 .btn-icon {
@@ -469,15 +482,21 @@ body {
 /* 顶部指标卡片 */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .metric-card {
   background: var(--grad-panel);
   border: 1px solid var(--color-panel-border);
   border-radius: 18px;
-  padding: 24px;
+  padding: 22px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1498,6 +1517,7 @@ body.theme-light .theme-selector-group {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
 }
 
 .theme-btn:hover {
@@ -1546,6 +1566,10 @@ body.theme-light .tab-btn.active {
   border: 1px solid var(--color-panel-border);
   gap: 8px;
   transition: all 0.25s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 body.theme-light .cnh-rate-config {
@@ -1561,6 +1585,7 @@ body.theme-light .cnh-rate-config {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .rate-input {
