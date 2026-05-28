@@ -1087,6 +1087,7 @@ input:focus,
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+  table-layout: fixed; /* 锁定表格布局，精准控制比例 */
 }
 
 .ledger-table th {
@@ -1105,6 +1106,35 @@ input:focus,
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
   color: var(--color-text-main);
   white-space: nowrap;
+}
+
+/* 8 列自适应黄金比例分配 (和为100%)，时间独立拆出，备注移至明细次行，极致合理紧凑 */
+.ledger-table th:nth-child(1), .ledger-table td:nth-child(1) { width: 10%; } /* 时间 */
+.ledger-table th:nth-child(2), .ledger-table td:nth-child(2) { width: 22%; white-space: normal; word-break: break-all; } /* 流水明细 */
+.ledger-table th:nth-child(3), .ledger-table td:nth-child(3) { width: 8%; text-align: center; } /* 类型 */
+.ledger-table th:nth-child(4), .ledger-table td:nth-child(4) { width: 20%; } /* 出资/估值金额 */
+.ledger-table th:nth-child(5), .ledger-table td:nth-child(5) { width: 12%; } /* 当时折算单位净值 */
+.ledger-table th:nth-child(6), .ledger-table td:nth-child(6) { width: 13%; } /* 结算后份额 */
+.ledger-table th:nth-child(7), .ledger-table td:nth-child(7) { width: 10%; } /* 结算后总市值 */
+.ledger-table th:nth-child(8), .ledger-table td:nth-child(8) { width: 5%; text-align: center; } /* 操作 */
+
+/* 强制第三列（类型徽章）在 td 和 th 居中对齐 */
+.ledger-table th:nth-child(3) {
+  text-align: center;
+}
+.ledger-table td:nth-child(3) {
+  text-align: center;
+}
+
+/* 强制最后一列（操作按键）在 td 和 th 居中对齐 */
+.ledger-table th:nth-child(8) {
+  text-align: center;
+}
+.ledger-table td:nth-child(8) {
+  text-align: center;
+}
+.ledger-table td:nth-child(8) .action-btns-flex {
+  justify-content: center;
 }
 
 .ledger-table tbody tr {
@@ -2104,4 +2134,43 @@ body.theme-light .scale-slice-btn.active {
   color: var(--color-magenta);
   font-size: 0.8rem;
   text-align: center;
+}
+
+/* ---------------------------------
+ * 隐私模式与闭眼模式 (Privacy Masking)
+ * --------------------------------- */
+
+/* 隐私模式切换按钮在激活状态下的色彩 */
+body.privacy-mode-active #btn-privacy-toggle {
+  background: rgba(0, 242, 254, 0.1);
+  border-color: rgba(0, 242, 254, 0.25);
+  color: var(--color-cyan);
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.1);
+}
+body.privacy-mode-active #btn-privacy-toggle .icon-eye-open {
+  display: none !important;
+}
+body.privacy-mode-active #btn-privacy-toggle .icon-eye-closed {
+  display: block !important;
+}
+
+/* 隐私占位样式（改用简单高能的毛玻璃模糊，防止任何布局错位） */
+.privacy-sensitive {
+  transition: filter 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.privacy-mode-active .privacy-sensitive {
+  filter: blur(8px) !important;
+  user-select: none !important;
+  pointer-events: none !important;
+}
+
+/* 趋势走势图与分析数据模糊处理 */
+body.privacy-mode-active .chart-wrapper,
+body.privacy-mode-active .trend-stats-grid,
+body.privacy-mode-active .chart-controls-dock {
+  filter: blur(12px) !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  transition: filter 0.25s ease-in-out;
 }

@@ -16,10 +16,12 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentFilteredHistory = [];
   let currentTrendStatSeries = [];
   let isTrendStatsHovering = false;
+  let isPrivacyMode = true; // 每次启动自动开启隐私模式
 
   // --- DOM 元素定义 ---
   const elSystemTime = document.getElementById('system-time');
   const themeBtns = document.querySelectorAll('[data-theme-btn]');
+  const btnPrivacyToggle = document.getElementById('btn-privacy-toggle');
 
   // Dashboard Metrics
   const elFundTotalNav = document.getElementById('fund-total-nav');
@@ -155,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- 初始化运行 ---
   initTime();
   initTheme();
+  initPrivacy();
   setDefaultDates();
   bindEvents();
   loadAllData();
@@ -162,7 +165,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // 每 5 分钟自动刷新美股 ETF ATH 数据
   setInterval(loadEtfAthData, 5 * 60 * 1000);
 
-  // --- 时间和日期模块 ---
+  // --- 隐私模式模块 ---
+  function initPrivacy() {
+    if (isPrivacyMode) {
+      document.body.classList.add('privacy-mode-active');
+    }
+  }
+
+  // --- 时间 and 日期模块 ---
   function initTime() {
     const updateTime = () => {
       const now = new Date();
@@ -193,6 +203,20 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`已切换至 ${btn.textContent.trim()} 模式`, 'success');
       });
     });
+
+    // 绑定隐私模式切换按钮的点击事件 (仅图标切换)
+    if (btnPrivacyToggle) {
+      btnPrivacyToggle.addEventListener('click', () => {
+        isPrivacyMode = !isPrivacyMode;
+        if (isPrivacyMode) {
+          document.body.classList.add('privacy-mode-active');
+          showToast('隐私模式已开启，敏感财务数据已模糊隐藏', 'success');
+        } else {
+          document.body.classList.remove('privacy-mode-active');
+          showToast('隐私模式已关闭', 'warning');
+        }
+      });
+    }
 
     // 监听系统主题变化，如果当前是“系统模式”，则自动触发图表配色重绘
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -940,16 +964,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     elFundTotalNav.textContent = `$${formatMoney(s.totalNAV)}`;
-    elFundTotalShares.innerHTML = `<span style="color: var(--color-cyan); font-weight: 600;">CNH 估值: ≈ ¥${formatCnhWan(s.cnhTotalNAV)} (汇率: ${s.cnhRate.toFixed(4)})</span>`;
+    elFundTotalShares.innerHTML = `<span style="color: var(--color-cyan); font-weight: 600;">CNH 估值: ≈ ¥<span class="privacy-sensitive">${formatCnhWan(s.cnhTotalNAV)}</span> (汇率: ${s.cnhRate.toFixed(4)})</span>`;
 
     elFundNavPerShare.textContent = s.navPerShare.toFixed(4);
     // 根据单位净值更新颜色指示器
     if (s.navPerShare > 1.0000) {
-      elFundNavPerShare.className = 'metric-value font-outfit text-green';
+      elFundNavPerShare.className = 'metric-value font-outfit text-green privacy-sensitive';
     } else if (s.navPerShare < 1.0000) {
-      elFundNavPerShare.className = 'metric-value font-outfit text-magenta';
+      elFundNavPerShare.className = 'metric-value font-outfit text-magenta privacy-sensitive';
     } else {
-      elFundNavPerShare.className = 'metric-value font-outfit text-cyan';
+      elFundNavPerShare.className = 'metric-value font-outfit text-cyan privacy-sensitive';
     }
 
     elNavIndicator.innerHTML = `<span class="status-indicator">已与最新市场数据同步</span>`;
@@ -957,14 +981,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 收益总额与本金
     const netPrincipal = s.totalDeposit - s.totalWithdraw;
     const cnhNetPrincipal = s.cnhTotalDeposit - s.cnhTotalWithdraw;
-    elFundPrincipal.innerHTML = `累计本金: $${formatMoney(netPrincipal)}<br><span style="font-size:0.75rem; color:var(--color-green); font-weight:600; line-height:1.4;">CNH 净本金: ≈ ¥${formatCnhWan(cnhNetPrincipal)}</span>`;
+    elFundPrincipal.innerHTML = `累计本金: <span class="privacy-sensitive">$${formatMoney(netPrincipal)}</span><br><span style="font-size:0.75rem; color:var(--color-green); font-weight:600; line-height:1.4;">CNH 净本金: ≈ ¥<span class="privacy-sensitive">${formatCnhWan(cnhNetPrincipal)}</span></span>`;
 
-    elFundTotalProfit.innerHTML = (s.profit >= 0 ? '+' : '') + `$${formatMoney(s.profit)}<span style="font-size:0.75rem; display:block; margin-top:2px; font-weight:600;">CNH 收益: ${s.cnhProfit >= 0 ? '+' : ''}¥${formatCnhWan(s.cnhProfit)}</span>`;
-    elFundTotalProfit.className = 'metric-value font-outfit ' + (s.profit >= 0 ? 'text-green' : 'text-magenta');
+    elFundTotalProfit.innerHTML = (s.profit >= 0 ? '+' : '') + `<span class="privacy-sensitive">$${formatMoney(s.profit)}</span><span style="font-size:0.75rem; display:block; margin-top:2px; font-weight:600;">CNH 收益: ${s.cnhProfit >= 0 ? '+' : ''}¥<span class="privacy-sensitive">${formatCnhWan(s.cnhProfit)}</span></span>`;
+    elFundTotalProfit.className = 'metric-value font-outfit ' + (s.profit >= 0 ? 'text-green privacy-sensitive' : 'text-magenta privacy-sensitive');
 
     // 收益率
-    elFundProfitRate.innerHTML = (s.profitRate >= 0 ? '+' : '') + `${s.profitRate.toFixed(2)}%<span style="font-size:0.75rem; display:block; margin-top:2px; color:var(--color-text-main); font-weight:600;">CNH 收益率: ${s.cnhProfitRate >= 0 ? '+' : ''}${s.cnhProfitRate.toFixed(2)}%</span>`;
-    elFundProfitRate.className = 'metric-value font-outfit ' + (s.profitRate >= 0 ? 'text-green' : 'text-magenta');
+    elFundProfitRate.innerHTML = (s.profitRate >= 0 ? '+' : '') + `<span class="privacy-sensitive">${s.profitRate.toFixed(2)}%</span><span style="font-size:0.75rem; display:block; margin-top:2px; color:var(--color-text-main); font-weight:600;">CNH 收益率: ${s.cnhProfitRate >= 0 ? '+' : ''}<span class="privacy-sensitive">${s.cnhProfitRate.toFixed(2)}%</span></span>`;
+    elFundProfitRate.className = 'metric-value font-outfit ' + (s.profitRate >= 0 ? 'text-green privacy-sensitive' : 'text-magenta privacy-sensitive');
   }
 
   // 2. 动态家庭成员资产网格渲染
@@ -1012,22 +1036,22 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="member-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px;">
               <span class="member-name" title="${m.name}" style="font-weight: 700; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px;">${m.name}</span>
               <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15;">
-                <span class="member-roi ${roiClass}" style="font-size: 0.85rem; font-weight: 700;" title="美元收益率 (USD ROI)">${roiText} <span style="font-size: 0.65rem; font-weight: 500; opacity: 0.7;">USD</span></span>
-                <span class="member-roi ${cnhRoiClass}" style="font-size: 0.75rem; font-weight: 600; margin-top: 1px;" title="人民币真实收益率 (CNH ROI)">${cnhRoiText} <span style="font-size: 0.65rem; font-weight: 500; opacity: 0.7;">CNH</span></span>
+                <span class="member-roi ${roiClass} privacy-sensitive" style="font-size: 0.85rem; font-weight: 700;" title="美元收益率 (USD ROI)">${roiText} <span style="font-size: 0.65rem; font-weight: 500; opacity: 0.7;">USD</span></span>
+                <span class="member-roi ${cnhRoiClass} privacy-sensitive" style="font-size: 0.75rem; font-weight: 600; margin-top: 1px;" title="人民币真实收益率 (CNH ROI)">${cnhRoiText} <span style="font-size: 0.65rem; font-weight: 500; opacity: 0.7;">CNH</span></span>
               </div>
             </div>
             <div class="member-asset font-outfit" style="display: flex; flex-direction: column; line-height: 1.25; margin-bottom: 2px;">
-              <span style="font-size: 1.15rem; font-weight: 700;">$${formatMoney(mState.currentValue)}</span>
-              <span style="font-size: 0.72rem; font-weight: 600; color: var(--color-cyan);">≈ ¥${formatCnhWan(mState.cnhCurrentValue)} <span style="font-size: 0.65rem; font-weight: 500; opacity: 0.85;">CNH</span></span>
+              <span class="privacy-sensitive" style="font-size: 1.15rem; font-weight: 700;">$${formatMoney(mState.currentValue)}</span>
+              <span class="privacy-sensitive" style="font-size: 0.72rem; font-weight: 600; color: var(--color-cyan);">≈ ¥${formatCnhWan(mState.cnhCurrentValue)} <span style="font-size: 0.65rem; font-weight: 500; opacity: 0.85;">CNH</span></span>
             </div>
-            <div class="member-shares" style="font-size: 0.72rem; color: var(--color-text-muted); line-height: 1.2; margin-bottom: 4px;">${mState.shares.toFixed(4)} 份</div>
+            <div class="member-shares privacy-sensitive" style="font-size: 0.72rem; color: var(--color-text-muted); line-height: 1.2; margin-bottom: 4px;">${mState.shares.toFixed(4)} 份</div>
             
             <div class="member-sub-info" style="display: flex; justify-content: space-between; font-size: 0.68rem; padding-top: 4px; border-top: 1px dashed var(--color-card-divider); color: var(--color-text-muted);">
-              <span>入金 $${formatMoney(mState.totalDeposit)}</span>
-              <span>出金 $${formatMoney(mState.totalWithdraw)}</span>
+              <span>入金 <span class="privacy-sensitive">$${formatMoney(mState.totalDeposit)}</span></span>
+              <span>出金 <span class="privacy-sensitive">$${formatMoney(mState.totalWithdraw)}</span></span>
             </div>
             <div class="member-sub-info" style="display: flex; justify-content: space-between; font-size: 0.65rem; padding-top: 2px; border-top: none; margin-top: 0; color: var(--color-text-muted); opacity: 0.85;">
-              <span>CNH入金 ¥${formatMoney(mState.cnhDeposit)}</span>
+              <span>CNH入金 <span class="privacy-sensitive">¥${formatMoney(mState.cnhDeposit)}</span></span>
               <span></span>
             </div>
           </div>
@@ -1196,42 +1220,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const tr = document.createElement('tr');
 
-      // 时间
+      // 1. 时间单独成列
       const tdDate = document.createElement('td');
       tdDate.className = 'font-outfit';
       tdDate.style.fontSize = '0.78rem';
       tdDate.textContent = e.date;
       tr.appendChild(tdDate);
 
-      // 流水明细项（备注）
-      const tdRemark = document.createElement('td');
-      let memberName = '系统';
+      // 2. 流水明细列 (第一行交易人/主体，第二行备注并带隐私隐藏)
+      const tdDetails = document.createElement('td');
+      let detailsHtml = '';
       if (e.type === 'transfer') {
         const fromName = membersList.find(m => m.id === e.fromMember)?.name || '未知成员';
         const toName = membersList.find(m => m.id === e.toMember)?.name || '未知成员';
-        memberName = `${fromName} ⇄ ${toName}`;
-        tdRemark.innerHTML = `
-          <span style="font-weight:600; color:var(--color-primary);">${fromName}</span>
-          <span style="color:var(--color-text-muted); font-weight:700; margin: 0 4px;">⇄</span>
-          <span style="font-weight:600; color:var(--color-green);">${toName}</span>
-          <span style="color:var(--color-text-muted); font-size:0.75rem;">(${e.remark || '内部转让'})</span>
+        detailsHtml = `
+          <div style="font-weight:600; color:var(--color-text-main); line-height: 1.25;">
+            <span style="color:var(--color-primary);">${fromName}</span>
+            <span style="color:var(--color-text-muted); font-weight:700; margin: 0 2px;">⇄</span>
+            <span style="color:var(--color-green);">${toName}</span>
+          </div>
+          <div class="privacy-sensitive" style="color:var(--color-text-muted); font-size:0.72rem; margin-top: 2px; line-height: 1.2;">
+            (${e.remark || '内部转让'})
+          </div>
         `;
       } else {
+        let memberName = '系统';
         if (e.member) {
           memberName = membersList.find(m => m.id === e.member)?.name || '未知成员';
         }
-        tdRemark.innerHTML = `<span style="font-weight:600; color:var(--color-text-main);">${memberName}</span> <span style="color:var(--color-text-muted); font-size:0.75rem;">(${e.remark || '无备注'})</span>`;
+        detailsHtml = `
+          <div style="font-weight:600; color:var(--color-text-main); line-height: 1.25;">${memberName}</div>
+          <div class="privacy-sensitive" style="color:var(--color-text-muted); font-size:0.72rem; margin-top: 2px; line-height: 1.2;">
+            (${e.remark || '无备注'})
+          </div>
+        `;
       }
-      tr.appendChild(tdRemark);
+      tdDetails.innerHTML = detailsHtml;
+      tr.appendChild(tdDetails);
 
-      // 类型徽章
+      // 类型徽章 (去掉英文说明)
       const tdType = document.createElement('td');
       let badgeClass = '';
       let badgeText = '';
-      if (e.type === 'deposit') { badgeClass = 'badge-deposit'; badgeText = '入金 (Deposit)'; }
-      else if (e.type === 'withdraw') { badgeClass = 'badge-withdraw'; badgeText = '出金 (Withdraw)'; }
-      else if (e.type === 'transfer') { badgeClass = 'badge-transfer'; badgeText = '转让 (Transfer)'; }
-      else { badgeClass = 'badge-valuation'; badgeText = '估值 (Valuation)'; }
+      if (e.type === 'deposit') { badgeClass = 'badge-deposit'; badgeText = '入金'; }
+      else if (e.type === 'withdraw') { badgeClass = 'badge-withdraw'; badgeText = '出金'; }
+      else if (e.type === 'transfer') { badgeClass = 'badge-transfer'; badgeText = '转让'; }
+      else { badgeClass = 'badge-valuation'; badgeText = '估值'; }
       tdType.innerHTML = `<span class="tx-badge ${badgeClass}">${badgeText}</span>`;
       tr.appendChild(tdType);
 
@@ -1242,15 +1276,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const cnhText = `+¥${formatMoney(e.cnhAmount || e._cnhAmountComputed)}`;
         tdAmount.innerHTML = `
           <div class="amount-double-line">
-            <span class="amount-usd" style="color:var(--color-green);">${usdText}</span>
-            <span class="amount-cnh">${cnhText}</span>
+            <span class="amount-usd privacy-sensitive" style="color:var(--color-green);">${usdText}</span>
+            <span class="amount-cnh privacy-sensitive">${cnhText}</span>
           </div>
         `;
       } else if (e.type === 'withdraw') {
         const usdText = `-$${formatMoney(e.amount)}`;
         tdAmount.innerHTML = `
           <div class="amount-double-line">
-            <span class="amount-usd" style="color:var(--color-magenta);">${usdText}</span>
+            <span class="amount-usd privacy-sensitive" style="color:var(--color-magenta);">${usdText}</span>
           </div>
         `;
       } else if (e.type === 'transfer') {
@@ -1258,48 +1292,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const cnhText = `≈ ¥${formatMoney(e.cnhAmount || e._cnhAmountComputed)} (汇率: ${(e.cnhRate || appState.summary.cnhRate || 7.2).toFixed(4)})`;
         tdAmount.innerHTML = `
           <div class="amount-double-line">
-            <span class="amount-usd" style="color:var(--color-cyan); font-weight:700;">${usdText}</span>
-            <span class="amount-cnh" style="color:var(--color-text-muted); font-size:0.68rem;">${cnhText}</span>
+            <span class="amount-usd privacy-sensitive" style="color:var(--color-cyan); font-weight:700;">${usdText}</span>
+            <span class="amount-cnh privacy-sensitive" style="color:var(--color-text-muted); font-size:0.68rem;">${cnhText}</span>
           </div>
         `;
       } else {
         const usdText = `$${formatMoney(e.totalNAV)}`;
         tdAmount.innerHTML = `
           <div class="amount-double-line">
-            <span class="amount-usd" style="color:var(--color-purple);">${usdText}</span>
+            <span class="amount-usd privacy-sensitive" style="color:var(--color-purple);">${usdText}</span>
           </div>
         `;
       }
       tr.appendChild(tdAmount);
 
-      // 产生份额变动
-      const tdSharesChange = document.createElement('td');
-      tdSharesChange.className = 'font-outfit';
-      if (e.type === 'deposit') {
-        tdSharesChange.textContent = `+${(e._sharesGained || 0).toFixed(4)} 份`;
-        tdSharesChange.style.color = 'var(--color-green)';
-      } else if (e.type === 'withdraw') {
-        tdSharesChange.textContent = `-${(e._sharesDeducted || 0).toFixed(4)} 份`;
-        tdSharesChange.style.color = 'var(--color-magenta)';
-      } else if (e.type === 'transfer') {
-        tdSharesChange.textContent = `⇄ ${(e._sharesTransferred || 0).toFixed(4)} 份`;
-        tdSharesChange.style.color = 'var(--color-cyan)';
-      } else {
-        tdSharesChange.textContent = '--';
-        tdSharesChange.style.color = 'var(--color-text-muted)';
-      }
-      tr.appendChild(tdSharesChange);
-
       // 当时折算单位净值
       const tdNavAtTx = document.createElement('td');
       tdNavAtTx.className = 'font-outfit text-cyan';
-      tdNavAtTx.textContent = (e._navAtTx || 1.0000).toFixed(4);
+      tdNavAtTx.innerHTML = `<span class="privacy-sensitive text-cyan">${(e._navAtTx || 1.0000).toFixed(4)}</span>`;
       tr.appendChild(tdNavAtTx);
 
       // 结算后份额
       const tdSharesAfter = document.createElement('td');
       tdSharesAfter.className = 'font-outfit';
-      tdSharesAfter.textContent = `${(e._totalSharesAfter || 0).toFixed(4)} 份`;
+      tdSharesAfter.innerHTML = `<span class="privacy-sensitive">${(e._totalSharesAfter || 0).toFixed(4)} 份</span>`;
       tr.appendChild(tdSharesAfter);
 
       // 结算后总市值 (双显示)
@@ -1308,14 +1324,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalNAVAfterCnh = (e._totalNAVAfter || 0) * (appState.summary.cnhRate || 7.2);
         tdValAfter.innerHTML = `
           <div class="amount-double-line">
-            <span class="amount-usd">$${formatMoney(e._totalNAVAfter || 0)}</span>
-            <span class="amount-cnh" style="font-size:0.68rem;">≈ ¥${formatCnhWan(totalNAVAfterCnh)}</span>
+            <span class="amount-usd privacy-sensitive">$${formatMoney(e._totalNAVAfter || 0)}</span>
+            <span class="amount-cnh privacy-sensitive" style="font-size:0.68rem;">≈ ¥${formatCnhWan(totalNAVAfterCnh)}</span>
           </div>
         `;
       } else {
         tdValAfter.innerHTML = `
           <div class="amount-double-line">
-            <span class="amount-usd">$${formatMoney(e._totalNAVAfter || 0)}</span>
+            <span class="amount-usd privacy-sensitive">$${formatMoney(e._totalNAVAfter || 0)}</span>
           </div>
         `;
       }
@@ -1362,7 +1378,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const trEmpty = document.createElement('tr');
       trEmpty.className = 'empty-row';
       trEmpty.innerHTML = `
-        <td colspan="9" style="text-align: center; color: var(--color-text-muted); padding: 40px 0;">
+        <td colspan="7" style="text-align: center; color: var(--color-text-muted); padding: 40px 0;">
           未检索到符合过滤条件的交易记录
         </td>
       `;

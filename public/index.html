@@ -48,6 +48,16 @@
           <button class="theme-btn" id="theme-btn-light" data-theme-btn="light">☀️ 浅色</button>
           <button class="theme-btn" id="theme-btn-dark" data-theme-btn="dark">🌙 深色</button>
         </div>
+        <button id="btn-privacy-toggle" class="btn btn-secondary flex-center" title="一键切换隐私/闭眼模式" style="padding: 0; width: 38px; height: 38px;">
+          <svg class="btn-icon icon-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <svg class="btn-icon icon-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none; width: 18px; height: 18px;">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+        </button>
         <button id="btn-member-panel" class="btn btn-secondary flex-center">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -113,7 +123,7 @@
           <div class="card-glow glow-cyan"></div>
           <div class="metric-info">
             <span class="metric-label">基金总资产 (Total Assets)</span>
-            <div class="metric-value font-outfit" id="fund-total-nav">$0.00</div>
+            <div class="metric-value font-outfit privacy-sensitive" id="fund-total-nav">$0.00</div>
             <div class="metric-sub" id="fund-total-shares">总份额: 0.0000 份</div>
           </div>
           <div class="metric-icon bg-cyan-soft">
@@ -129,7 +139,7 @@
           <div class="card-glow glow-blue"></div>
           <div class="metric-info">
             <span class="metric-label">基金单位净值 (NAV / Share)</span>
-            <div class="metric-value font-outfit text-cyan" id="fund-nav-per-share">1.0000</div>
+            <div class="metric-value font-outfit text-cyan privacy-sensitive" id="fund-nav-per-share">1.0000</div>
             <div class="metric-sub" id="nav-indicator">已与市场最新同步</div>
           </div>
           <div class="metric-icon bg-blue-soft">
@@ -145,7 +155,7 @@
           <div class="card-glow glow-green"></div>
           <div class="metric-info">
             <span class="metric-label">累计总收益 (Net Gains)</span>
-            <div class="metric-value font-outfit text-green" id="fund-total-profit">$0.00</div>
+            <div class="metric-value font-outfit text-green privacy-sensitive" id="fund-total-profit">$0.00</div>
             <span class="metric-sub" id="fund-principal">累计净投入: $0.00</span>
           </div>
           <div class="metric-icon bg-green-soft">
@@ -161,7 +171,7 @@
           <div class="card-glow glow-magenta"></div>
           <div class="metric-info">
             <span class="metric-label">累计总收益率 (Total ROI)</span>
-            <div class="metric-value font-outfit text-magenta" id="fund-profit-rate">0.00%</div>
+            <div class="metric-value font-outfit text-magenta privacy-sensitive" id="fund-profit-rate">0.00%</div>
             <span class="metric-sub">家庭合作投资收益率</span>
           </div>
           <div class="metric-icon bg-magenta-soft">
@@ -504,10 +514,9 @@
           <thead>
             <tr>
               <th>时间</th>
-              <th>流水明细项</th>
+              <th>流水明细</th>
               <th>类型</th>
-              <th>出资/估值金额 (USD / CNH)</th>
-              <th>产生份额变动</th>
+              <th>出资/估值金额<br>(USD / CNH)</th>
               <th>当时折算单位净值</th>
               <th>结算后份额</th>
               <th>结算后总市值</th>
@@ -517,7 +526,7 @@
           <tbody id="ledger-tbody">
             <!-- Dynamic data will be generated here -->
             <tr class="empty-row">
-              <td colspan="9" style="text-align: center; color: var(--color-text-muted); padding: 40px 0;">
+              <td colspan="8" style="text-align: center; color: var(--color-text-muted); padding: 40px 0;">
                 暂无账目流水，请在右侧录入第一笔入金以开始管理
               </td>
             </tr>
