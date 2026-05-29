@@ -1230,9 +1230,11 @@ document.addEventListener('DOMContentLoaded', () => {
       // 2. 流水明细列 (第一行交易人/主体，第二行备注并带隐私隐藏)
       const tdDetails = document.createElement('td');
       let detailsHtml = '';
+      let memberName = '系统';
       if (e.type === 'transfer') {
         const fromName = membersList.find(m => m.id === e.fromMember)?.name || '未知成员';
         const toName = membersList.find(m => m.id === e.toMember)?.name || '未知成员';
+        memberName = `${fromName} ⇄ ${toName}`;
         detailsHtml = `
           <div style="font-weight:600; color:var(--color-text-main); line-height: 1.25;">
             <span style="color:var(--color-primary);">${fromName}</span>
@@ -1244,7 +1246,6 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         `;
       } else {
-        let memberName = '系统';
         if (e.member) {
           memberName = membersList.find(m => m.id === e.member)?.name || '未知成员';
         }

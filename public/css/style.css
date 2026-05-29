@@ -288,6 +288,7 @@ body {
 }
 
 @media (min-width: 1600px) {
+
   .layout-right,
   .etf-ath-bar {
     right: calc((100vw - 1600px) / 2 + var(--fixed-panel-gutter)) !important;
@@ -346,7 +347,8 @@ body {
 
 .system-time {
   font-family: 'Outfit', sans-serif;
-  font-variant-numeric: tabular-nums; /* Monospaced numbers to prevent digit width jitter */
+  font-variant-numeric: tabular-nums;
+  /* Monospaced numbers to prevent digit width jitter */
   font-size: 0.85rem;
   color: var(--color-text-muted);
   background: rgba(255, 255, 255, 0.03);
@@ -354,7 +356,8 @@ body {
   border-radius: 8px;
   border: 1px solid var(--color-panel-border);
   white-space: nowrap;
-  min-width: 156px; /* Lock container width */
+  min-width: 156px;
+  /* Lock container width */
   text-align: center;
   display: inline-block;
 }
@@ -1087,7 +1090,8 @@ input:focus,
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  table-layout: fixed; /* 锁定表格布局，精准控制比例 */
+  table-layout: fixed;
+  /* 锁定表格布局，精准控制比例 */
 }
 
 .ledger-table th {
@@ -1109,19 +1113,64 @@ input:focus,
 }
 
 /* 8 列自适应黄金比例分配 (和为100%)，时间独立拆出，备注移至明细次行，极致合理紧凑 */
-.ledger-table th:nth-child(1), .ledger-table td:nth-child(1) { width: 10%; } /* 时间 */
-.ledger-table th:nth-child(2), .ledger-table td:nth-child(2) { width: 22%; white-space: normal; word-break: break-all; } /* 流水明细 */
-.ledger-table th:nth-child(3), .ledger-table td:nth-child(3) { width: 8%; text-align: center; } /* 类型 */
-.ledger-table th:nth-child(4), .ledger-table td:nth-child(4) { width: 20%; } /* 出资/估值金额 */
-.ledger-table th:nth-child(5), .ledger-table td:nth-child(5) { width: 12%; } /* 当时折算单位净值 */
-.ledger-table th:nth-child(6), .ledger-table td:nth-child(6) { width: 13%; } /* 结算后份额 */
-.ledger-table th:nth-child(7), .ledger-table td:nth-child(7) { width: 10%; } /* 结算后总市值 */
-.ledger-table th:nth-child(8), .ledger-table td:nth-child(8) { width: 5%; text-align: center; } /* 操作 */
+.ledger-table th:nth-child(1),
+.ledger-table td:nth-child(1) {
+  width: 10%;
+}
+
+/* 时间 */
+.ledger-table th:nth-child(2),
+.ledger-table td:nth-child(2) {
+  width: 22%;
+  white-space: normal;
+  word-break: break-all;
+}
+
+/* 流水明细 */
+.ledger-table th:nth-child(3),
+.ledger-table td:nth-child(3) {
+  width: 8%;
+  text-align: center;
+}
+
+/* 类型 */
+.ledger-table th:nth-child(4),
+.ledger-table td:nth-child(4) {
+  width: 20%;
+}
+
+/* 出资/估值金额 */
+.ledger-table th:nth-child(5),
+.ledger-table td:nth-child(5) {
+  width: 12%;
+}
+
+/* 当时折算单位净值 */
+.ledger-table th:nth-child(6),
+.ledger-table td:nth-child(6) {
+  width: 13%;
+}
+
+/* 结算后份额 */
+.ledger-table th:nth-child(7),
+.ledger-table td:nth-child(7) {
+  width: 10%;
+}
+
+/* 结算后总市值 */
+.ledger-table th:nth-child(8),
+.ledger-table td:nth-child(8) {
+  width: 5%;
+  text-align: center;
+}
+
+/* 操作 */
 
 /* 强制第三列（类型徽章）在 td 和 th 居中对齐 */
 .ledger-table th:nth-child(3) {
   text-align: center;
 }
+
 .ledger-table td:nth-child(3) {
   text-align: center;
 }
@@ -1130,9 +1179,11 @@ input:focus,
 .ledger-table th:nth-child(8) {
   text-align: center;
 }
+
 .ledger-table td:nth-child(8) {
   text-align: center;
 }
+
 .ledger-table td:nth-child(8) .action-btns-flex {
   justify-content: center;
 }
@@ -1208,8 +1259,10 @@ input:focus,
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(8, 10, 18, 0.75); /* Richer, slightly darker overlay to make the modal pop */
-  backdrop-filter: blur(12px); /* Premium stronger backdrop blur */
+  background: rgba(8, 10, 18, 0.75);
+  /* Richer, slightly darker overlay to make the modal pop */
+  backdrop-filter: blur(12px);
+  /* Premium stronger backdrop blur */
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -2122,7 +2175,9 @@ body.theme-light .scale-slice-btn.active {
 }
 
 @keyframes loadingSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .etf-ath-card.error-bar {
@@ -2147,9 +2202,11 @@ body.privacy-mode-active #btn-privacy-toggle {
   color: var(--color-cyan);
   box-shadow: 0 0 10px rgba(0, 242, 254, 0.1);
 }
+
 body.privacy-mode-active #btn-privacy-toggle .icon-eye-open {
   display: none !important;
 }
+
 body.privacy-mode-active #btn-privacy-toggle .icon-eye-closed {
   display: block !important;
 }
