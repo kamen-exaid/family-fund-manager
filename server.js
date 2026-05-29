@@ -191,7 +191,7 @@ function parseYahooPricesResponse(json) {
  */
 function runCurlSyncFallback(url, ticker, resolve) {
   console.log(`[Yahoo Sync] https.get failed for ${ticker}. Falling back to curl...`);
-  const curlCmd = `curl -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "${url}"`;
+  const curlCmd = `curl.exe -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "${url}"`;
   exec(curlCmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
     if (error) {
       console.error(`[Yahoo Sync] Curl fallback failed for ${ticker}:`, error.message);
@@ -662,7 +662,7 @@ async function fetchEtfAthData() {
       if (!maxData || !maxData.chart?.result?.[0]) {
         console.log(`[ETF ATH] https.get failed for ${ticker}. Trying curl fallback...`);
         maxData = await new Promise((resolve) => {
-          const curlCmd = `curl -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "${maxUrl}"`;
+          const curlCmd = `curl.exe -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "${maxUrl}"`;
           exec(curlCmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
             if (error) {
               console.error(`[ETF ATH] Curl fallback failed for ${ticker}:`, error.message);
