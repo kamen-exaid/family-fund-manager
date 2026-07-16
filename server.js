@@ -78,7 +78,7 @@ function writeConfig(configData) {
 const {
   fetchYahooPrices,
   findClosestPrice,
-  fetchEtfAthData,
+  fetchTickerAthData,
   fetchCnhRateFromApi
 } = require('./lib/yahoo');
 
@@ -160,7 +160,7 @@ registerApiRoutes(app, {
   isValidDate,
   normalizeRemark,
   normalizeMemberName,
-  fetchEtfAthData,
+  fetchTickerAthData,
   randomUUID
 });
 // 从第三方公开汇率接口获取最新 USD/CNH 汇率

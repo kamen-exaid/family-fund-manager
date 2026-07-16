@@ -121,13 +121,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const newMemberName = document.getElementById('new-member-name');
   const elMembersEditList = document.getElementById('members-edit-list');
 
-  // ETF Config Modal
-  const btnConfigEtfs = document.getElementById('btn-config-etfs');
-  const etfConfigModal = document.getElementById('etf-config-modal');
-  const btnCloseEtfConfigModal = document.getElementById('btn-close-etf-config-modal');
-  const etfConfigList = document.getElementById('etf-config-list');
-  const btnAddEtfRow = document.getElementById('btn-add-etf-row');
-  const btnSaveEtfConfig = document.getElementById('btn-save-etf-config');
+  // Ticker Config Modal
+  const btnConfigTickers = document.getElementById('btn-config-tickers');
+  const tickerConfigModal = document.getElementById('ticker-config-modal');
+  const btnCloseTickerConfigModal = document.getElementById('btn-close-ticker-config-modal');
+  const tickerConfigList = document.getElementById('ticker-config-list');
+  const btnAddTickerRow = document.getElementById('btn-add-ticker-row');
+  const btnSaveTickerConfig = document.getElementById('btn-save-ticker-config');
 
   // 辅助函数判断是否是暗黑模式（兼容 system）
   function checkIfDark() {
@@ -141,8 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setDefaultDates();
   bindEvents();
   loadAllData();
-  loadEtfAthData();
-  setInterval(loadEtfAthData, 5 * 60 * 1000);
+  loadTickerAthData();
+  setInterval(loadTickerAthData, 5 * 60 * 1000);
 
   // --- 隐私模式模块 ---
   function initPrivacy() {
@@ -557,31 +557,31 @@ document.addEventListener('DOMContentLoaded', () => {
       reader.readAsText(file);
     });
 
-    // 打开 ETF 配置弹窗
-    if (btnConfigEtfs) {
-      btnConfigEtfs.addEventListener('click', () => {
-        renderEtfConfigList();
-        etfConfigModal.classList.add('active');
+    // 打开标的配置弹窗
+    if (btnConfigTickers) {
+      btnConfigTickers.addEventListener('click', () => {
+        renderTickerConfigList();
+        tickerConfigModal.classList.add('active');
       });
     }
 
-    // 关闭 ETF 配置弹窗
-    if (btnCloseEtfConfigModal) {
-      btnCloseEtfConfigModal.addEventListener('click', () => etfConfigModal.classList.remove('active'));
+    // 关闭标的配置弹窗
+    if (btnCloseTickerConfigModal) {
+      btnCloseTickerConfigModal.addEventListener('click', () => tickerConfigModal.classList.remove('active'));
     }
-    if (etfConfigModal) {
-      etfConfigModal.addEventListener('click', (e) => {
-        if (e.target === etfConfigModal) etfConfigModal.classList.remove('active');
+    if (tickerConfigModal) {
+      tickerConfigModal.addEventListener('click', (e) => {
+        if (e.target === tickerConfigModal) tickerConfigModal.classList.remove('active');
       });
     }
 
-    // 渲染 ETF 配置列表
-    async function renderEtfConfigList() {
+    // 渲染标的配置列表
+    async function renderTickerConfigList() {
       try {
-        const etfs = await Api.getEtfs();
-        etfConfigList.innerHTML = '';
-        etfs.forEach(etf => {
-          addEtfRow(etf.ticker, etf.name);
+        const tickers = await Api.getTickers();
+        tickerConfigList.innerHTML = '';
+        tickers.forEach(ticker => {
+          addTickerRow(ticker.ticker, ticker.name);
         });
         checkAddBtnState();
       } catch (err) {
@@ -590,25 +590,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 动态添加一个配置行
-    function addEtfRow(ticker = '', name = '') {
-      const rowCount = etfConfigList.querySelectorAll('.etf-config-row').length;
+    function addTickerRow(ticker = '', name = '') {
+      const rowCount = tickerConfigList.querySelectorAll('.ticker-config-row').length;
       if (rowCount >= 8) {
         showToast('最多只能追踪 8 个标的', 'warning');
         return;
       }
 
       const row = document.createElement('div');
-      row.className = 'etf-config-row member-edit-item';
+      row.className = 'ticker-config-row member-edit-item';
       row.style.display = 'flex';
       row.style.gap = '10px';
       row.style.width = '100%';
       row.style.alignItems = 'center';
       row.innerHTML = `
         <div style="flex: 1; display: flex; gap: 8px; min-width: 0;">
-          <input type="text" class="etf-ticker-input" value="${escapeHtml(ticker)}" placeholder="代码 (如: AAPL)" style="width: 120px; font-weight: 700; text-transform: uppercase;" required>
-          <input type="text" class="etf-name-input" value="${escapeHtml(name)}" placeholder="中文简称 (如: 苹果)" style="flex: 1; min-width: 0;" required>
+          <input type="text" class="ticker-symbol-input" value="${escapeHtml(ticker)}" placeholder="代码 (如: AAPL)" style="width: 120px; font-weight: 700; text-transform: uppercase;" required>
+          <input type="text" class="ticker-name-input" value="${escapeHtml(name)}" placeholder="中文简称 (如: 苹果)" style="flex: 1; min-width: 0;" required>
         </div>
-        <button class="btn-delete btn-remove-etf-row" title="移除此标的" style="flex-shrink: 0; padding: 6px;">
+        <button class="btn-delete btn-remove-ticker-row" title="移除此标的" style="flex-shrink: 0; padding: 6px;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -617,44 +617,44 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       // 绑定删除按钮点击事件
-      row.querySelector('.btn-remove-etf-row').addEventListener('click', () => {
+      row.querySelector('.btn-remove-ticker-row').addEventListener('click', () => {
         row.remove();
         checkAddBtnState();
       });
 
-      etfConfigList.appendChild(row);
+      tickerConfigList.appendChild(row);
       checkAddBtnState();
     }
 
     // 检查“添加”按钮的启用状态
     function checkAddBtnState() {
-      const rowCount = etfConfigList.querySelectorAll('.etf-config-row').length;
+      const rowCount = tickerConfigList.querySelectorAll('.ticker-config-row').length;
       if (rowCount >= 8) {
-        btnAddEtfRow.setAttribute('disabled', 'true');
-        btnAddEtfRow.style.opacity = '0.5';
-        btnAddEtfRow.style.cursor = 'not-allowed';
+        btnAddTickerRow.setAttribute('disabled', 'true');
+        btnAddTickerRow.style.opacity = '0.5';
+        btnAddTickerRow.style.cursor = 'not-allowed';
       } else {
-        btnAddEtfRow.removeAttribute('disabled');
-        btnAddEtfRow.style.opacity = '1';
-        btnAddEtfRow.style.cursor = 'pointer';
+        btnAddTickerRow.removeAttribute('disabled');
+        btnAddTickerRow.style.opacity = '1';
+        btnAddTickerRow.style.cursor = 'pointer';
       }
     }
 
     // 添加配置行事件
-    if (btnAddEtfRow) {
-      btnAddEtfRow.addEventListener('click', () => addEtfRow());
+    if (btnAddTickerRow) {
+      btnAddTickerRow.addEventListener('click', () => addTickerRow());
     }
 
     // 保存配置事件
-    if (btnSaveEtfConfig) {
-      btnSaveEtfConfig.addEventListener('click', async () => {
-        const rows = etfConfigList.querySelectorAll('.etf-config-row');
-        const etfs = [];
+    if (btnSaveTickerConfig) {
+      btnSaveTickerConfig.addEventListener('click', async () => {
+        const rows = tickerConfigList.querySelectorAll('.ticker-config-row');
+        const tickers = [];
         let valid = true;
 
         rows.forEach(row => {
-          const tickerInput = row.querySelector('.etf-ticker-input');
-          const nameInput = row.querySelector('.etf-name-input');
+          const tickerInput = row.querySelector('.ticker-symbol-input');
+          const nameInput = row.querySelector('.ticker-name-input');
           const ticker = tickerInput.value.trim();
           const name = nameInput.value.trim();
 
@@ -668,7 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
             valid = false;
             return;
           }
-          etfs.push({ ticker, name });
+          tickers.push({ ticker, name });
         });
 
         if (!valid) {
@@ -676,25 +676,25 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        if (etfs.length === 0) {
+        if (tickers.length === 0) {
           showToast('最少需要追踪 1 个标的', 'error');
           return;
         }
 
-        btnSaveEtfConfig.setAttribute('disabled', 'true');
-        btnSaveEtfConfig.textContent = '正在保存并拉取数据...';
+        btnSaveTickerConfig.setAttribute('disabled', 'true');
+        btnSaveTickerConfig.textContent = '正在保存并拉取数据...';
 
         try {
-          await Api.saveEtfs(etfs);
+          await Api.saveTickers(tickers);
           showToast('标的配置保存成功！正在为您自动刷新页面。', 'success');
-          etfConfigModal.classList.remove('active');
+          tickerConfigModal.classList.remove('active');
           // 重新抓取并更新顶部卡片
-          await loadEtfAthData();
+          await loadTickerAthData();
         } catch (err) {
           showToast(err.message, 'error');
         } finally {
-          btnSaveEtfConfig.removeAttribute('disabled');
-          btnSaveEtfConfig.innerHTML = `
+          btnSaveTickerConfig.removeAttribute('disabled');
+          btnSaveTickerConfig.innerHTML = `
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px; height: 18px;">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
               <polyline points="17 21 17 13 7 13 7 21" />
@@ -1277,10 +1277,10 @@ document.addEventListener('DOMContentLoaded', () => {
     updateChartsColors(currentTheme);
   }
 
-  // 加载并渲染美股 ETF ATH 历史及收盘价格回调数据
-  async function loadEtfAthData() {
-    const container = document.getElementById('etf-ath-cards-container');
-    return window.FundEtfPanel.load({
+  // 加载并渲染美股标的 ATH 历史及收盘价格回调数据
+  async function loadTickerAthData() {
+    const container = document.getElementById('ticker-ath-cards-container');
+    return window.FundTickerPanel.load({
       container,
       api: Api,
       ui: { escapeHtml, formatMonthDay }

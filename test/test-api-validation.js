@@ -25,7 +25,7 @@ function makeApi() {
     readDb: () => clone(db),
     writeDb: value => { writes++; Object.assign(db, clone(value)); },
     getState: () => calculateStateFromDb(clone(db)),
-    readConfig: () => ({ etfs: [] }),
+    readConfig: () => ({ tickers: [] }),
     writeConfig: () => {},
     ensureIndexCache: async () => {},
     calculateStateFromDb,
@@ -33,7 +33,7 @@ function makeApi() {
     isValidDate: date => /^\d{4}-\d{2}-\d{2}$/.test(date),
     normalizeRemark: value => value || '',
     normalizeMemberName: value => value,
-    fetchEtfAthData: async () => ({}),
+    fetchTickerAthData: async () => ({}),
     randomUUID
   });
   return { routes, getWrites: () => writes };
@@ -83,4 +83,3 @@ async function request(handler, body) {
   console.error(error);
   process.exitCode = 1;
 });
-

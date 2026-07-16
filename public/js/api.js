@@ -147,28 +147,28 @@ const Api = {
     return json;
   },
 
-  // 获取 ETF 历史高点与上个交易日收盘价/回调幅度
-  async getEtfAth() {
-    const res = await fetch('/api/etf-ath');
+  // 获取标的历史高点与上个交易日收盘价/回调幅度
+  async getTickerAth() {
+    const res = await fetch('/api/ticker-ath');
     const json = await res.json();
-    if (!json.success) throw new Error(json.message || '获取美股 ETF ATH 失败');
+    if (!json.success) throw new Error(json.message || '获取美股标的 ATH 失败');
     return json.data;
   },
 
   // 获取当前配置的标的列表
-  async getEtfs() {
-    const res = await fetch('/api/settings/etfs');
+  async getTickers() {
+    const res = await fetch('/api/settings/tickers');
     const json = await res.json();
     if (!json.success) throw new Error(json.message || '获取标的配置失败');
     return json.data;
   },
 
   // 保存最新配置的标的列表 (最大8个)
-  async saveEtfs(etfs) {
-    const res = await fetch('/api/settings/etfs', {
+  async saveTickers(tickers) {
+    const res = await fetch('/api/settings/tickers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ etfs })
+      body: JSON.stringify({ tickers })
     });
     const json = await res.json();
     if (!json.success) throw new Error(json.message || '保存标的配置失败');

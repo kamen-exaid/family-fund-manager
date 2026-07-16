@@ -81,17 +81,17 @@
       </div>
     </header>
 
-    <!-- ETF ATH Performance Widget -->
-    <section class="etf-ath-bar glass-panel premium-border" id="etf-ath-container">
+    <!-- Ticker ATH Performance Widget -->
+    <section class="ticker-ath-bar glass-panel premium-border" id="ticker-ath-container">
       <div class="panel-header">
         <h2 class="panel-title">
           <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M23 6l-9.5 9.5-5-5L1 18" />
             <polyline points="17 6 23 6 23 12" />
           </svg>
-          美股ATH追踪（含盘前盘后）
+          美股标的 ATH 追踪（含盘前盘后）
         </h2>
-        <button id="btn-config-etfs" class="btn btn-secondary flex-center"
+        <button id="btn-config-tickers" class="btn btn-secondary flex-center"
           style="padding: 6px 12px; font-size: 0.78rem; gap: 4px;" title="配置展示的追踪标的（支持最多8个）">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             style="width: 14px; height: 14px;">
@@ -102,8 +102,8 @@
           配置标的
         </button>
       </div>
-      <div class="etf-ath-cards" id="etf-ath-cards-container">
-        <div class="etf-ath-card loading">
+      <div class="ticker-ath-cards" id="ticker-ath-cards-container">
+        <div class="ticker-ath-card loading">
           <span class="loading-text">正在从 Yahoo Finance 同步美股最新 ATH 与回调数据...</span>
         </div>
       </div>
@@ -707,29 +707,29 @@
       </div>
     </div>
   </div>
-  <!-- ETF 标的配置模态框 (ETF Config Modal) -->
-  <div class="modal-overlay" id="etf-config-modal">
+  <!-- 标的配置模态框 (Ticker Config Modal) -->
+  <div class="modal-overlay" id="ticker-config-modal">
     <div class="modal-content glass-panel premium-border" style="width: 520px;">
       <div class="modal-header">
         <h3>配置展示标的 (最多8个)</h3>
-        <button class="btn-close" id="btn-close-etf-config-modal">×</button>
+        <button class="btn-close" id="btn-close-ticker-config-modal">×</button>
       </div>
       <div class="modal-body">
-        <p class="section-desc">修改或新增顶栏展示的股票或 ETF 追踪标的（最多支持 8 个）。代码输入后将自动转为大写，并实时从 Yahoo Finance 抓取高点及当前跌幅。</p>
+        <p class="section-desc">修改或新增顶栏展示的追踪标的（股票、ETF 等，最多支持 8 个）。代码输入后将自动转为大写，并实时从 Yahoo Finance 抓取高点及当前跌幅。</p>
 
-        <div id="etf-config-list"
+        <div id="ticker-config-list"
           style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; max-height: 320px; overflow-y: auto; padding-right: 4px;">
           <!-- 动态生成标的配置行 -->
         </div>
 
-        <button class="btn btn-secondary flex-center gap-2 btn-block" id="btn-add-etf-row"
+        <button class="btn btn-secondary flex-center gap-2 btn-block" id="btn-add-ticker-row"
           style="border-style: dashed; background: rgba(255,255,255,0.01);">
           ➕ 添加追踪标的
         </button>
 
         <hr class="modal-divider">
 
-        <button class="btn btn-primary btn-block flex-center gap-2" id="btn-save-etf-config">
+        <button class="btn btn-primary btn-block flex-center gap-2" id="btn-save-ticker-config">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
             style="width: 18px; height: 18px;">
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
@@ -748,7 +748,7 @@
   <!-- Main JavaScript App -->
   <script src="js/api.js"></script>
   <script src="js/ui-utils.js"></script>
-  <script src="js/etf-panel.js"></script>
+  <script src="js/ticker-panel.js"></script>
   <script src="js/member-renderer.js"></script>
   <script src="js/ledger-renderer.js"></script>
   <script src="js/chart-renderer.js"></script>

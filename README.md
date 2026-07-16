@@ -71,7 +71,7 @@
 ├── lib/                   # 后端基础模块
 │   ├── calculator.js      # 事件溯源重放与 Decimal 精确账务计算
 │   ├── storage.js         # 数据库/配置读写、自动备份与缓存清理
-│   └── yahoo.js           # 指数、ETF 与汇率数据抓取
+│   └── yahoo.js           # 指数、标的与汇率数据抓取
 ├── node_modules/          # 项目运行所需的第三方依赖包
 ├── public/                # 前端静态资源目录 (HTML, CSS, JS, 图表组件等)
 │   ├── index.html         # 系统单页面前端 Dashboard
@@ -82,7 +82,7 @@
 │       ├── chart-renderer.js   # 图表与趋势统计渲染
 │       ├── ledger-renderer.js  # 历史流水表格渲染
 │       ├── member-renderer.js  # 成员资产卡片渲染
-│       └── etf-panel.js        # ETF 行情面板渲染
+│       └── ticker-panel.js     # Ticker Panel 标的行情面板渲染
 ├── routes/                # API 路由注册与输入校验
 │   └── api.js
 ├── test/                  # 自动化回归与前端组件测试（运行 npm test）

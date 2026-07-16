@@ -11,7 +11,7 @@ function registerApiRoutes(app, deps) {
     isValidDate,
     normalizeRemark,
     normalizeMemberName,
-    fetchEtfAthData,
+    fetchTickerAthData,
     randomUUID
   } = deps;
 
@@ -39,20 +39,20 @@ app.get('/api/state', (req, res) => {
   }
 });
 
-// ETF ATH 缓存与后台同步机制
-let etfAthCache = null;
-let etfAthCacheTime = 0;
-const ETF_CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
+// 标的 ATH 缓存与后台同步机制
+let tickerAthCache = null;
+let tickerAthCacheTime = 0;
+const TICKER_CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
 
-app.get('/api/etf-ath', async (req, res) => {
+app.get('/api/ticker-ath', async (req, res) => {
   try {
     const now = Date.now();
-    if (etfAthCache && (now - etfAthCacheTime < ETF_CACHE_DURATION)) {
-      return res.json({ success: true, data: etfAthCache, cached: true });
+    if (tickerAthCache && (now - tickerAthCacheTime < TICKER_CACHE_DURATION)) {
+      return res.json({ success: true, data: tickerAthCache, cached: true });
     }
-    const data = await fetchEtfAthData(readConfig());
-    etfAthCache = data;
-    etfAthCacheTime = now;
+    const data = await fetchTickerAthData(readConfig());
+    tickerAthCache = data;
+    tickerAthCacheTime = now;
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -459,28 +459,28 @@ app.put('/api/event/:id', (req, res) => {
   }
 });
 
-// 获取当前配置的 ETF 标的列表
-app.get('/api/settings/etfs', (req, res) => {
+// 获取当前配置的标的列表
+app.get('/api/settings/tickers', (req, res) => {
   try {
     const config = readConfig();
-    res.json({ success: true, data: config.etfs });
+    res.json({ success: true, data: config.tickers });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 保存用户配置的 ETF 标的列表 (最大8个)
-app.post('/api/settings/etfs', (req, res) => {
+// 保存用户配置的标的列表 (最大8个)
+app.post('/api/settings/tickers', (req, res) => {
   try {
-    const { etfs } = req.body;
-    if (!Array.isArray(etfs)) {
+    const { tickers } = req.body;
+    if (!Array.isArray(tickers)) {
       return res.status(400).json({ success: false, message: '无效的标的列表数据格式' });
     }
-    if (etfs.length < 1 || etfs.length > 8) {
+    if (tickers.length < 1 || tickers.length > 8) {
       return res.status(400).json({ success: false, message: '标的追踪数量必须在 1 到 8 个之间' });
     }
 
-    const cleanedEtfs = etfs.map(e => {
+    const cleanedTickers = tickers.map(e => {
       if (!e.ticker || !e.ticker.trim()) {
         throw new Error('标的代码不能为空');
       }
@@ -496,14 +496,14 @@ app.post('/api/settings/etfs', (req, res) => {
     });
 
     const config = readConfig();
-    config.etfs = cleanedEtfs;
+    config.tickers = cleanedTickers;
     writeConfig(config);
 
     // 清除缓存，强制下次获取数据时实时抓取最新标的
-    etfAthCache = null;
-    etfAthCacheTime = 0;
+    tickerAthCache = null;
+    tickerAthCacheTime = 0;
 
-    res.json({ success: true, message: '标的配置保存成功！', data: cleanedEtfs });
+    res.json({ success: true, message: '标的配置保存成功！', data: cleanedTickers });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }

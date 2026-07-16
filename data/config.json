@@ -1,5 +1,5 @@
 {
-  "etfs": [
+  "tickers": [
     {
       "ticker": "VOO",
       "name": "先锋标普500 ETF"

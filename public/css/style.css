@@ -290,7 +290,7 @@ body {
 @media (min-width: 1600px) {
 
   .layout-right,
-  .etf-ath-bar {
+  .ticker-ath-bar {
     right: calc((100vw - 1600px) / 2 + var(--fixed-panel-gutter)) !important;
   }
 }
@@ -1528,7 +1528,7 @@ body.theme-light .modal-content {
     overflow: visible;
   }
 
-  .etf-ath-bar {
+  .ticker-ath-bar {
     position: static;
     width: auto;
     overflow: visible;
@@ -2065,8 +2065,8 @@ body.theme-light .scale-slice-btn.active {
   font-weight: 700;
 }
 
-/* --- 美股旗舰 ETF ATH 顶栏与卡片样式 (ETF ATH Bar) --- */
-.etf-ath-bar {
+/* --- 美股标的 Ticker Panel ATH 顶栏与卡片样式 --- */
+.ticker-ath-bar {
   position: fixed;
   top: 500px;
   right: var(--fixed-panel-gutter);
@@ -2079,38 +2079,38 @@ body.theme-light .scale-slice-btn.active {
   padding: 16px !important;
 }
 
-.etf-ath-bar .panel-header {
+.ticker-ath-bar .panel-header {
   flex: 0 0 auto;
   gap: 10px;
   align-items: center;
   margin-bottom: 12px !important;
 }
 
-.etf-ath-bar .panel-title {
+.ticker-ath-bar .panel-title {
   font-size: 1rem !important;
   line-height: 1.2;
   min-width: 0;
   white-space: nowrap;
 }
 
-.etf-ath-bar #btn-config-etfs {
+.ticker-ath-bar #btn-config-tickers {
   flex-shrink: 0;
 }
 
-.etf-ath-title-wrapper {
+.ticker-ath-title-wrapper {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.etf-ath-icon {
+.ticker-ath-icon {
   width: 18px;
   height: 18px;
   color: var(--color-cyan);
   filter: drop-shadow(0 0 6px rgba(0, 242, 254, 0.3));
 }
 
-.etf-ath-title {
+.ticker-ath-title {
   font-size: 0.78rem;
   font-weight: 700;
   color: var(--color-text-muted);
@@ -2118,7 +2118,7 @@ body.theme-light .scale-slice-btn.active {
   letter-spacing: 0.8px;
 }
 
-.etf-ath-cards {
+.ticker-ath-cards {
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
@@ -2127,7 +2127,7 @@ body.theme-light .scale-slice-btn.active {
   gap: 8px;
 }
 
-.etf-ath-card {
+.ticker-ath-card {
   background: var(--color-card-bg);
   border: 1px solid var(--color-card-border);
   box-shadow: var(--color-card-shadow);
@@ -2145,14 +2145,14 @@ body.theme-light .scale-slice-btn.active {
   -webkit-backdrop-filter: blur(12px);
 }
 
-.etf-ath-card:hover {
+.ticker-ath-card:hover {
   background: var(--color-card-bg-hover);
   border-color: var(--color-card-border-hover);
   box-shadow: var(--glass-shadow);
   transform: translateY(-2px);
 }
 
-.etf-card-header {
+.ticker-card-header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -2160,7 +2160,7 @@ body.theme-light .scale-slice-btn.active {
   gap: 8px;
 }
 
-.etf-ticker {
+.ticker-symbol {
   font-size: clamp(0.82rem, 1.6vh, 1.05rem);
   font-weight: 800;
   color: var(--color-text-main);
@@ -2169,7 +2169,7 @@ body.theme-light .scale-slice-btn.active {
   flex-shrink: 0;
 }
 
-.etf-name {
+.ticker-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2180,7 +2180,7 @@ body.theme-light .scale-slice-btn.active {
   text-align: right;
 }
 
-.etf-card-body {
+.ticker-card-body {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2190,7 +2190,7 @@ body.theme-light .scale-slice-btn.active {
   width: 100%;
 }
 
-.etf-prices-col {
+.ticker-prices-col {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2225,7 +2225,7 @@ body.theme-light .scale-slice-btn.active {
   transform-origin: left center;
 }
 
-.etf-drawdown-col {
+.ticker-drawdown-col {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -2247,7 +2247,7 @@ body.theme-light .scale-slice-btn.active {
   font-weight: 800;
 }
 
-.etf-ath-card.loading {
+.ticker-ath-card.loading {
   grid-column: 1 / -1;
   text-align: center;
   padding: 20px;
@@ -2279,7 +2279,7 @@ body.theme-light .scale-slice-btn.active {
   }
 }
 
-.etf-ath-card.error-bar {
+.ticker-ath-card.error-bar {
   grid-column: 1 / -1;
   background: rgba(244, 63, 94, 0.05);
   border-color: rgba(244, 63, 94, 0.15);
