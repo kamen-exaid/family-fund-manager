@@ -68,9 +68,15 @@
 ├── backups/               # 自动滚动备份文件夹（最多留存最新 15 个 db 备份）
 ├── data/                  # 本地数据库目录
 │   └── db.json            # 核心数据文件（包含成员、事件、汇率及指数缓存数据）
+├── lib/                   # 后端基础模块
+│   └── storage.js         # 数据库/配置读写、自动备份与缓存清理
 ├── node_modules/          # 项目运行所需的第三方依赖包
 ├── public/                # 前端静态资源目录 (HTML, CSS, JS, 图表组件等)
-│   └── index.html         # 系统单页面前端 Dashboard
+│   ├── index.html         # 系统单页面前端 Dashboard
+│   └── js/
+│       ├── api.js         # 前端 API 请求封装
+│       ├── ui-utils.js    # 前端格式化、转义、主题与图表工具函数
+│       └── app.js         # 前端页面状态、交互与渲染逻辑
 ├── server.js              # 后端 Express 服务器逻辑（包含数学核算模型、API 接口与 Yahoo 数据同步）
 ├── package.json           # 项目配置文件与运行命令
 ├── start.bat              # Windows 快捷启动文件

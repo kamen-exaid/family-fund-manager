@@ -1,9 +1,9 @@
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const { execFile } = require('child_process');
 const { randomUUID } = require('crypto');
+const storage = require('./lib/storage');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,113 +11,21 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const DATA_DIR = path.join(__dirname, 'data');
-const BACKUP_DIR = path.join(__dirname, 'backups');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
-const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
-
-// 确保目录存在
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-if (!fs.existsSync(BACKUP_DIR)) {
-  fs.mkdirSync(BACKUP_DIR, { recursive: true });
-}
-
-// 初始化默认数据库，设为 USD 本地支持，并包含 3 人初始配置与默认 CNH 汇率
-const DEFAULT_DB = {
-  cnhRate: 7.2, // 默认 USD/CNH 汇率
-  members: [
-    { id: 'me', name: '我' },
-    { id: 'mother', name: '母亲' },
-    { id: 'father', name: '父亲' }
-  ],
-  events: [] // 包含所有事件：deposit (入金), withdraw (出金), valuation (估值更新)
-};
-
 // --- 性能优化：内存缓存层 ---
-let _dbCache = null;       // 数据库内存镜像（避免重复磁盘读取）
 let _stateCache = null;    // calculateState() 结果缓存
 let _stateDirty = true;    // 脏标记：数据变更后标记缓存失效
 
-// 读取数据库（优化：优先使用内存镜像，避免重复同步磁盘 I/O）
 function readDb() {
-  if (_dbCache) return JSON.parse(JSON.stringify(_dbCache)); // 深拷贝防篡改
-  try {
-    if (!fs.existsSync(DB_FILE)) {
-      fs.writeFileSync(DB_FILE, JSON.stringify(DEFAULT_DB, null, 2), 'utf8');
-      _dbCache = DEFAULT_DB;
-      return JSON.parse(JSON.stringify(DEFAULT_DB));
-    }
-    const data = fs.readFileSync(DB_FILE, 'utf8');
-    const dbData = JSON.parse(data);
-
-    // 向后兼容迁移：如果缺少 members 字段，自动载入预设
-    let migrated = false;
-    if (!dbData.members) {
-      dbData.members = [
-        { id: 'me', name: '我' },
-        { id: 'mother', name: '母亲' },
-        { id: 'father', name: '父亲' }
-      ];
-      migrated = true;
-    }
-    // 向后兼容迁移：如果缺少 cnhRate 字段，自动使用默认值
-    if (dbData.cnhRate === undefined) {
-      dbData.cnhRate = 7.2;
-      migrated = true;
-    }
-    // 向后兼容迁移：如果缺少 indexCache 字段，自动初始化
-    if (!dbData.indexCache) {
-      dbData.indexCache = {};
-      migrated = true;
-    }
-    if (migrated) {
-      fs.writeFileSync(DB_FILE, JSON.stringify(dbData, null, 2), 'utf8');
-    }
-    _dbCache = dbData;
-    return JSON.parse(JSON.stringify(dbData));
-  } catch (error) {
-    console.error('Error reading database, resetting to default:', error);
-    return DEFAULT_DB;
-  }
+  return storage.readDb();
 }
 
-// 写入数据库（优化：主文件同步写入保证一致性，备份与清理改为异步）
 function writeDb(dbData) {
   try {
-    // 同步写入主文件（保证数据一致性）
-    fs.writeFileSync(DB_FILE, JSON.stringify(dbData, null, 2), 'utf8');
-
-    // 更新内存镜像 & 标记状态缓存失效
-    _dbCache = JSON.parse(JSON.stringify(dbData));
+    storage.writeDb(dbData);
     _stateCache = null;
     _stateDirty = true;
-
-    // 异步备份 (不阻塞主线程)
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupFile = path.join(BACKUP_DIR, `db_backup_${timestamp}.json`);
-    const backupContent = JSON.stringify(dbData);
-    fs.writeFile(backupFile, backupContent, 'utf8', (err) => {
-      if (err) {
-        console.error('Failed to write backup:', err);
-        return;
-      }
-      // 异步清理旧备份
-      fs.readdir(BACKUP_DIR, (readErr, files) => {
-        if (readErr) return;
-        const backupFiles = files.filter(f => f.startsWith('db_backup_') && f.endsWith('.json')).sort().reverse();
-        if (backupFiles.length > 15) {
-          backupFiles.slice(15).forEach(f => {
-            fs.unlink(path.join(BACKUP_DIR, f), () => {}); // 静默删除
-          });
-        }
-      });
-    });
   } catch (error) {
-    console.error('Error writing database:', error);
-    // [Fix #3] 写盘失败时清除不可信的内存缓存，并向上抛出让 API 返回 500
-    _dbCache = null;
+    storage.clearDbCache();
     _stateCache = null;
     _stateDirty = true;
     throw error;
@@ -132,43 +40,12 @@ function getState() {
   return _stateCache;
 }
 
-// 初始化默认配置（含4个默认追踪标的）
-const DEFAULT_CONFIG = {
-  etfs: [
-    { ticker: 'VOO', name: '先锋标普500 ETF' },
-    { ticker: 'QQQM', name: '景顺纳指100 ETF' },
-    { ticker: 'VGT', name: '先锋信息技术 ETF' },
-    { ticker: 'SMH', name: '范达半导体 ETF' }
-  ]
-};
-
-// 读取系统/显示配置文件
 function readConfig() {
-  try {
-    if (!fs.existsSync(CONFIG_FILE)) {
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf8');
-      return DEFAULT_CONFIG;
-    }
-    const data = fs.readFileSync(CONFIG_FILE, 'utf8');
-    const configData = JSON.parse(data);
-    if (!configData.etfs) {
-      configData.etfs = DEFAULT_CONFIG.etfs;
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify(configData, null, 2), 'utf8');
-    }
-    return configData;
-  } catch (error) {
-    console.error('Error reading config, resetting to default:', error);
-    return DEFAULT_CONFIG;
-  }
+  return storage.readConfig();
 }
 
-// 写入系统/显示配置文件
 function writeConfig(configData) {
-  try {
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(configData, null, 2), 'utf8');
-  } catch (error) {
-    console.error('Error writing config:', error);
-  }
+  storage.writeConfig(configData);
 }
 
 /**
@@ -311,23 +188,28 @@ async function ensureIndexCache(dates) {
       fetchYahooPrices('^NDX', startSec, nowSec)
     ]);
 
-    let updated = false;
+    const fetchedUpdates = {};
     missingDates.forEach(dateStr => {
       const spxClose = findClosestPrice(dateStr, spxMap);
       const ndxClose = findClosestPrice(dateStr, ndxMap);
 
       if (spxClose && ndxClose) {
-        db.indexCache[dateStr] = {
+        fetchedUpdates[dateStr] = {
           spx: parseFloat(spxClose.toFixed(2)),
           ndx: parseFloat(ndxClose.toFixed(2))
         };
-        updated = true;
       }
     });
 
-    if (updated) {
-      console.log(`[Yahoo Sync Worker] Successfully synced indices for dates:`, missingDates);
-      writeDb(db);
+    if (Object.keys(fetchedUpdates).length > 0) {
+      // Re-read before writing so a slow background sync never overwrites newer ledger edits.
+      const latestDb = readDb();
+      latestDb.indexCache = {
+        ...(latestDb.indexCache || {}),
+        ...fetchedUpdates
+      };
+      console.log(`[Yahoo Sync Worker] Successfully synced indices for dates:`, Object.keys(fetchedUpdates));
+      writeDb(latestDb);
     }
   } catch (err) {
     console.error(`[Yahoo Sync Worker Error]:`, err.message);
@@ -339,8 +221,10 @@ async function ensureIndexCache(dates) {
  * 重新按时间顺序计算每个事件发生时的净值、份额、及当前各成员资产状况。
  */
 function calculateState() {
-  const db = readDb();
+  return calculateStateFromDb(readDb());
+}
 
+function calculateStateFromDb(db) {
   // 1. 按发生日期(date)升序排序，如果日期相同，按创建时间戳(createdAt)升序排序
   const sortedEvents = [...db.events].sort((a, b) => {
     const dateCompare = a.date.localeCompare(b.date);
@@ -1053,6 +937,19 @@ app.put('/api/event/:id', (req, res) => {
       if (remark !== undefined) {
         event.remark = remark;
       }
+
+      if (event.type === 'withdraw') {
+        const validationDb = JSON.parse(JSON.stringify(db));
+        const validationState = calculateStateFromDb(validationDb);
+        const validationEvent = validationState.events.find(e => e.id === eventId);
+        const actualAmount = validationEvent ? (validationEvent._actualAmount || 0) : 0;
+        if (actualAmount + 0.000001 < event.amount) {
+          return res.status(400).json({
+            success: false,
+            message: `余额不足：该修改会导致实际可出金 $${actualAmount.toFixed(2)}，低于填写金额 $${event.amount.toFixed(2)}`
+          });
+        }
+      }
     } else if (event.type === 'valuation') {
       const { totalNAV, date, remark } = req.body;
 
@@ -1117,6 +1014,17 @@ app.put('/api/event/:id', (req, res) => {
 
       if (remark !== undefined) {
         event.remark = remark;
+      }
+
+      const validationDb = JSON.parse(JSON.stringify(db));
+      const validationState = calculateStateFromDb(validationDb);
+      const validationEvent = validationState.events.find(e => e.id === eventId);
+      const actualAmount = validationEvent ? (validationEvent._actualAmount || 0) : 0;
+      if (actualAmount + 0.000001 < event.amount) {
+        return res.status(400).json({
+          success: false,
+          message: `出让方余额不足：该修改会导致实际可转让 $${actualAmount.toFixed(2)}，低于填写金额 $${event.amount.toFixed(2)}`
+        });
       }
     }
 
@@ -1233,7 +1141,7 @@ app.get('/api/backup/export', (req, res) => {
 // 6. 数据导入恢复
 app.post('/api/backup/import', (req, res) => {
   try {
-    const { events, members } = req.body;
+    const { events, members, cnhRate, indexCache } = req.body;
     if (!Array.isArray(events)) {
       return res.status(400).json({ success: false, message: '导入的数据格式不正确，缺少 events 数组' });
     }
@@ -1268,9 +1176,21 @@ app.post('/api/backup/import', (req, res) => {
     }
 
     const currentDb = readDb();
+    let importedCnhRate = currentDb.cnhRate;
+    if (cnhRate !== undefined) {
+      importedCnhRate = parseFloat(cnhRate);
+      if (isNaN(importedCnhRate) || importedCnhRate <= 0) {
+        return res.status(400).json({ success: false, message: '导入数据中的汇率参数必须大于 0' });
+      }
+    }
+
     const db = {
       members: Array.isArray(members) ? members : currentDb.members,
-      events
+      events,
+      cnhRate: importedCnhRate,
+      indexCache: (indexCache && typeof indexCache === 'object' && !Array.isArray(indexCache))
+        ? indexCache
+        : (currentDb.indexCache || {})
     };
     writeDb(db);
 
@@ -1364,12 +1284,14 @@ app.delete('/api/members/:id', (req, res) => {
       return res.status(404).json({ success: false, message: '未找到该家庭成员' });
     }
 
-    // 安全检查：如果该成员已经录入过出入金，则绝对不允许删除
-    const hasTransactions = db.events.some(e => e.member === memberId);
+    // 安全检查：如果该成员已经录入过出入金或参与过转让，则绝对不允许删除
+    const hasTransactions = db.events.some(e =>
+      e.member === memberId || e.fromMember === memberId || e.toMember === memberId
+    );
     if (hasTransactions) {
       return res.status(400).json({
         success: false,
-        message: '删除失败！该成员已有出入金记录，删除其账号会破坏历史净值计算。若不需要显示该成员，可在无持股时将其更名或保留。'
+        message: '删除失败！该成员已有出入金或转让记录，删除其账号会破坏历史净值计算。若不需要显示该成员，可在无持股时将其更名或保留。'
       });
     }
 
@@ -1416,7 +1338,7 @@ app.listen(PORT, () => {
   console.log(`====================================================`);
   console.log(`🚀 家庭基金账目管理系统已在本地成功启动！`);
   console.log(`🌐 访问地址：http://localhost:${PORT}`);
-  console.log(`📂 数据存储路径：${DB_FILE}`);
+  console.log(`📂 数据存储路径：${storage.DB_FILE}`);
   console.log(`====================================================`);
 
   // 启动时静默同步一次汇率与美股指数数据

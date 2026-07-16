@@ -4,6 +4,17 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  const {
+    getThemeColors,
+    isDarkTheme,
+    getAvatarText,
+    formatMonthDay,
+    escapeHtml,
+    formatMoney,
+    formatCnhWan,
+    createChartGradient
+  } = window.FundUiUtils;
+
   // --- 全局状态 ---
   let appState = null;
   let membersList = [];
@@ -118,40 +129,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAddEtfRow = document.getElementById('btn-add-etf-row');
   const btnSaveEtfConfig = document.getElementById('btn-save-etf-config');
 
-  // 配色方案（支持动态主题：深色模式采用炫彩霓虹，浅色模式采用高对比度典雅宝石色）
-  function getThemeColors(isDark) {
-    return isDark ? {
-      palette: [
-        '#00f2fe', // 科技蓝
-        '#f43f5e', // 极光红
-        '#3b82f6', // 经典蓝
-        '#10b981', // 祖母绿
-        '#8b5cf6', // 极光紫
-        '#f59e0b', // 琥珀黄
-        '#ec4899', // 玫瑰粉
-        '#06b6d4'  // 浅青绿
-      ],
-      textPalette: ['#000000', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#000000', '#ffffff', '#ffffff']
-    } : {
-      palette: [
-        '#0284c7', // 科技蓝 -> 深天蓝
-        '#e11d48', // 极光红 -> 玫瑰红
-        '#2563eb', // 经典蓝 -> 经典深蓝
-        '#059669', // 祖母绿 -> 翡翠绿
-        '#7c3aed', // 极光紫 -> 皇家紫
-        '#d97706', // 琥珀黄 -> 琥珀褐/橙
-        '#db2777', // 玫瑰粉 -> 深粉
-        '#0891b2'  // 浅青绿 -> 碧青色
-      ],
-      textPalette: ['#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff']
-    };
-  }
-
   // 辅助函数判断是否是暗黑模式（兼容 system）
   function checkIfDark() {
-    if (currentTheme === 'dark') return true;
-    if (currentTheme === 'light') return false;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return isDarkTheme(currentTheme);
   }
 
   // --- 初始化运行 ---
@@ -1234,25 +1214,30 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.type === 'transfer') {
         const fromName = membersList.find(m => m.id === e.fromMember)?.name || '未知成员';
         const toName = membersList.find(m => m.id === e.toMember)?.name || '未知成员';
+        const safeFromName = escapeHtml(fromName);
+        const safeToName = escapeHtml(toName);
+        const safeRemark = escapeHtml(e.remark || '内部转让');
         memberName = `${fromName} ⇄ ${toName}`;
         detailsHtml = `
           <div style="font-weight:600; color:var(--color-text-main); line-height: 1.25;">
-            <span style="color:var(--color-primary);">${fromName}</span>
+            <span style="color:var(--color-primary);">${safeFromName}</span>
             <span style="color:var(--color-text-muted); font-weight:700; margin: 0 2px;">⇄</span>
-            <span style="color:var(--color-green);">${toName}</span>
+            <span style="color:var(--color-green);">${safeToName}</span>
           </div>
           <div class="privacy-sensitive" style="color:var(--color-text-muted); font-size:0.72rem; margin-top: 2px; line-height: 1.2;">
-            (${e.remark || '内部转让'})
+            (${safeRemark})
           </div>
         `;
       } else {
         if (e.member) {
           memberName = membersList.find(m => m.id === e.member)?.name || '未知成员';
         }
+        const safeMemberName = escapeHtml(memberName);
+        const safeRemark = escapeHtml(e.remark || '无备注');
         detailsHtml = `
-          <div style="font-weight:600; color:var(--color-text-main); line-height: 1.25;">${memberName}</div>
+          <div style="font-weight:600; color:var(--color-text-main); line-height: 1.25;">${safeMemberName}</div>
           <div class="privacy-sensitive" style="color:var(--color-text-muted); font-size:0.72rem; margin-top: 2px; line-height: 1.2;">
-            (${e.remark || '无备注'})
+            (${safeRemark})
           </div>
         `;
       }
@@ -1986,29 +1971,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateChartsColors(currentTheme);
   }
 
-  // --- 工具辅助函数 ---
-
-  // 获取头像显示的文本（智能裁切：2字及以下全名，3字及以上中文取后两位，英文取前两位）
-  function getAvatarText(name) {
-    if (!name) return '';
-    if (name.length <= 2) return name;
-    const isChinese = /^[\u4e00-\u9fa5]+$/.test(name);
-    if (isChinese) {
-      return name.substring(name.length - 2);
-    }
-    return name.substring(0, 2).toUpperCase();
-  }
-
-  // 极简日期格式化工具 (YYYY-MM-DD -> MM/DD)
-  function formatMonthDay(dateStr) {
-    if (!dateStr) return '';
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      return `${parts[1]}/${parts[2]}`;
-    }
-    return dateStr;
-  }
-
   // 加载并渲染美股 ETF ATH 历史及收盘价格回调数据
   async function loadEtfAthData() {
     const container = document.getElementById('etf-ath-cards-container');
@@ -2071,41 +2033,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
     }
-  }
-
-  // [Fix #6] HTML 转义工具函数（防 XSS，用于将用户输入安全地插入 innerHTML）
-  function escapeHtml(str) {
-    if (str === undefined || str === null) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-  // 格式化金额 (支持千分位英文 locale 格式化，2位小数)
-  function formatMoney(amount) {
-    if (amount === undefined || amount === null) return '0.00';
-    return Number(amount).toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  }
-
-  // 格式化约数人民币 (万)
-  function formatCnhWan(amount) {
-    if (amount === undefined || amount === null || isNaN(amount)) return '0.00万';
-    const wan = amount / 10000;
-    return wan.toFixed(2) + '万';
-  }
-
-  // 渐变背景生成器
-  function createChartGradient(ctx, colorStart, colorEnd) {
-    const gradient = ctx.createLinearGradient(0, 0, 0, 250);
-    gradient.addColorStop(0, colorStart);
-    gradient.addColorStop(1, colorEnd);
-    return gradient;
   }
 
   // 轻量级 Toast 弹出式提示
