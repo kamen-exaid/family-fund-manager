@@ -2,7 +2,8 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const { exec } = require('child_process');
+const { execFile } = require('child_process');
+const { randomUUID } = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -115,6 +116,11 @@ function writeDb(dbData) {
     });
   } catch (error) {
     console.error('Error writing database:', error);
+    // [Fix #3] 写盘失败时清除不可信的内存缓存，并向上抛出让 API 返回 500
+    _dbCache = null;
+    _stateCache = null;
+    _stateDirty = true;
+    throw error;
   }
 }
 
@@ -188,11 +194,15 @@ function parseYahooPricesResponse(json) {
 
 /**
  * 运行 curl 备用抓取辅助函数 (自动继承系统代理，解决国内 https.get 无法直连或走代理的问题)
+ * [Fix #1] 使用 execFile 参数化传递 URL，彻底规避 Shell 命令注入风险
  */
 function runCurlSyncFallback(url, ticker, resolve) {
   console.log(`[Yahoo Sync] https.get failed for ${ticker}. Falling back to curl...`);
-  const curlCmd = `curl.exe -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "${url}"`;
-  exec(curlCmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+  execFile('curl.exe', [
+    '-s', '-L',
+    '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    url
+  ], { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
     if (error) {
       console.error(`[Yahoo Sync] Curl fallback failed for ${ticker}:`, error.message);
       resolve({});
@@ -659,11 +669,15 @@ async function fetchEtfAthData() {
       });
 
       // Fallback to curl if https.get fails (automatic proxy support on domestic networks)
+      // [Fix #1] 使用 execFile 参数化传递 URL，彻底规避 Shell 命令注入风险
       if (!maxData || !maxData.chart?.result?.[0]) {
         console.log(`[ETF ATH] https.get failed for ${ticker}. Trying curl fallback...`);
         maxData = await new Promise((resolve) => {
-          const curlCmd = `curl.exe -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" "${maxUrl}"`;
-          exec(curlCmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+          execFile('curl.exe', [
+            '-s', '-L',
+            '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            maxUrl
+          ], { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
             if (error) {
               console.error(`[ETF ATH] Curl fallback failed for ${ticker}:`, error.message);
               resolve(null);
@@ -820,8 +834,9 @@ app.post('/api/transaction', (req, res) => {
     }
 
     // 如果是出金，先做一轮预演算，检查出金人当前份额换算成的资产是否足够
+    // [Fix #5] 使用带缓存的 getState() 而非直接调用 calculateState()，避免不必要的重算
     if (type === 'withdraw') {
-      const state = calculateState();
+      const state = getState();
       const memberState = state.members[member];
       const memberValue = memberState ? memberState.currentValue : 0;
       if (parsedAmount > memberValue) {
@@ -833,7 +848,7 @@ app.post('/api/transaction', (req, res) => {
     }
 
     const newEvent = {
-      id: 'tx_' + Math.random().toString(36).substr(2, 9),
+      id: 'tx_' + randomUUID(), // [Fix #4] 使用 crypto.randomUUID() 替代 Math.random，消除碰撞风险
       type,
       member,
       amount: parsedAmount,
@@ -871,7 +886,8 @@ app.post('/api/valuation', (req, res) => {
     const db = readDb();
 
     // 在没有起投份额时（总份额为0），直接更新估值是不合逻辑的，应先进行首次入金
-    const state = calculateState();
+    // [Fix #5] 使用带缓存的 getState() 而非直接调用 calculateState()，避免不必要的重算
+    const state = getState();
     if (state.summary.totalShares === 0 && parsedNAV > 0) {
       return res.status(400).json({
         success: false,
@@ -880,7 +896,7 @@ app.post('/api/valuation', (req, res) => {
     }
 
     const newEvent = {
-      id: 'val_' + Math.random().toString(36).substr(2, 9),
+      id: 'val_' + randomUUID(), // [Fix #4] 使用 crypto.randomUUID() 替代 Math.random，消除碰撞风险
       type: 'valuation',
       totalNAV: parsedNAV,
       date,
@@ -931,7 +947,8 @@ app.post('/api/transfer', (req, res) => {
     }
 
     // 检查出让方余额是否充足
-    const state = calculateState();
+    // [Fix #5] 使用带缓存的 getState() 而非直接调用 calculateState()，避免不必要的重算
+    const state = getState();
     const fromMemberState = state.members[fromMember];
     const fromValue = fromMemberState ? fromMemberState.currentValue : 0;
     if (parsedAmount > fromValue) {
@@ -942,7 +959,7 @@ app.post('/api/transfer', (req, res) => {
     }
 
     const newEvent = {
-      id: 'tf_' + Math.random().toString(36).substr(2, 9),
+      id: 'tf_' + randomUUID(), // [Fix #4] 使用 crypto.randomUUID() 替代 Math.random，消除碰撞风险
       type: 'transfer',
       fromMember,
       toMember,
@@ -1139,9 +1156,14 @@ app.post('/api/settings/etfs', (req, res) => {
       if (!e.ticker || !e.ticker.trim()) {
         throw new Error('标的代码不能为空');
       }
+      const cleanTicker = e.ticker.trim().toUpperCase();
+      // [Fix #1] 白名单校验：仅允许股票代码合法字符（字母、数字、连字符、点、脱字符），长度 1-20
+      if (!/^[\^A-Z0-9.\-]{1,20}$/.test(cleanTicker)) {
+        throw new Error(`标的代码格式非法（只允许字母、数字、.-^符号）: ${cleanTicker}`);
+      }
       return {
-        ticker: e.ticker.trim().toUpperCase(),
-        name: (e.name || '').trim()
+        ticker: cleanTicker,
+        name: (e.name || '').trim().substring(0, 50) // 限制名称最大长度
       };
     });
 
@@ -1216,10 +1238,32 @@ app.post('/api/backup/import', (req, res) => {
       return res.status(400).json({ success: false, message: '导入的数据格式不正确，缺少 events 数组' });
     }
 
-    // 格式校验
+    // [Fix #2] 深度格式校验：类型白名单、数量上限、字段合法性
+    const VALID_EVENT_TYPES = ['deposit', 'withdraw', 'valuation', 'transfer'];
+    if (events.length > 10000) {
+      return res.status(400).json({ success: false, message: '导入事件数量超限（最大 10000 条）' });
+    }
     for (let e of events) {
       if (!e.id || !e.type || !e.date || e.createdAt === undefined) {
         return res.status(400).json({ success: false, message: '导入的数据中存在格式不完整的事件项' });
+      }
+      if (!VALID_EVENT_TYPES.includes(e.type)) {
+        return res.status(400).json({ success: false, message: `导入数据中包含非法事件类型: ${e.type}` });
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) {
+        return res.status(400).json({ success: false, message: `导入数据中包含非法日期格式: ${e.date}` });
+      }
+      if ((e.type === 'deposit' || e.type === 'withdraw') &&
+          (typeof e.amount !== 'number' || e.amount <= 0 || !isFinite(e.amount))) {
+        return res.status(400).json({ success: false, message: `导入数据中存在非法金额: ${e.amount}` });
+      }
+      if (e.type === 'valuation' &&
+          (typeof e.totalNAV !== 'number' || e.totalNAV < 0 || !isFinite(e.totalNAV))) {
+        return res.status(400).json({ success: false, message: `导入数据中存在非法估值金额: ${e.totalNAV}` });
+      }
+      if (e.type === 'transfer' &&
+          (typeof e.amount !== 'number' || e.amount <= 0 || !isFinite(e.amount))) {
+        return res.status(400).json({ success: false, message: `导入数据中存在非法划转金额: ${e.amount}` });
       }
     }
 

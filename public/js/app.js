@@ -626,8 +626,8 @@ document.addEventListener('DOMContentLoaded', () => {
       row.style.alignItems = 'center';
       row.innerHTML = `
         <div style="flex: 1; display: flex; gap: 8px; min-width: 0;">
-          <input type="text" class="etf-ticker-input" value="${ticker}" placeholder="代码 (如: AAPL)" style="width: 120px; font-weight: 700; text-transform: uppercase;" required>
-          <input type="text" class="etf-name-input" value="${name}" placeholder="中文简称 (如: 苹果)" style="flex: 1; min-width: 0;" required>
+          <input type="text" class="etf-ticker-input" value="${escapeHtml(ticker)}" placeholder="代码 (如: AAPL)" style="width: 120px; font-weight: 700; text-transform: uppercase;" required>
+          <input type="text" class="etf-name-input" value="${escapeHtml(name)}" placeholder="中文简称 (如: 苹果)" style="flex: 1; min-width: 0;" required>
         </div>
         <button class="btn-delete btn-remove-etf-row" title="移除此标的" style="flex-shrink: 0; padding: 6px;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
@@ -901,7 +901,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function populateDynamicSelectors() {
     // 1. 出入金登记选择框
     const savedTxVal = elTxMember.value;
-    elTxMember.innerHTML = membersList.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    elTxMember.innerHTML = membersList.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`).join('');
     if (savedTxVal && membersList.some(m => m.id === savedTxVal)) {
       elTxMember.value = savedTxVal;
     }
@@ -909,7 +909,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1.2. 转让出让方与受让方选择框
     const savedTfFromVal = tfFromMember.value;
     const savedTfToVal = tfToMember.value;
-    const membersOptionsHtml = membersList.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    const membersOptionsHtml = membersList.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`).join('');
     tfFromMember.innerHTML = membersOptionsHtml;
     tfToMember.innerHTML = membersOptionsHtml;
     if (savedTfFromVal && membersList.some(m => m.id === savedTfFromVal)) {
@@ -1034,7 +1034,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="member-avatar" style="background: ${cardColor}; color: ${cardTextColor};">${shortName}</div>
           <div class="member-details">
             <div class="member-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px;">
-              <span class="member-name" title="${m.name}" style="font-weight: 700; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px;">${m.name}</span>
+              <span class="member-name" title="${escapeHtml(m.name)}" style="font-weight: 700; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90px;">${escapeHtml(m.name)}</span>
               <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15;">
                 <span class="member-roi ${roiClass} privacy-sensitive" style="font-size: 0.85rem; font-weight: 700;" title="美元收益率 (USD ROI)">${roiText} <span style="font-size: 0.65rem; font-weight: 500; opacity: 0.7;">USD</span></span>
                 <span class="member-roi ${cnhRoiClass} privacy-sensitive" style="font-size: 0.75rem; font-weight: 600; margin-top: 1px;" title="人民币真实收益率 (CNH ROI)">${cnhRoiText} <span style="font-size: 0.65rem; font-weight: 500; opacity: 0.7;">CNH</span></span>
@@ -1086,8 +1086,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="member-edit-item" id="member-edit-item-${m.id}">
           <div class="member-edit-left">
             <div class="member-edit-avatar" style="background: ${cardColor}; color: ${cardTextColor};">${shortName}</div>
-            <span class="member-edit-name" id="member-name-span-${m.id}" title="双击或点击右侧笔头重命名">${m.name}</span>
-            <input type="text" class="input-rename" id="member-name-input-${m.id}" value="${m.name}" style="display: none;">
+            <span class="member-edit-name" id="member-name-span-${m.id}" title="双击或点击右侧笔头重命名">${escapeHtml(m.name)}</span>
+            <input type="text" class="input-rename" id="member-name-input-${m.id}" value="${escapeHtml(m.name)}" style="display: none;">
           </div>
           <div class="member-edit-actions">
             <button class="btn-rename-save" id="btn-rename-edit-${m.id}" title="重命名成员" style="color: var(--color-cyan);">
@@ -2030,12 +2030,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const drawdownClass = item.drawdown >= 0 ? 'text-green' : 'text-magenta';
         const drawdownPrefix = item.drawdown > 0 ? '+' : '';
+        // [Fix #6] 对 ticker 和 item.name 进行 HTML 转义，防止 Yahoo Finance 返回内容中包含特殊字符导致 XSS
+        const safeTicker = escapeHtml(ticker);
+        const safeName = escapeHtml(item.name || ticker);
+        const safeLongName = escapeHtml(item.longName || ticker);
         
         return `
-          <div class="etf-ath-card premium-border" title="${item.longName}">
+          <div class="etf-ath-card premium-border" title="${safeLongName}">
             <div class="etf-card-header">
-              <span class="etf-ticker font-outfit">${ticker}</span>
-              <span class="etf-name" title="${item.name || ticker}">${item.name || ticker}</span>
+              <span class="etf-ticker font-outfit">${safeTicker}</span>
+              <span class="etf-name" title="${safeName}">${safeName}</span>
             </div>
             <div class="etf-card-body">
               <div class="etf-prices-col">
@@ -2067,6 +2071,17 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
     }
+  }
+
+  // [Fix #6] HTML 转义工具函数（防 XSS，用于将用户输入安全地插入 innerHTML）
+  function escapeHtml(str) {
+    if (str === undefined || str === null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   // 格式化金额 (支持千分位英文 locale 格式化，2位小数)
