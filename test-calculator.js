@@ -27,4 +27,24 @@ assert.strictEqual(state.members.alice.currentValue, 960);
 assert.strictEqual(state.members.bob.currentValue, 840);
 assert.strictEqual(state.events.find(event => event.id === 'transfer-1')._sharesTransferred, 200);
 
+// Repeating decimal inputs are a common source of silent ledger drift when
+// JavaScript Number is used for intermediate calculations.
+const precisionDb = {
+  cnhRate: 7.2,
+  members: [{ id: 'alice', name: 'Alice' }],
+  indexCache: {},
+  events: Array.from({ length: 100 }, (_, index) => ({
+    id: `fraction-${index}`,
+    type: 'deposit',
+    member: 'alice',
+    amount: 0.1,
+    cnhAmount: 0.72,
+    date: '2026-02-01',
+    createdAt: index
+  }))
+};
+const precisionState = calculateStateFromDb(precisionDb);
+assert.strictEqual(precisionState.summary.totalNAV, 10);
+assert.strictEqual(precisionState.events.at(-1)._totalNAVAfter, 10);
+
 console.log('Production calculateStateFromDb assertions passed.');

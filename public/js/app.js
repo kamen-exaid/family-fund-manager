@@ -1975,65 +1975,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // 加载并渲染美股 ETF ATH 历史及收盘价格回调数据
   async function loadEtfAthData() {
     const container = document.getElementById('etf-ath-cards-container');
-    if (!container) return;
-
-    try {
-      const data = await Api.getEtfAth();
-      
-      const html = Object.keys(data).map(ticker => {
-        const item = data[ticker];
-        if (item.error) {
-          return `
-            <div class="etf-ath-card error">
-              <span class="etf-ticker font-outfit">${ticker}</span>
-              <span class="error-msg">获取失败</span>
-            </div>
-          `;
-        }
-        
-        const drawdownClass = item.drawdown >= 0 ? 'text-green' : 'text-magenta';
-        const drawdownPrefix = item.drawdown > 0 ? '+' : '';
-        // [Fix #6] 对 ticker 和 item.name 进行 HTML 转义，防止 Yahoo Finance 返回内容中包含特殊字符导致 XSS
-        const safeTicker = escapeHtml(ticker);
-        const safeName = escapeHtml(item.name || ticker);
-        const safeLongName = escapeHtml(item.longName || ticker);
-        
-        return `
-          <div class="etf-ath-card premium-border" title="${safeLongName}">
-            <div class="etf-card-header">
-              <span class="etf-ticker font-outfit">${safeTicker}</span>
-              <span class="etf-name" title="${safeName}">${safeName}</span>
-            </div>
-            <div class="etf-card-body">
-              <div class="etf-prices-col">
-                <div class="price-row">
-                  <span class="price-lbl">ATH</span>
-                  <span class="price-val text-cyan font-outfit">$${item.ath.toFixed(2)}</span>
-                  <span class="price-date">(${formatMonthDay(item.athDate)})</span>
-                </div>
-                <div class="price-row" style="margin-top: 1px;">
-                  <span class="price-lbl">收盘</span>
-                  <span class="price-val font-outfit" style="color: var(--color-text-main);">$${item.regularClose.toFixed(2)}</span>
-                  <span class="price-date">(${formatMonthDay(item.regularCloseDate)})</span>
-                </div>
-              </div>
-              <div class="etf-drawdown-col ${drawdownClass}">
-                <span class="drawdown-lbl">较ATH回调</span>
-                <span class="drawdown-val font-outfit">${drawdownPrefix}${item.drawdown.toFixed(2)}%</span>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join('');
-      
-      container.innerHTML = html;
-    } catch (err) {
-      container.innerHTML = `
-        <div class="etf-ath-card error-bar" style="width: 100%; text-align: center;">
-          <span class="error-msg">❌ 无法从服务器同步美股 ETF ATH 历史数据: ${err.message}</span>
-        </div>
-      `;
-    }
+    return window.FundEtfPanel.load({
+      container,
+      api: Api,
+      ui: { escapeHtml, formatMonthDay }
+    });
   }
 
   // 轻量级 Toast 弹出式提示

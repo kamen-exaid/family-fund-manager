@@ -5,6 +5,7 @@ const storage = require('./lib/storage');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const EXTERNAL_SYNC_ENABLED = process.env.FUND_EXTERNAL_SYNC !== '0';
 const MAX_REMARK_LENGTH = 500;
 const MAX_MEMBER_NAME_LENGTH = 50;
 
@@ -153,7 +154,7 @@ registerApiRoutes(app, {
   getState,
   readConfig,
   writeConfig,
-  ensureIndexCache,
+  ensureIndexCache: EXTERNAL_SYNC_ENABLED ? ensureIndexCache : () => {},
   calculateStateFromDb,
   fetchCnhRateFromApi,
   isValidDate,
@@ -163,16 +164,16 @@ registerApiRoutes(app, {
   randomUUID
 });
 // 从第三方公开汇率接口获取最新 USD/CNH 汇率
-function startServer() {
-  return app.listen(PORT, '127.0.0.1', () => {
+function startServer({ port = PORT, host = '127.0.0.1' } = {}) {
+  const server = app.listen(port, host, () => {
   console.log(`====================================================`);
   console.log(`🚀 家庭基金账目管理系统已在本地成功启动！`);
-  console.log(`🌐 访问地址：http://localhost:${PORT}`);
+  console.log(`🌐 访问地址：http://localhost:${server.address().port}`);
   console.log(`📂 数据存储路径：${storage.DB_FILE}`);
   console.log(`====================================================`);
 
   // 启动时静默同步一次汇率与美股指数数据
-  fetchCnhRateFromApi().then(rate => {
+  if (EXTERNAL_SYNC_ENABLED) fetchCnhRateFromApi().then(rate => {
     if (rate) {
       try {
         const db = readDb();
@@ -186,7 +187,7 @@ function startServer() {
   });
 
   // 静默自适应对标指数历史同步
-  try {
+  if (EXTERNAL_SYNC_ENABLED) try {
     const db = readDb();
     if (db.events && db.events.length > 0) {
       const dates = db.events.map(e => e.date);
@@ -196,6 +197,7 @@ function startServer() {
     console.error('[Yahoo Sync Startup Error]:', err);
   }
   });
+  return server;
 }
 
 if (require.main === module) {
