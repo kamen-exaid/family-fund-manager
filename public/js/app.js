@@ -1357,6 +1357,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const btnDel = document.createElement('button');
       btnDel.className = 'btn-delete';
       btnDel.title = '删除此条流水并重算';
+      btnDel._deleteEventId = e.id; // 标记，供 handleDeleteEvent 定位行
       btnDel.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="3 6 5 6 21 6"/>
@@ -1387,24 +1388,92 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 删除单条交易记录确认与处理
+  // 删除单条交易记录 — 10 秒内可撤销
   function handleDeleteEvent(id, name, type, value) {
-    const typeLabel = type === 'deposit' ? '入金' : type === 'withdraw' ? '出金' : type === 'transfer' ? '份额转让' : '市值估值';
-    const textDesc = `$${formatMoney(value)}`;
+    const UNDO_DELAY = 10000; // 10 秒
 
-    const confirmMsg = type === 'transfer'
-      ? `⚠️ 警告：您确定要删除【${name}】的此条【${typeLabel}】记录（金额: ${textDesc}）吗？\n\n删除后，系统会自动撤销该笔划转，重新清零各方的转让本金与份额，并级联重算后面所有的单位净值与个人份额！此操作不可逆。`
-      : `⚠️ 警告：您确定要删除成员【${name}】的此条【${typeLabel}】记录（金额: ${textDesc}）吗？\n\n删除后，系统会自动撤销该笔流水，并以绝对公平的逻辑自动重新排序重算后面所有的单位净值与个人份额！此操作不可逆。`;
+    // 找到对应的 <tr> 行，视觉上先隐藏（软删除）
+    const allRows = ledgerTbody.querySelectorAll('tr');
+    let targetRow = null;
+    allRows.forEach(row => {
+      // 通过行上绑定的删除按钮 data 匹配（找到包含该 id 对应删除按钮的行）
+      row.querySelectorAll('button').forEach(btn => {
+        if (btn._deleteEventId === id) targetRow = row;
+      });
+    });
 
-    if (confirm(confirmMsg)) {
+    if (targetRow) {
+      targetRow.style.transition = 'opacity 0.3s, transform 0.3s';
+      targetRow.style.opacity = '0.2';
+      targetRow.style.pointerEvents = 'none';
+    }
+
+    // 构建撤销 Toast
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-undo';
+    toast.innerHTML = `
+      <div class="toast-undo-row">
+        <span class="toast-undo-icon">🗑️</span>
+        <span class="toast-undo-text">
+          <strong>已删除</strong>
+          ${type === 'deposit' ? '入金' : type === 'withdraw' ? '出金' : type === 'transfer' ? '转让' : '估值'}记录（$${formatMoney(value)}）<br>
+          <span style="font-size:0.75rem; opacity:0.7;">10 秒内可撤销，操作完成后将重算账目</span>
+        </span>
+        <button class="toast-undo-btn" id="undo-btn-${id}">↩ 撤销</button>
+      </div>
+      <div class="toast-undo-progress-wrap">
+        <div class="toast-undo-progress-bar" id="undo-progress-${id}" style="animation-duration: ${UNDO_DELAY}ms;"></div>
+      </div>
+    `;
+    container.appendChild(toast);
+
+    // 入场动画
+    toast.style.animation = 'toastSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards';
+
+    let undone = false;
+
+    // 撤销按钮点击处理
+    const undoBtn = document.getElementById(`undo-btn-${id}`);
+    if (undoBtn) {
+      undoBtn.addEventListener('click', () => {
+        undone = true;
+        clearTimeout(deleteTimer);
+        // 恢复行显示
+        if (targetRow) {
+          targetRow.style.opacity = '1';
+          targetRow.style.pointerEvents = '';
+          targetRow.style.transform = '';
+        }
+        // 关闭 Toast
+        dismissToast(toast);
+        showToast('已撤销删除操作', 'success');
+      });
+    }
+
+    // 10 秒后执行真正删除
+    const deleteTimer = setTimeout(() => {
+      if (undone) return;
       Api.deleteEvent(id)
         .then(() => {
           showToast('账目记录已删除，系统已完成全额重算！', 'success');
           loadAllData();
         })
         .catch(err => {
-          showToast(err.message, 'error');
+          // 删除失败，恢复行
+          if (targetRow) {
+            targetRow.style.opacity = '1';
+            targetRow.style.pointerEvents = '';
+          }
+          showToast('删除失败：' + err.message, 'error');
         });
+      dismissToast(toast);
+    }, UNDO_DELAY);
+
+    // 辅助：关闭 Toast（淡出动画后移除）
+    function dismissToast(t) {
+      t.style.animation = 'toastSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) reverse forwards';
+      t.addEventListener('animationend', () => t.remove(), { once: true });
     }
   }
 
