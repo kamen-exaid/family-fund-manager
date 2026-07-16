@@ -142,7 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
   bindEvents();
   loadAllData();
   loadEtfAthData();
-  // 每 5 分钟自动刷新美股 ETF ATH 数据
   setInterval(loadEtfAthData, 5 * 60 * 1000);
 
   // --- 隐私模式模块 ---
@@ -926,7 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedFilterVal = filterMember.value;
     filterMember.innerHTML = `
       <option value="all">所有流水对象</option>
-      ${membersList.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
+      ${membersList.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`).join('')}
       <option value="system">系统/估值</option>
     `;
     if (savedFilterVal) {
