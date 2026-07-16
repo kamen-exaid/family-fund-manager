@@ -1001,7 +1001,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const opacityStyle = mState.totalDeposit === 0 ? 'style="opacity: 0.55;"' : '';
 
       // 生成智能头像文本
-      const shortName = getAvatarText(m.name);
+      const shortName = escapeHtml(getAvatarText(m.name));
 
       // 分配渐变配色样式
       const isDark = checkIfDark();
@@ -1052,7 +1052,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     elMembersEditList.innerHTML = membersList.map((m, idx) => {
-      const shortName = getAvatarText(m.name);
+      const shortName = escapeHtml(getAvatarText(m.name));
 
       const isDark = checkIfDark();
       const { palette, textPalette } = getThemeColors(isDark);
@@ -1060,7 +1060,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const cardTextColor = textPalette[idx % textPalette.length];
 
       // 检查成员是否拥有交易历史
-      const hasTx = appState.events.some(e => e.member === m.id);
+      const hasTx = appState.events.some(e =>
+        e.member === m.id || e.fromMember === m.id || e.toMember === m.id
+      );
 
       return `
         <div class="member-edit-item" id="member-edit-item-${m.id}">
@@ -1080,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
             </button>
-            <button class="btn-delete" id="btn-member-del-${m.id}" title="${hasTx ? '已有出资记录，禁止删除' : '移除该成员'}" ${hasTx ? 'disabled style="opacity: 0.25; cursor: not-allowed;"' : ''}>
+            <button class="btn-delete" id="btn-member-del-${m.id}" title="${hasTx ? '已有出入金或转让记录，禁止删除' : '移除该成员'}" ${hasTx ? 'disabled style="opacity: 0.25; cursor: not-allowed;"' : ''}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="3 6 5 6 21 6"/>
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
