@@ -8,7 +8,7 @@ const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'family-fund-api-'));
 process.env.FUND_DATA_DIR = dataDir;
 process.env.FUND_EXTERNAL_SYNC = '0';
 
-const { startServer } = require('./server');
+const { startServer } = require('../server');
 
 function request(server, method, pathname, body) {
   const payload = body === undefined ? null : JSON.stringify(body);
@@ -70,3 +70,4 @@ function request(server, method, pathname, body) {
   console.error(error);
   process.exitCode = 1;
 });
+

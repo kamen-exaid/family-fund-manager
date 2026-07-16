@@ -1,7 +1,7 @@
 const assert = require('assert');
 const { randomUUID } = require('crypto');
-const { calculateStateFromDb } = require('./lib/calculator');
-const { registerApiRoutes } = require('./routes/api');
+const { calculateStateFromDb } = require('../lib/calculator');
+const { registerApiRoutes } = require('../routes/api');
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -83,3 +83,4 @@ async function request(handler, body) {
   console.error(error);
   process.exitCode = 1;
 });
+

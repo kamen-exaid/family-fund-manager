@@ -69,15 +69,24 @@
 ├── data/                  # 本地数据库目录
 │   └── db.json            # 核心数据文件（包含成员、事件、汇率及指数缓存数据）
 ├── lib/                   # 后端基础模块
-│   └── storage.js         # 数据库/配置读写、自动备份与缓存清理
+│   ├── calculator.js      # 事件溯源重放与 Decimal 精确账务计算
+│   ├── storage.js         # 数据库/配置读写、自动备份与缓存清理
+│   └── yahoo.js           # 指数、ETF 与汇率数据抓取
 ├── node_modules/          # 项目运行所需的第三方依赖包
 ├── public/                # 前端静态资源目录 (HTML, CSS, JS, 图表组件等)
 │   ├── index.html         # 系统单页面前端 Dashboard
 │   └── js/
 │       ├── api.js         # 前端 API 请求封装
 │       ├── ui-utils.js    # 前端格式化、转义、主题与图表工具函数
-│       └── app.js         # 前端页面状态、交互与渲染逻辑
-├── server.js              # 后端 Express 服务器逻辑（包含数学核算模型、API 接口与 Yahoo 数据同步）
+│       ├── app.js         # 前端状态、表单与页面流程协调
+│       ├── chart-renderer.js   # 图表与趋势统计渲染
+│       ├── ledger-renderer.js  # 历史流水表格渲染
+│       ├── member-renderer.js  # 成员资产卡片渲染
+│       └── etf-panel.js        # ETF 行情面板渲染
+├── routes/                # API 路由注册与输入校验
+│   └── api.js
+├── test/                  # 自动化回归与前端组件测试（运行 npm test）
+├── server.js              # Express 服务启动与依赖装配
 ├── package.json           # 项目配置文件与运行命令
 ├── start.bat              # Windows 快捷启动文件
 ├── start.command          # macOS 快捷启动文件

@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { calculateStateFromDb } = require('./server');
+const { calculateStateFromDb } = require('../server');
 
 const db = {
   cnhRate: 7.2,
@@ -48,3 +48,4 @@ assert.strictEqual(precisionState.summary.totalNAV, 10);
 assert.strictEqual(precisionState.events.at(-1)._totalNAVAfter, 10);
 
 console.log('Production calculateStateFromDb assertions passed.');
+

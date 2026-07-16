@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 > nul
-title Family Fund Manager Launcher v2.2
+title Family Fund Manager Launcher v2.3
 
 node -v >nul 2>&1
 if errorlevel 1 goto NO_NODE
