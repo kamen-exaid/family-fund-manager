@@ -14,6 +14,22 @@ function registerApiRoutes(app, deps) {
     fetchEtfAthData,
     randomUUID
   } = deps;
+
+  const BALANCE_TOLERANCE = 0.000001;
+
+  function toFiniteNumber(value) {
+    if (typeof value !== 'number' && typeof value !== 'string') return NaN;
+    if (typeof value === 'string' && value.trim() === '') return NaN;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+
+  function isEventFullyCovered(db, eventId) {
+    const validationDb = JSON.parse(JSON.stringify(db));
+    const validationState = calculateStateFromDb(validationDb);
+    const event = validationState.events.find(e => e.id === eventId);
+    return Boolean(event && event._actualAmount + BALANCE_TOLERANCE >= event.amount);
+  }
 app.get('/api/state', (req, res) => {
   try {
     const state = getState();
@@ -56,16 +72,16 @@ app.post('/api/transaction', (req, res) => {
     if (!['deposit', 'withdraw'].includes(type)) {
       return res.status(400).json({ success: false, message: '交易类型必须为入金(deposit)或出金(withdraw)' });
     }
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    const parsedAmount = toFiniteNumber(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       return res.status(400).json({ success: false, message: '金额必须大于 0' });
     }
 
     // 处理人民币金额手动输入
     let parsedCnhAmount = undefined;
     if (cnhAmount !== undefined && cnhAmount !== '') {
-      parsedCnhAmount = parseFloat(cnhAmount);
-      if (isNaN(parsedCnhAmount) || parsedCnhAmount <= 0) {
+      parsedCnhAmount = toFiniteNumber(cnhAmount);
+      if (!Number.isFinite(parsedCnhAmount) || parsedCnhAmount <= 0) {
         return res.status(400).json({ success: false, message: '人民币金额必须大于 0' });
       }
     } else {
@@ -111,6 +127,9 @@ app.post('/api/transaction', (req, res) => {
     };
 
     db.events.push(newEvent);
+    if (type === 'withdraw' && !isEventFullyCovered(db, newEvent.id)) {
+      return res.status(400).json({ success: false, message: 'Insufficient balance at the event date.' });
+    }
     writeDb(db);
 
     // 静默后台触发指数同步
@@ -127,8 +146,8 @@ app.post('/api/valuation', (req, res) => {
   try {
     const { totalNAV, date, remark } = req.body;
 
-    const parsedNAV = parseFloat(totalNAV);
-    if (isNaN(parsedNAV) || parsedNAV < 0) {
+    const parsedNAV = toFiniteNumber(totalNAV);
+    if (!Number.isFinite(parsedNAV) || parsedNAV < 0) {
       return res.status(400).json({ success: false, message: '资产估值金额必须大于等于 0' });
     }
     if (!date) {
@@ -193,13 +212,13 @@ app.post('/api/transfer', (req, res) => {
       return res.status(400).json({ success: false, message: '无效的转让成员' });
     }
 
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    const parsedAmount = toFiniteNumber(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       return res.status(400).json({ success: false, message: '转让金额必须大于 0' });
     }
 
-    const parsedRate = parseFloat(cnhRate);
-    if (isNaN(parsedRate) || parsedRate <= 0) {
+    const parsedRate = toFiniteNumber(cnhRate);
+    if (!Number.isFinite(parsedRate) || parsedRate <= 0) {
       return res.status(400).json({ success: false, message: '受让汇率必须大于 0' });
     }
 
@@ -242,6 +261,9 @@ app.post('/api/transfer', (req, res) => {
     };
 
     db.events.push(newEvent);
+    if (!isEventFullyCovered(db, newEvent.id)) {
+      return res.status(400).json({ success: false, message: 'Insufficient balance at the event date.' });
+    }
     writeDb(db);
 
     // 静默后台触发指数同步
@@ -300,16 +322,16 @@ app.put('/api/event/:id', (req, res) => {
       }
 
       if (amount !== undefined) {
-        const parsedAmount = parseFloat(amount);
-        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        const parsedAmount = toFiniteNumber(amount);
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
           return res.status(400).json({ success: false, message: '美元金额必须大于 0' });
         }
         event.amount = parsedAmount;
       }
 
       if (cnhAmount !== undefined) {
-        const parsedCnh = parseFloat(cnhAmount);
-        if (isNaN(parsedCnh) || parsedCnh <= 0) {
+        const parsedCnh = toFiniteNumber(cnhAmount);
+        if (!Number.isFinite(parsedCnh) || parsedCnh <= 0) {
           return res.status(400).json({ success: false, message: '人民币金额必须大于 0' });
         }
         event.cnhAmount = parsedCnh;
@@ -344,8 +366,8 @@ app.put('/api/event/:id', (req, res) => {
       const { totalNAV, date, remark } = req.body;
 
       if (totalNAV !== undefined) {
-        const parsedNAV = parseFloat(totalNAV);
-        if (isNaN(parsedNAV) || parsedNAV < 0) {
+        const parsedNAV = toFiniteNumber(totalNAV);
+        if (!Number.isFinite(parsedNAV) || parsedNAV < 0) {
           return res.status(400).json({ success: false, message: '资产估值金额必须大于等于 0' });
         }
         event.totalNAV = parsedNAV;
@@ -383,16 +405,16 @@ app.put('/api/event/:id', (req, res) => {
       }
 
       if (amount !== undefined) {
-        const parsedAmount = parseFloat(amount);
-        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        const parsedAmount = toFiniteNumber(amount);
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
           return res.status(400).json({ success: false, message: '转让金额必须大于 0' });
         }
         event.amount = parsedAmount;
       }
 
       if (cnhRate !== undefined) {
-        const parsedRate = parseFloat(cnhRate);
-        if (isNaN(parsedRate) || parsedRate <= 0) {
+        const parsedRate = toFiniteNumber(cnhRate);
+        if (!Number.isFinite(parsedRate) || parsedRate <= 0) {
           return res.status(400).json({ success: false, message: '受让汇率必须大于 0' });
         }
         event.cnhRate = parsedRate;
@@ -494,8 +516,8 @@ app.post('/api/settings', (req, res) => {
     const db = readDb();
 
     if (cnhRate !== undefined) {
-      const parsedRate = parseFloat(cnhRate);
-      if (isNaN(parsedRate) || parsedRate <= 0) {
+      const parsedRate = toFiniteNumber(cnhRate);
+      if (!Number.isFinite(parsedRate) || parsedRate <= 0) {
         return res.status(400).json({ success: false, message: '汇率参数必须大于 0' });
       }
       db.cnhRate = parsedRate;
@@ -603,8 +625,8 @@ app.post('/api/backup/import', (req, res) => {
 
     let importedCnhRate = currentDb.cnhRate;
     if (cnhRate !== undefined) {
-      importedCnhRate = parseFloat(cnhRate);
-      if (isNaN(importedCnhRate) || importedCnhRate <= 0) {
+      importedCnhRate = toFiniteNumber(cnhRate);
+      if (!Number.isFinite(importedCnhRate) || importedCnhRate <= 0) {
         return res.status(400).json({ success: false, message: '导入数据中的汇率参数必须大于 0' });
       }
     }
@@ -617,6 +639,13 @@ app.post('/api/backup/import', (req, res) => {
         ? indexCache
         : (currentDb.indexCache || {})
     };
+    for (const event of db.events) {
+      if (event.type === 'withdraw' || event.type === 'transfer') {
+        if (!isEventFullyCovered(db, event.id)) {
+          return res.status(400).json({ success: false, message: 'Imported data contains an insufficient historical balance.' });
+        }
+      }
+    }
     writeDb(db);
 
     // 批量导入触发指数同步
