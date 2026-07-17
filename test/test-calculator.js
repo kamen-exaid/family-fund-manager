@@ -26,6 +26,16 @@ assert.strictEqual(state.members.bob.shares, 700);
 assert.strictEqual(state.members.alice.currentValue, 960);
 assert.strictEqual(state.members.bob.currentValue, 840);
 assert.strictEqual(state.events.find(event => event.id === 'transfer-1')._sharesTransferred, 200);
+// A member-to-member transfer is not new capital for the family fund and
+// must not dilute the fund-level USD or CNH return rates.
+assert.strictEqual(state.summary.totalDeposit, 1600);
+assert.strictEqual(state.summary.totalWithdraw, 0);
+assert.strictEqual(state.summary.profit, 200);
+assert.strictEqual(state.summary.profitRate, 12.5);
+assert.strictEqual(state.summary.cnhTotalDeposit, 11520);
+assert.strictEqual(state.summary.cnhTotalWithdraw, 0);
+assert.strictEqual(state.summary.cnhProfit, 1440);
+assert.strictEqual(state.summary.cnhProfitRate, 12.5);
 
 // Repeating decimal inputs are a common source of silent ledger drift when
 // JavaScript Number is used for intermediate calculations.
@@ -48,4 +58,3 @@ assert.strictEqual(precisionState.summary.totalNAV, 10);
 assert.strictEqual(precisionState.events.at(-1)._totalNAVAfter, 10);
 
 console.log('Production calculateStateFromDb assertions passed.');
-

@@ -30,6 +30,25 @@ function registerApiRoutes(app, deps) {
     const event = validationState.events.find(e => e.id === eventId);
     return Boolean(event && event._actualAmount + BALANCE_TOLERANCE >= event.amount);
   }
+
+  // The calculator caps underfunded replay events for display safety. Before
+  // persisting a mutation, reject any ledger where requested and settled amounts
+  // would differ instead.
+  function findInsufficientBalanceEvent(db) {
+    const validationDb = JSON.parse(JSON.stringify(db));
+    const validationState = calculateStateFromDb(validationDb);
+    return validationState.events.find(event =>
+      (event.type === 'withdraw' || event.type === 'transfer') &&
+      event._actualAmount + BALANCE_TOLERANCE < event.amount
+    );
+  }
+
+  function rejectInsufficientLedger(res, event) {
+    return res.status(400).json({
+      success: false,
+      message: `操作会导致历史${event.type === 'withdraw' ? '出金' : '转让'}余额不足：${event.date} 的记录要求 $${event.amount.toFixed(2)}，实际仅可结算 $${event._actualAmount.toFixed(2)}。`
+    });
+  }
 app.get('/api/state', (req, res) => {
   try {
     const state = getState();
@@ -127,9 +146,8 @@ app.post('/api/transaction', (req, res) => {
     };
 
     db.events.push(newEvent);
-    if (type === 'withdraw' && !isEventFullyCovered(db, newEvent.id)) {
-      return res.status(400).json({ success: false, message: 'Insufficient balance at the event date.' });
-    }
+    const insufficientEvent = findInsufficientBalanceEvent(db);
+    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
     writeDb(db);
 
     // 静默后台触发指数同步
@@ -185,6 +203,8 @@ app.post('/api/valuation', (req, res) => {
     };
 
     db.events.push(newEvent);
+    const insufficientEvent = findInsufficientBalanceEvent(db);
+    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
     writeDb(db);
 
     // 静默后台触发指数同步
@@ -261,9 +281,8 @@ app.post('/api/transfer', (req, res) => {
     };
 
     db.events.push(newEvent);
-    if (!isEventFullyCovered(db, newEvent.id)) {
-      return res.status(400).json({ success: false, message: 'Insufficient balance at the event date.' });
-    }
+    const insufficientEvent = findInsufficientBalanceEvent(db);
+    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
     writeDb(db);
 
     // 静默后台触发指数同步
@@ -287,6 +306,8 @@ app.delete('/api/event/:id', (req, res) => {
     }
 
     const removedEvent = db.events.splice(index, 1)[0];
+    const insufficientEvent = findInsufficientBalanceEvent(db);
+    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
     writeDb(db);
 
     res.json({
@@ -447,6 +468,9 @@ app.put('/api/event/:id', (req, res) => {
         });
       }
     }
+
+    const insufficientEvent = findInsufficientBalanceEvent(db);
+    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
 
     writeDb(db);
 
@@ -646,6 +670,9 @@ app.post('/api/backup/import', (req, res) => {
         }
       }
     }
+    const insufficientEvent = findInsufficientBalanceEvent(db);
+    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
+
     writeDb(db);
 
     // 批量导入触发指数同步

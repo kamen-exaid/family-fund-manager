@@ -48,19 +48,34 @@ function request(server, method, pathname, body) {
       totalNAV: 120.12, date: '2026-03-02', remark: 'mark to market'
     });
     assert.strictEqual(response.status, 200);
+    const valuationId = response.body.data.id;
 
     response = await request(server, 'POST', '/api/transaction', {
       member: 'me', type: 'withdraw', amount: 200, date: '2026-03-03'
     });
     assert.strictEqual(response.status, 400);
 
+    response = await request(server, 'POST', '/api/transaction', {
+      member: 'me', type: 'withdraw', amount: 120, date: '2026-03-03'
+    });
+    assert.strictEqual(response.status, 200);
+
+    // Editing the valuation down would also make the later withdrawal underfunded.
+    response = await request(server, 'PUT', `/api/event/${valuationId}`, { totalNAV: 100 });
+    assert.strictEqual(response.status, 400);
+
+    // Removing the historical valuation would make the later $120 withdrawal
+    // underfunded. Reject the mutation rather than silently capping the withdrawal.
+    response = await request(server, 'DELETE', `/api/event/${valuationId}`);
+    assert.strictEqual(response.status, 400);
+
     response = await request(server, 'GET', '/api/backup/export');
     assert.strictEqual(response.status, 200);
-    assert.strictEqual(response.body.events.length, 2);
+    assert.strictEqual(response.body.events.length, 3);
 
     response = await request(server, 'GET', '/api/state');
-    assert.strictEqual(response.body.data.summary.totalNAV, 120.12);
-    assert.strictEqual(response.body.data.members.me.currentValue, 120.12);
+    assert.strictEqual(response.body.data.summary.totalNAV, 0.12);
+    assert.strictEqual(response.body.data.members.me.currentValue, 0.12);
   } finally {
     await new Promise(resolve => server.close(resolve));
     fs.rmSync(dataDir, { recursive: true, force: true });
@@ -70,4 +85,3 @@ function request(server, method, pathname, body) {
   console.error(error);
   process.exitCode = 1;
 });
-
