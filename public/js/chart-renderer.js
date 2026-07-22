@@ -38,53 +38,174 @@ window.FundChartRenderer = {
       const visible = series.filter(item => item.visible);
       trendStatsGrid.innerHTML = visible.length
         ? visible.map(item => {
-          const end = Number.isInteger(activeIndex) ? Math.min(activeIndex, item.values.length - 1) : item.values.length - 1;
+          const isHover = Number.isInteger(activeIndex);
+          const end = isHover ? Math.min(activeIndex, item.values.length - 1) : item.values.length - 1;
           const stats = calculate(item.values.slice(0, end + 1));
-          const date = Number.isInteger(activeIndex) && labels[end] ? `<div class="trend-stat-date">截至 ${labels[end]}</div>` : '';
-          return `<div class="trend-stat-card" style="--series-color:${item.color};"><div class="trend-stat-name">${item.label}</div>${date}<div class="trend-stat-values"><span><em>涨幅</em><strong class="${stats.gain >= 0 ? 'positive' : 'negative'}">${percent(stats.gain)}</strong></span><span><em>最大回撤</em><strong class="negative">${percent(stats.drawdown)}</strong></span></div></div>`;
+          const dateText = isHover && labels[end] ? `截至 ${labels[end]}` : '全周期区间历史';
+          return `<div class="trend-stat-card" style="--series-color:${item.color};">
+            <div class="trend-stat-name">${item.label}</div>
+            <div class="trend-stat-date ${isHover ? 'is-hovering' : 'is-resting'}">${dateText}</div>
+            <div class="trend-stat-values">
+              <span><em>涨幅</em><strong class="${stats.gain >= 0 ? 'positive' : 'negative'}">${percent(stats.gain)}</strong></span>
+              <span><em>最大回撤</em><strong class="negative">${percent(stats.drawdown)}</strong></span>
+            </div>
+          </div>`;
         }).join('')
         : '<div class="trend-stat-empty">勾选上方指标后显示区间涨幅与最大回撤</div>';
     };
     renderStats();
 
+    const dark = isDarkTheme(settings.theme);
     const navCanvas = document.getElementById('navTrendChart');
+    const navCtx = navCanvas.getContext('2d');
+    
+    // 动态生成高通透度 Apple 风格多阶渐变
+    const navGradient = createChartGradient(
+      navCtx, 
+      dark ? 'rgba(0, 242, 254, 0.28)' : 'rgba(2, 132, 199, 0.22)', 
+      dark ? 'rgba(0, 242, 254, 0.0)' : 'rgba(2, 132, 199, 0.0)'
+    );
+
     const datasets = [
-      { label: '基金总资产', data: assets, borderColor: '#8b5cf6', borderWidth: 2, borderDash: [5, 5], fill: false, tension: 0.35, yAxisID: 'y-assets', hidden: !chkCompAssets.checked },
-      { label: '单位净值', data: nav, borderColor: '#00f2fe', borderWidth: 3, backgroundColor: createChartGradient(navCanvas.getContext('2d'), 'rgba(0,242,254,.15)', 'rgba(0,242,254,0)'), fill: true, tension: 0.35, yAxisID: 'y-nav', hidden: !chkCompNav.checked },
-      { label: '标普500指数', data: spx, borderColor: '#f59e0b', borderWidth: 1.5, borderDash: [4, 4], fill: false, tension: 0.35, yAxisID: 'y-nav', hidden: !chkCompSp500.checked },
-      { label: '纳斯达克100指数', data: ndx, borderColor: '#ec4899', borderWidth: 1.5, borderDash: [4, 4], fill: false, tension: 0.35, yAxisID: 'y-nav', hidden: !chkCompNdx.checked }
+      {
+        label: '基金总资产',
+        data: assets,
+        borderColor: dark ? '#a855f7' : '#7c3aed',
+        borderWidth: 2,
+        borderDash: [4, 4],
+        fill: false,
+        tension: 0.38,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: dark ? '#a855f7' : '#7c3aed',
+        yAxisID: 'y-assets',
+        hidden: !chkCompAssets.checked
+      },
+      {
+        label: '单位净值',
+        data: nav,
+        borderColor: dark ? '#00f2fe' : '#0284c7',
+        borderWidth: 3,
+        backgroundColor: navGradient,
+        fill: true,
+        tension: 0.38,
+        pointRadius: 0,
+        pointHoverRadius: 7,
+        pointHoverBackgroundColor: dark ? '#00f2fe' : '#0284c7',
+        pointHoverBorderColor: '#ffffff',
+        pointHoverBorderWidth: 2,
+        yAxisID: 'y-nav',
+        hidden: !chkCompNav.checked
+      },
+      {
+        label: '标普500指数',
+        data: spx,
+        borderColor: dark ? '#f59e0b' : '#d97706',
+        borderWidth: 1.8,
+        borderDash: [3, 3],
+        fill: false,
+        tension: 0.38,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        yAxisID: 'y-nav',
+        hidden: !chkCompSp500.checked
+      },
+      {
+        label: '纳斯达克100指数',
+        data: ndx,
+        borderColor: dark ? '#f43f5e' : '#e11d48',
+        borderWidth: 1.8,
+        borderDash: [3, 3],
+        fill: false,
+        tension: 0.38,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        yAxisID: 'y-nav',
+        hidden: !chkCompNdx.checked
+      }
     ];
+
+    const tooltipTheme = {
+      backgroundColor: dark ? 'rgba(18, 20, 32, 0.92)' : 'rgba(255, 255, 255, 0.94)',
+      titleColor: dark ? '#ffffff' : '#0f172a',
+      bodyColor: dark ? '#e2e8f0' : '#334155',
+      borderColor: dark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
+      borderWidth: 1,
+      padding: 12,
+      cornerRadius: 12,
+      boxPadding: 4,
+      usePointStyle: true,
+      titleFont: { size: 12, weight: '700', family: 'Outfit, sans-serif' },
+      bodyFont: { size: 11, weight: '500', family: 'Inter, sans-serif' }
+    };
+
+    const gridColor = dark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)';
+    const tickColor = dark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)';
+
     let nextNav = navTrendChart;
     if (nextNav) {
       nextNav.data.labels = labels;
       nextNav.data.datasets.forEach((dataset, index) => { Object.assign(dataset, datasets[index]); });
       nextNav.options.scales['y-assets'].display = chkCompAssets.checked;
+      nextNav.options.scales.x.grid.color = gridColor;
+      nextNav.options.scales.x.ticks.color = tickColor;
+      nextNav.options.scales['y-nav'].grid.color = gridColor;
+      nextNav.options.scales['y-nav'].ticks.color = dark ? 'rgba(0, 242, 254, 0.7)' : 'rgba(2, 132, 199, 0.8)';
+      nextNav.options.scales['y-assets'].ticks.color = dark ? 'rgba(168, 85, 247, 0.7)' : 'rgba(124, 58, 237, 0.8)';
+      Object.assign(nextNav.options.plugins.tooltip, tooltipTheme);
       nextNav.update();
     } else {
-      nextNav = new Chart(navCanvas.getContext('2d'), {
-        type: 'line', data: { labels, datasets },
+      nextNav = new Chart(navCtx, {
+        type: 'line',
+        data: { labels, datasets },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: { labels: { color: 'rgba(255,255,255,.7)', font: { size: 11, weight: '500' } } },
+            legend: {
+              position: 'top',
+              align: 'end',
+              labels: {
+                color: dark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.7)',
+                font: { size: 11, weight: '600', family: 'Inter, sans-serif' },
+                usePointStyle: true,
+                boxWidth: 8,
+                boxHeight: 8,
+                padding: 14
+              }
+            },
             tooltip: {
+              ...tooltipTheme,
               mode: 'index',
               intersect: false,
               callbacks: {
                 label(context) {
                   return context.datasetIndex === 0
-                    ? `${context.dataset.label}: $${formatMoney(context.parsed.y)}`
-                    : `${context.dataset.label}: ${context.parsed.y.toFixed(3)}`;
+                    ? ` ${context.dataset.label}: $${formatMoney(context.parsed.y)}`
+                    : ` ${context.dataset.label}: ${context.parsed.y.toFixed(3)}`;
                 }
               }
             }
           },
           scales: {
-            x: { grid: { color: 'rgba(255,255,255,.03)' }, ticks: { color: 'rgba(255,255,255,.4)' } },
-            'y-nav': { position: 'left', ticks: { color: 'rgba(0,242,254,.6)', callback: value => value.toFixed(3) }, title: { display: true, text: '单位净值', color: 'rgba(0,242,254,.6)' } },
-            'y-assets': { position: 'right', display: chkCompAssets.checked, grid: { drawOnChartArea: false }, ticks: { color: 'rgba(139,92,246,.6)', callback: value => `$${formatMoney(value)}` }, title: { display: true, text: '总资产 (USD)', color: 'rgba(139,92,246,.6)' } }
+            x: {
+              grid: { color: gridColor },
+              ticks: { color: tickColor, font: { size: 10, family: 'Inter, sans-serif' } }
+            },
+            'y-nav': {
+              position: 'left',
+              grid: { color: gridColor },
+              ticks: { color: dark ? 'rgba(0, 242, 254, 0.7)' : 'rgba(2, 132, 199, 0.8)', font: { family: 'Outfit, sans-serif' }, callback: value => value.toFixed(3) },
+              title: { display: true, text: '单位净值', color: dark ? 'rgba(0, 242, 254, 0.8)' : 'rgba(2, 132, 199, 0.9)', font: { size: 11, weight: '600' } }
+            },
+            'y-assets': {
+              position: 'right',
+              display: chkCompAssets.checked,
+              grid: { drawOnChartArea: false },
+              ticks: { color: dark ? 'rgba(168, 85, 247, 0.7)' : 'rgba(124, 58, 237, 0.8)', font: { family: 'Outfit, sans-serif' }, callback: value => `$${formatMoney(value)}` },
+              title: { display: true, text: '总资产 (USD)', color: dark ? 'rgba(168, 85, 247, 0.8)' : 'rgba(124, 58, 237, 0.9)', font: { size: 11, weight: '600' } }
+            }
           }
         }
       });
@@ -110,7 +231,6 @@ window.FundChartRenderer = {
       navCanvas.dataset.trendStatsLeaveBound = 'true';
     }
 
-    const dark = isDarkTheme(settings.theme);
     const { palette } = getThemeColors(dark);
     const values = members.map(member => state.members[member.id]?.currentValue || 0);
     const total = values.reduce((sum, value) => sum + value, 0);
