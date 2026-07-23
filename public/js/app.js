@@ -8,17 +8,20 @@ document.addEventListener('DOMContentLoaded', () => {
     getThemeColors,
     isDarkTheme,
     getAvatarText,
+    getMemberAvatarColor,
     formatMonthDay,
     escapeHtml,
     formatMoney,
     formatCnhWan,
-    createChartGradient
+    createChartGradient,
+    getSeriesColors,
+    hexToRgba
   } = window.FundUiUtils;
 
   // --- 全局状态 ---
   let appState = null;
   let membersList = [];
-  let activeChartTab = 'nav';
+  let activeMemberView = 'assets';
   let activeTimeSlice = 'ALL';
   let activeScaleType = 'linear'; // 'linear' or 'logarithmic'
   let navTrendChart = null;
@@ -27,7 +30,84 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentFilteredHistory = [];
   let currentTrendStatSeries = [];
   let isTrendStatsHovering = false;
-  let isPrivacyMode = true; // 每次启动自动开启隐私模式
+  let isPrivacyMode = true; // 默认开启隐私遮罩，用户可按需查看数据
+
+  const modalTriggers = new WeakMap();
+
+  function getModalFocusableElements(modal) {
+    return [...modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter(element => element.offsetParent !== null);
+  }
+
+  function openModal(modal, trigger = document.activeElement) {
+    if (!modal) return;
+    modalTriggers.set(modal, trigger);
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => (getModalFocusableElements(modal)[0] || modal.querySelector('.modal-content'))?.focus());
+  }
+
+  function closeModal(modal) {
+    if (!modal || !modal.classList.contains('active')) return;
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+    modalTriggers.get(modal)?.focus?.();
+  }
+
+  function bindAccessibleModal(modal, closeButton) {
+    if (!modal) return;
+    closeButton?.addEventListener('click', () => closeModal(modal));
+    modal.addEventListener('click', event => {
+      if (event.target === modal) closeModal(modal);
+    });
+    modal.addEventListener('keydown', event => {
+      if (!modal.classList.contains('active')) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeModal(modal);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = getModalFocusableElements(modal);
+      if (!focusable.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+  }
+
+  function beginSubmission(form) {
+    if (form.dataset.submitting === 'true') return null;
+    form.dataset.submitting = 'true';
+    form.setAttribute('aria-busy', 'true');
+    const buttons = [...form.querySelectorAll('button[type="submit"]')]
+      .map(button => ({ button, disabled: button.disabled }));
+    buttons.forEach(({ button }) => { button.disabled = true; });
+    return () => {
+      delete form.dataset.submitting;
+      form.removeAttribute('aria-busy');
+      buttons.forEach(({ button, disabled }) => { button.disabled = disabled; });
+    };
+  }
+
+  async function submitOnce(form, task) {
+    const finishSubmission = beginSubmission(form);
+    if (!finishSubmission) return;
+    try {
+      await task();
+    } finally {
+      finishSubmission();
+    }
+  }
 
   // --- DOM 元素定义 ---
   const elSystemTime = document.getElementById('system-time');
@@ -39,9 +119,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const elFundTotalShares = document.getElementById('fund-total-shares');
   const elFundNavPerShare = document.getElementById('fund-nav-per-share');
   const elNavIndicator = document.getElementById('nav-indicator');
-  const elFundTotalProfit = document.getElementById('fund-total-profit');
-  const elFundPrincipal = document.getElementById('fund-principal');
   const elFundProfitRate = document.getElementById('fund-profit-rate');
+  const elFundProfitRateSub = document.getElementById('fund-profit-rate-sub');
+
+  // The overview is deliberately terse: one aligned title, one key figure, one supporting fact.
+  document.querySelectorAll('.metric-label').forEach((label, index) => {
+    label.textContent = ['总资产', '单位净值', '累计收益率'][index] || label.textContent;
+  });
 
   // Dynamic Containers
   const elMembersGridContainer = document.getElementById('members-grid-container');
@@ -129,6 +213,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAddTickerRow = document.getElementById('btn-add-ticker-row');
   const btnSaveTickerConfig = document.getElementById('btn-save-ticker-config');
 
+  // Keep operations and market tracking in one right-side flex column so their gap is structural.
+  const rightColumn = document.querySelector('.layout-right');
+  const tickerAthPanel = document.getElementById('ticker-ath-container');
+  if (rightColumn && tickerAthPanel) rightColumn.appendChild(tickerAthPanel);
+
   // 辅助函数判断是否是暗黑模式（兼容 system）
   function checkIfDark() {
     return isDarkTheme(currentTheme);
@@ -172,6 +261,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 事件绑定模块 ---
   function bindEvents() {
+    const openMembersPanel = () => {
+      renderMembersEditorList();
+      openModal(memberModal);
+    };
+    const openBackupPanel = () => openModal(backupModal);
+
+    bindAccessibleModal(backupModal, btnCloseModal);
+    bindAccessibleModal(memberModal, btnCloseMemberModal);
+    bindAccessibleModal(editEventModal, btnCloseEditModal);
+    bindAccessibleModal(tickerConfigModal, btnCloseTickerConfigModal);
+
+    document.querySelectorAll('[data-sidebar-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.sidebarAction;
+        if (action === 'members') openMembersPanel();
+        if (action === 'backup') openBackupPanel();
+      });
+    });
+
+    // 家庭成员面板内切换资产卡片与资产占比图。
+    const memberViewsStage = document.querySelector('.member-views-stage');
+    const memberAllocationSummary = document.querySelector('.member-allocation-summary');
+    document.querySelectorAll('[data-member-view]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const nextMemberView = e.currentTarget.dataset.memberView;
+        if (nextMemberView === activeMemberView) return;
+
+        // 先锁定当前高度，再将高度补间到目标视图，避免面板瞬间跳动。
+        const currentHeight = memberViewsStage?.offsetHeight || 0;
+        if (memberViewsStage) memberViewsStage.style.height = `${currentHeight}px`;
+        activeMemberView = nextMemberView;
+        document.querySelectorAll('[data-member-view]').forEach(button => button.classList.toggle('active', button === e.currentTarget));
+        elMembersGridContainer.classList.toggle('active', activeMemberView === 'assets');
+        memberAllocationSummary?.classList.toggle('active', activeMemberView === 'allocation');
+
+        const targetHeight = memberViewsStage?.scrollHeight || currentHeight;
+        requestAnimationFrame(() => {
+          if (memberViewsStage) memberViewsStage.style.height = `${targetHeight}px`;
+          if (activeMemberView === 'allocation') memberAllocationChart?.resize();
+        });
+        setTimeout(() => {
+          if (memberViewsStage) memberViewsStage.style.height = '';
+        }, 280);
+      });
+    });
+
+    document.querySelectorAll('.sidebar-nav a').forEach((link) => {
+      link.addEventListener('click', () => {
+        document.querySelectorAll('.sidebar-nav a').forEach((item) => item.classList.remove('active'));
+        link.classList.add('active');
+      });
+    });
+
     // 绑定三个主题选择按钮的点击事件
     themeBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -253,6 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 内部转让划转录入提交
     formTransfer.addEventListener('submit', async (e) => {
       e.preventDefault();
+      await submitOnce(formTransfer, async () => {
 
       const fromMember = tfFromMember.value;
       const toMember = tfToMember.value;
@@ -279,30 +422,6 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         showToast(err.message, 'error');
       }
-    });
-
-    // 切换图表面板
-    document.querySelectorAll('[data-chart-tab]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('[data-chart-tab]').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-
-        activeChartTab = e.target.getAttribute('data-chart-tab');
-
-        document.querySelectorAll('.chart-container').forEach(c => c.classList.remove('active'));
-        document.getElementById(`chart-tab-${activeChartTab}-container`).classList.add('active');
-
-        // 动态显示/隐藏对标控制面板与时间切片
-        const ctrl = document.getElementById('trend-comparisons-ctrl');
-        if (ctrl) {
-          ctrl.style.display = activeChartTab === 'nav' ? 'flex' : 'none';
-        }
-
-        // 延迟触发图表重绘
-        setTimeout(() => {
-          if (activeChartTab === 'nav' && navTrendChart) navTrendChart.resize();
-          if (activeChartTab === 'shares' && memberAllocationChart) memberAllocationChart.resize();
-        }, 100);
       });
     });
 
@@ -338,11 +457,20 @@ document.addEventListener('DOMContentLoaded', () => {
     chkCompNdx.addEventListener('change', updateCompVisibility);
 
     // 时间区间选择按钮绑定
+    const timeSlicerGroup = document.getElementById('time-slicer-group');
+    const setTimeSlicerIndicator = button => {
+      if (!timeSlicerGroup || !button) return;
+      timeSlicerGroup.style.setProperty('--active-left', `${button.offsetLeft}px`);
+      timeSlicerGroup.style.setProperty('--active-width', `${button.offsetWidth}px`);
+    };
+    requestAnimationFrame(() => setTimeSlicerIndicator(timeSlicerGroup?.querySelector('.time-slice-btn.active')));
+    window.addEventListener('resize', () => setTimeSlicerIndicator(timeSlicerGroup?.querySelector('.time-slice-btn.active')));
     document.querySelectorAll('.time-slice-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         document.querySelectorAll('.time-slice-btn').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        activeTimeSlice = e.target.getAttribute('data-time-slice');
+        e.currentTarget.classList.add('active');
+        setTimeSlicerIndicator(e.currentTarget);
+        activeTimeSlice = e.currentTarget.getAttribute('data-time-slice');
         renderCharts();
       });
     });
@@ -405,6 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 监听编辑账目表单提交
     formEditEvent.addEventListener('submit', async (e) => {
       e.preventDefault();
+      await submitOnce(formEditEvent, async () => {
       const id = editEventId.value;
       const type = editEventType.value;
       const date = editDate.value;
@@ -427,22 +556,20 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         await Api.updateEvent(id, payload);
         showToast('账目修改成功，全局数据已级联重算！', 'success');
-        editEventModal.classList.remove('active');
+        closeModal(editEventModal);
         await loadAllData();
       } catch (err) {
         showToast(err.message, 'error');
       }
+      });
     });
 
     // 关闭修改模态框
-    btnCloseEditModal.addEventListener('click', () => editEventModal.classList.remove('active'));
-    editEventModal.addEventListener('click', (e) => {
-      if (e.target === editEventModal) editEventModal.classList.remove('active');
-    });
 
     // 出入金录入提交
     formTransaction.addEventListener('submit', async (e) => {
       e.preventDefault();
+      await submitOnce(formTransaction, async () => {
 
       const member = elTxMember.value;
       const type = document.querySelector('input[name="txType"]:checked').value;
@@ -465,11 +592,13 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         showToast(err.message, 'error');
       }
+      });
     });
 
     // 估值更新提交
     formValuation.addEventListener('submit', async (e) => {
       e.preventDefault();
+      await submitOnce(formValuation, async () => {
 
       const totalNAV = parseFloat(valTotalNav.value);
       const date = valDate.value;
@@ -484,24 +613,14 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         showToast(err.message, 'error');
       }
+      });
     });
 
     // 数据备份模态框打开与关闭
-    btnBackupPanel.addEventListener('click', () => backupModal.classList.add('active'));
-    btnCloseModal.addEventListener('click', () => backupModal.classList.remove('active'));
-    backupModal.addEventListener('click', (e) => {
-      if (e.target === backupModal) backupModal.classList.remove('active');
-    });
+    if (btnBackupPanel) btnBackupPanel.addEventListener('click', openBackupPanel);
 
     // 成员管理模态框打开与关闭
-    btnMemberPanel.addEventListener('click', () => {
-      renderMembersEditorList();
-      memberModal.classList.add('active');
-    });
-    btnCloseMemberModal.addEventListener('click', () => memberModal.classList.remove('active'));
-    memberModal.addEventListener('click', (e) => {
-      if (e.target === memberModal) memberModal.classList.remove('active');
-    });
+    if (btnMemberPanel) btnMemberPanel.addEventListener('click', openMembersPanel);
 
     // 新增成员表单提交
     formAddMember.addEventListener('submit', async (e) => {
@@ -544,7 +663,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const data = JSON.parse(e.target.result);
           await Api.importBackup(data.events, data.members);
           showToast('数据灾备恢复成功！所有账目已重新计算并生效。', 'success');
-          backupModal.classList.remove('active');
+          closeModal(backupModal);
           // 重置上传表单
           fileImport.value = '';
           fileNameLabel.textContent = '未选择任何文件';
@@ -561,17 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnConfigTickers) {
       btnConfigTickers.addEventListener('click', () => {
         renderTickerConfigList();
-        tickerConfigModal.classList.add('active');
-      });
-    }
-
-    // 关闭标的配置弹窗
-    if (btnCloseTickerConfigModal) {
-      btnCloseTickerConfigModal.addEventListener('click', () => tickerConfigModal.classList.remove('active'));
-    }
-    if (tickerConfigModal) {
-      tickerConfigModal.addEventListener('click', (e) => {
-        if (e.target === tickerConfigModal) tickerConfigModal.classList.remove('active');
+        openModal(tickerConfigModal);
       });
     }
 
@@ -583,7 +692,6 @@ document.addEventListener('DOMContentLoaded', () => {
         tickers.forEach(ticker => {
           addTickerRow(ticker.ticker, ticker.name);
         });
-        checkAddBtnState();
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -591,12 +699,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 动态添加一个配置行
     function addTickerRow(ticker = '', name = '') {
-      const rowCount = tickerConfigList.querySelectorAll('.ticker-config-row').length;
-      if (rowCount >= 8) {
-        showToast('最多只能追踪 8 个标的', 'warning');
-        return;
-      }
-
       const row = document.createElement('div');
       row.className = 'ticker-config-row member-edit-item';
       row.style.display = 'flex';
@@ -619,25 +721,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // 绑定删除按钮点击事件
       row.querySelector('.btn-remove-ticker-row').addEventListener('click', () => {
         row.remove();
-        checkAddBtnState();
       });
 
       tickerConfigList.appendChild(row);
-      checkAddBtnState();
-    }
-
-    // 检查“添加”按钮的启用状态
-    function checkAddBtnState() {
-      const rowCount = tickerConfigList.querySelectorAll('.ticker-config-row').length;
-      if (rowCount >= 8) {
-        btnAddTickerRow.setAttribute('disabled', 'true');
-        btnAddTickerRow.style.opacity = '0.5';
-        btnAddTickerRow.style.cursor = 'not-allowed';
-      } else {
-        btnAddTickerRow.removeAttribute('disabled');
-        btnAddTickerRow.style.opacity = '1';
-        btnAddTickerRow.style.cursor = 'pointer';
-      }
     }
 
     // 添加配置行事件
@@ -687,7 +773,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           await Api.saveTickers(tickers);
           showToast('标的配置保存成功！正在为您自动刷新页面。', 'success');
-          tickerConfigModal.classList.remove('active');
+          closeModal(tickerConfigModal);
           // 重新抓取并更新顶部卡片
           await loadTickerAthData();
         } catch (err) {
@@ -762,28 +848,19 @@ document.addEventListener('DOMContentLoaded', () => {
       navTrendChart.options.scales.x.grid.color = gridColor;
       navTrendChart.options.scales.x.ticks.color = axisColor;
       navTrendChart.options.scales['y-nav'].grid.color = gridColor;
-      navTrendChart.options.scales['y-nav'].ticks.color = isDarkTheme ? 'rgba(0, 242, 254, 0.6)' : 'rgba(0, 119, 182, 0.7)';
-      navTrendChart.options.scales['y-nav'].title.color = isDarkTheme ? 'rgba(0, 242, 254, 0.6)' : 'rgba(0, 119, 182, 0.7)';
-      navTrendChart.options.scales['y-assets'].ticks.color = isDarkTheme ? 'rgba(139, 92, 246, 0.6)' : 'rgba(124, 58, 237, 0.7)';
-      navTrendChart.options.scales['y-assets'].title.color = isDarkTheme ? 'rgba(139, 92, 246, 0.6)' : 'rgba(124, 58, 237, 0.7)';
+    const seriesColors = getSeriesColors();
+    navTrendChart.options.scales['y-nav'].ticks.color = hexToRgba(seriesColors.nav, 0.7);
+    navTrendChart.options.scales['y-nav'].title.color = hexToRgba(seriesColors.nav, 0.7);
+    navTrendChart.options.scales['y-assets'].ticks.color = hexToRgba(seriesColors.assets, 0.7);
+    navTrendChart.options.scales['y-assets'].title.color = hexToRgba(seriesColors.assets, 0.7);
 
       // 动态调整明暗主题下四条曲线的色值，彻底解决浅色模式下的低对比度问题
-      const colors = isDarkTheme ? {
-        nav: '#00f2fe',
-        assets: '#8b5cf6',
-        sp500: '#f59e0b',
-        ndx: '#ec4899',
-        deposit: '#10b981',
-        withdraw: '#f43f5e',
-        transfer: '#00f2fe'
-      } : {
-        nav: '#0284c7',   // 深天蓝 (Sky-600)
-        assets: '#7c3aed',  // 皇家紫 (Purple-600)
-        sp500: '#b45309',   // 琥珀棕 (Amber-700)
-        ndx: '#be185d',    // 玫瑰红 (Pink-700)
-        deposit: '#047857',
-        withdraw: '#be185d',
-        transfer: '#0284c7'
+      const semanticStyles = getComputedStyle(document.body);
+      const colors = {
+        ...seriesColors,
+        deposit: semanticStyles.getPropertyValue('--color-positive').trim(),
+        withdraw: semanticStyles.getPropertyValue('--color-negative').trim(),
+        transfer: seriesColors.nav
       };
 
       const getPointColorsList = (historyList, defaultColor) => {
@@ -813,9 +890,7 @@ document.addEventListener('DOMContentLoaded', () => {
         navTrendChart.data.datasets[1].pointHoverBackgroundColor = colors.nav;
         navTrendChart.data.datasets[1].pointHoverBorderColor = 'transparent';
         const ctxNav = document.getElementById('navTrendChart').getContext('2d');
-        navTrendChart.data.datasets[1].backgroundColor = isDarkTheme
-          ? createChartGradient(ctxNav, 'rgba(0, 242, 254, 0.15)', 'rgba(0, 242, 254, 0.0)')
-          : createChartGradient(ctxNav, 'rgba(2, 132, 199, 0.12)', 'rgba(2, 132, 199, 0.0)');
+        navTrendChart.data.datasets[1].backgroundColor = createChartGradient(ctxNav, hexToRgba(colors.nav, isDarkTheme ? 0.30 : 0.25), hexToRgba(colors.nav, 0));
       }
       if (navTrendChart.data.datasets[2]) {
         navTrendChart.data.datasets[2].borderColor = colors.sp500;
@@ -839,12 +914,11 @@ document.addEventListener('DOMContentLoaded', () => {
       memberAllocationChart.options.plugins.legend.labels.color = labelColor;
       memberAllocationChart.data.datasets[0].borderColor = chartBgColor;
 
-      // 动态更新成员环形占比图的配色切片，防浅色融化
-      const { palette: currentPalette } = getThemeColors(isDarkTheme);
+      // 扇区颜色始终与对应成员头像的底色一致。
       if (memberAllocationChart.data.datasets[0].backgroundColor && memberAllocationChart.data.datasets[0].backgroundColor.length > 0) {
         const firstColor = memberAllocationChart.data.datasets[0].backgroundColor[0];
         if (firstColor && !firstColor.startsWith('rgba(')) {
-          const newColors = memberAllocationChart.data.labels.map((_, idx) => currentPalette[idx % currentPalette.length]);
+          const newColors = membersList.map((member, idx) => getMemberAvatarColor(member.id || member.name, isDarkTheme, idx).background);
           memberAllocationChart.data.datasets[0].backgroundColor = newColors;
         } else {
           const zeroColor = isDarkTheme ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
@@ -942,32 +1016,20 @@ document.addEventListener('DOMContentLoaded', () => {
       inputCnhRate.value = s.cnhRate.toFixed(4);
     }
 
-    elFundTotalNav.textContent = `$${formatMoney(s.totalNAV)}`;
-    elFundTotalShares.innerHTML = `<span style="color: var(--color-cyan); font-weight: 600;">CNH 估值: ≈ ¥<span class="privacy-sensitive">${formatCnhWan(s.cnhTotalNAV)}</span> (汇率: ${s.cnhRate.toFixed(4)})</span>`;
-
     elFundNavPerShare.textContent = s.navPerShare.toFixed(4);
     // 根据单位净值更新颜色指示器
-    if (s.navPerShare > 1.0000) {
-      elFundNavPerShare.className = 'metric-value font-outfit text-green privacy-sensitive';
-    } else if (s.navPerShare < 1.0000) {
-      elFundNavPerShare.className = 'metric-value font-outfit text-magenta privacy-sensitive';
-    } else {
-      elFundNavPerShare.className = 'metric-value font-outfit text-cyan privacy-sensitive';
-    }
+    elFundNavPerShare.className = 'metric-value font-outfit privacy-sensitive';
 
     elNavIndicator.innerHTML = `<span class="status-indicator">已与最新市场数据同步</span>`;
 
-    // 收益总额与本金
-    const netPrincipal = s.totalDeposit - s.totalWithdraw;
-    const cnhNetPrincipal = s.cnhTotalDeposit - s.cnhTotalWithdraw;
-    elFundPrincipal.innerHTML = `累计本金: <span class="privacy-sensitive">$${formatMoney(netPrincipal)}</span><br><span style="font-size:0.75rem; color:var(--color-green); font-weight:600; line-height:1.4;">CNH 净本金: ≈ ¥<span class="privacy-sensitive">${formatCnhWan(cnhNetPrincipal)}</span></span>`;
+    // Three-card overview: assets, NAV and return rate.
+    elFundTotalNav.innerHTML = `<span>$${formatMoney(s.totalNAV)}</span><span class="metric-inline metric-profit-inline ${s.profit >= 0 ? 'text-green' : 'text-magenta'}">${s.profit >= 0 ? '+' : ''}$${formatMoney(s.profit)}</span>`;
+    elFundTotalShares.innerHTML = `<span class="metric-sub-primary">≈ ¥${formatCnhWan(s.cnhTotalNAV)}</span><span class="metric-inline ${s.cnhProfit >= 0 ? 'text-green' : 'text-magenta'}">CNH收益 ${s.cnhProfit >= 0 ? '+' : ''}¥${formatCnhWan(s.cnhProfit)}</span>`;
+    elFundTotalShares.classList.add('privacy-sensitive');
 
-    elFundTotalProfit.innerHTML = (s.profit >= 0 ? '+' : '') + `<span class="privacy-sensitive">$${formatMoney(s.profit)}</span><span style="font-size:0.75rem; display:block; margin-top:2px; font-weight:600;">CNH 收益: ${s.cnhProfit >= 0 ? '+' : ''}¥<span class="privacy-sensitive">${formatCnhWan(s.cnhProfit)}</span></span>`;
-    elFundTotalProfit.className = 'metric-value font-outfit ' + (s.profit >= 0 ? 'text-green privacy-sensitive' : 'text-magenta privacy-sensitive');
-
-    // 收益率
-    elFundProfitRate.innerHTML = (s.profitRate >= 0 ? '+' : '') + `<span class="privacy-sensitive">${s.profitRate.toFixed(2)}%</span><span style="font-size:0.75rem; display:block; margin-top:2px; color:var(--color-text-main); font-weight:600;">CNH 收益率: ${s.cnhProfitRate >= 0 ? '+' : ''}<span class="privacy-sensitive">${s.cnhProfitRate.toFixed(2)}%</span></span>`;
+    elFundProfitRate.innerHTML = `<span>${s.profitRate >= 0 ? '+' : ''}${s.profitRate.toFixed(2)}%</span>`;
     elFundProfitRate.className = 'metric-value font-outfit ' + (s.profitRate >= 0 ? 'text-green privacy-sensitive' : 'text-magenta privacy-sensitive');
+    elFundProfitRateSub.innerHTML = `<span class="metric-inline"><span>CNH收益率</span><strong class="${s.cnhProfitRate >= 0 ? 'text-green' : 'text-magenta'}">${s.cnhProfitRate >= 0 ? '+' : ''}${s.cnhProfitRate.toFixed(2)}%</strong></span>`;
   }
 
   // 2. 动态家庭成员资产网格渲染
@@ -976,7 +1038,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state: appState,
       members: membersList,
       elements: { grid: elMembersGridContainer, countBadge: elMemberCountBadge },
-      utils: { escapeHtml, formatMoney, formatCnhWan, getAvatarText, getThemeColors },
+      utils: { escapeHtml, formatMoney, formatCnhWan, getAvatarText, getMemberAvatarColor },
       isDark: checkIfDark()
     });
   }
@@ -996,9 +1058,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const shortName = escapeHtml(getAvatarText(m.name));
 
       const isDark = checkIfDark();
-      const { palette, textPalette } = getThemeColors(isDark);
-      const cardColor = palette[idx % palette.length];
-      const cardTextColor = textPalette[idx % textPalette.length];
+      const { background: cardColor, color: cardTextColor } = getMemberAvatarColor(m.id || m.name, isDark, idx);
 
       // 检查成员是否拥有交易历史
       const hasTx = appState.events.some(e =>
@@ -1091,7 +1151,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (btnDel && !btnDel.disabled) {
         btnDel.addEventListener('click', async () => {
-          if (confirm(`⚠️ 确定要从系统删除家庭成员【${m.name}】吗？删除后将无法撤销。`)) {
+          if (confirm(`确定要从系统删除家庭成员【${m.name}】吗？删除后将无法撤销。`)) {
             try {
               await Api.deleteMember(m.id);
               showToast(`家庭成员【${m.name}】已移除`, 'success');
@@ -1144,7 +1204,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toast.className = 'toast toast-undo';
     toast.innerHTML = `
       <div class="toast-undo-row">
-        <span class="toast-undo-icon">🗑️</span>
+        <svg class="toast-undo-icon ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>
         <span class="toast-undo-text">
           <strong>已删除</strong>
           ${type === 'deposit' ? '入金' : type === 'withdraw' ? '出金' : type === 'transfer' ? '转让' : '估值'}记录（$${formatMoney(value)}）<br>
@@ -1257,7 +1317,7 @@ document.addEventListener('DOMContentLoaded', () => {
       editCnhRate.value = e.cnhRate || appState.summary.cnhRate || 7.2000;
     }
 
-    editEventModal.classList.add('active');
+    openModal(editEventModal);
   }
 
   function renderCharts() {
@@ -1268,7 +1328,7 @@ document.addEventListener('DOMContentLoaded', () => {
       settings: { activeTimeSlice, theme: currentTheme },
       charts: { navTrendChart, memberAllocationChart },
       elements: { chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx, trendStatsGrid: elTrendStatsGrid },
-      ui: { formatMoney, getThemeColors, isDarkTheme, createChartGradient }
+      ui: { formatMoney, getThemeColors, isDarkTheme, createChartGradient, getSeriesColors, hexToRgba, getMemberAvatarColor }
     });
     navTrendChart = rendered.navTrendChart;
     memberAllocationChart = rendered.memberAllocationChart;

@@ -24,16 +24,69 @@
   <div class="blur-blob blob-2"></div>
   <div class="blur-blob blob-3"></div>
 
+  <aside class="app-sidebar" aria-label="主导航">
+    <a class="sidebar-brand" href="#dashboard-home" aria-label="返回家庭财富账本看板">
+      <svg class="sidebar-brand-icon" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="brand-gradient" x1="8" y1="6" x2="40" y2="42" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#3B9DFF" />
+            <stop offset="1" stop-color="#2855C7" />
+          </linearGradient>
+        </defs>
+        <path d="M24 5 41 14 24 23 7 14 24 5Z" fill="url(#brand-gradient)" />
+        <path d="m10 20 14 7 14-7M10 27l14 7 14-7" stroke="url(#brand-gradient)" stroke-width="4" />
+        <path d="M20 14.7h8M24 10.7v8" stroke="white" stroke-width="2.4" />
+      </svg>
+      <span>
+        <strong>家庭财富账本</strong>
+        <small>WEALTH LEDGER <b class="sidebar-version">v3.0.0</b></small>
+      </span>
+    </a>
+
+    <nav class="sidebar-nav">
+      <a class="sidebar-nav-item active" href="#dashboard-home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="M9 22V12h6v10"/></svg>
+        <span>数据看板</span>
+      </a>
+      <a class="sidebar-nav-item" href="#members-section">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>家庭成员</span>
+      </a>
+      <a class="sidebar-nav-item" href="#trends-section">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg>
+        <span>业绩表现</span>
+      </a>
+      <a class="sidebar-nav-item" href="#ledger-section">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>
+        <span>流水日志</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="sidebar-nav-item sidebar-action" type="button" data-sidebar-action="members">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09A1.65 1.65 0 0 0 20.91 10H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg>
+        <span>成员设置</span>
+      </button>
+      <button class="sidebar-nav-item sidebar-action" type="button" data-sidebar-action="backup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <span>设置与备份</span>
+      </button>
+    </div>
+  </aside>
+
   <div class="app-container">
     <!-- Header -->
     <header class="app-header">
+      <div class="welcome-copy">
+        <h1>Hello, Investor</h1>
+      </div>
       <div class="header-logo">
         <svg class="icon-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
         </svg>
         <div class="logo-text">
           <h1>家庭基金账目管理系统</h1>
-          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v2.3.1</span></span>
+          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.0.0</span></span>
         </div>
       </div>
       <div class="header-actions">
@@ -41,12 +94,14 @@
         <div class="cnh-rate-config flex-center" title="手动修改或一键同步全局 USD/CNH 汇率">
           <span class="rate-label">CNH 汇率:</span>
           <input type="number" id="input-cnh-rate" step="0.0001" min="0.0001" value="7.2000" class="rate-input">
-          <button id="btn-sync-rate" class="btn-sync-rate" title="从全球公开接口自动同步最新汇率">🔄</button>
+          <button id="btn-sync-rate" class="btn-sync-rate" title="从全球公开接口自动同步最新汇率" aria-label="同步汇率">
+            <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M21 12a9 9 0 0 0-15.5-6.2L3 8.3M3 3v5.3h5.3M3 12a9 9 0 0 0 15.5 6.2L21 15.7M21 21v-5.3h-5.3" /></svg>
+          </button>
         </div>
         <div class="theme-selector-group">
-          <button class="theme-btn" id="theme-btn-system" data-theme-btn="system">🖥️ 系统</button>
-          <button class="theme-btn" id="theme-btn-light" data-theme-btn="light">☀️ 浅色</button>
-          <button class="theme-btn" id="theme-btn-dark" data-theme-btn="dark">🌙 深色</button>
+          <button class="theme-btn" id="theme-btn-system" data-theme-btn="system"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>系统</button>
+          <button class="theme-btn" id="theme-btn-light" data-theme-btn="light"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>浅色</button>
+          <button class="theme-btn" id="theme-btn-dark" data-theme-btn="dark"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>深色</button>
         </div>
         <button id="btn-privacy-toggle" class="btn btn-secondary flex-center" title="一键切换隐私/闭眼模式"
           style="padding: 0; width: 38px; height: 38px;">
@@ -62,22 +117,6 @@
             <line x1="1" y1="1" x2="23" y2="23" />
           </svg>
         </button>
-        <button id="btn-member-panel" class="btn btn-secondary flex-center">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-          家庭成员管理
-        </button>
-        <button id="btn-backup-panel" class="btn btn-secondary flex-center">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path
-              d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-          </svg>
-          数据备份/导入
-        </button>
       </div>
     </header>
 
@@ -89,10 +128,11 @@
             <path d="M23 6l-9.5 9.5-5-5L1 18" />
             <polyline points="17 6 23 6 23 12" />
           </svg>
-          美股标的 ATH 追踪（含盘前盘后）
+          <span>标的回调追踪</span>
+          <span class="panel-title-note">（含盘前盘后）</span>
         </h2>
         <button id="btn-config-tickers" class="btn btn-secondary flex-center"
-          style="padding: 6px 12px; font-size: 0.78rem; gap: 4px;" title="配置展示的追踪标的（支持最多8个）">
+          style="padding: 6px 12px; font-size: 0.78rem; gap: 4px;" title="配置展示的追踪标的">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             style="width: 14px; height: 14px;">
             <circle cx="12" cy="12" r="3" />
@@ -103,14 +143,14 @@
         </button>
       </div>
       <div class="ticker-ath-cards" id="ticker-ath-cards-container">
-        <div class="ticker-ath-card loading">
+        <div class="ticker-table-state loading">
           <span class="loading-text">正在从 Yahoo Finance 同步美股最新 ATH 与回调数据...</span>
         </div>
       </div>
     </section>
 
     <!-- Main Dashboard Metrics Panel -->
-    <section class="glass-panel premium-border">
+    <section class="glass-panel premium-border" id="dashboard-home">
       <div class="panel-header">
         <h2 class="panel-title">
           <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -120,7 +160,7 @@
             <line x1="3" y1="9" x2="21" y2="9" />
             <line x1="3" y1="15" x2="21" y2="15" />
           </svg>
-          基金数据看板
+          数据看板
         </h2>
         <span class="panel-badge badge-green">实时数据核算</span>
       </div>
@@ -157,29 +197,13 @@
           </div>
         </div>
 
-        <!-- Total Profit Card -->
-        <div class="metric-card premium-border">
-          <div class="card-glow glow-green"></div>
-          <div class="metric-info">
-            <span class="metric-label">累计总收益 (Net Gains)</span>
-            <div class="metric-value font-outfit text-green privacy-sensitive" id="fund-total-profit">$0.00</div>
-            <span class="metric-sub" id="fund-principal">累计净投入: $0.00</span>
-          </div>
-          <div class="metric-icon bg-green-soft">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M23 6l-9.5 9.5-5-5L1 18" />
-              <polyline points="17 6 23 6 23 12" />
-            </svg>
-          </div>
-        </div>
-
         <!-- Return Rate Card -->
         <div class="metric-card premium-border">
           <div class="card-glow glow-magenta"></div>
           <div class="metric-info">
             <span class="metric-label">累计总收益率 (Total ROI)</span>
             <div class="metric-value font-outfit text-magenta privacy-sensitive" id="fund-profit-rate">0.00%</div>
-            <span class="metric-sub">家庭合作投资收益率</span>
+            <span class="metric-sub privacy-sensitive" id="fund-profit-rate-sub">家庭合作投资收益率</span>
           </div>
           <div class="metric-icon bg-magenta-soft">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -197,7 +221,7 @@
       <!-- Left Column: Charts and Member Portfolios -->
       <div class="layout-left">
         <!-- Members Showcase -->
-        <section class="glass-panel premium-border">
+        <section class="glass-panel premium-border" id="members-section">
           <div class="panel-header">
             <h2 class="panel-title">
               <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -206,18 +230,31 @@
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
               </svg>
-              家庭成员资产比例
+              家庭成员
             </h2>
-            <span class="panel-badge" id="member-count-badge">成员人数: 0 人</span>
+            <div class="member-panel-actions">
+              <span class="panel-badge" id="member-count-badge">成员人数: 0 人</span>
+              <div class="tab-buttons" aria-label="成员资产视图">
+                <button class="tab-btn active" type="button" data-member-view="assets">成员资产</button>
+                <button class="tab-btn" type="button" data-member-view="allocation">资产占比</button>
+              </div>
+            </div>
           </div>
 
-          <div class="members-grid" id="members-grid-container">
-            <!-- 成员卡片将由 app.js 动态渲染 -->
+          <div class="member-views-stage">
+            <div class="members-grid member-view active" id="members-grid-container">
+              <!-- 成员卡片将由 app.js 动态渲染 -->
+            </div>
+            <div class="member-allocation-summary member-view">
+              <div class="member-allocation-chart">
+                <canvas id="memberAllocationChart"></canvas>
+              </div>
+            </div>
           </div>
         </section>
 
         <!-- Dynamic Visualization Charts -->
-        <section class="glass-panel premium-border">
+        <section class="glass-panel premium-border" id="trends-section">
           <div class="panel-header" style="margin-bottom: 12px;">
             <h2 class="panel-title">
               <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -225,12 +262,8 @@
                 <line x1="12" y1="20" x2="12" y2="4" />
                 <line x1="6" y1="20" x2="6" y2="14" />
               </svg>
-              基金趋势与分布分析
+              业绩表现
             </h2>
-            <div class="tab-buttons" style="display: flex; gap: 8px;">
-              <button class="tab-btn active" data-chart-tab="nav">净值/资产走势</button>
-              <button class="tab-btn" data-chart-tab="shares">成员占比</button>
-            </div>
           </div>
 
           <!-- Chart Control Dock (Comparative checkboxes & time slicer in a spacious new row) -->
@@ -238,22 +271,22 @@
             <div class="comparisons-checkboxes" style="display: flex; align-items: center; gap: 16px;">
               <label class="checkbox-inline flex-center"
                 style="cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none;">
-                <input type="checkbox" id="chk-comp-assets" style="cursor: pointer; accent-color: var(--color-purple);">
+                <input type="checkbox" id="chk-comp-assets" style="cursor: pointer; accent-color: var(--series-assets);">
                 基金总资产
               </label>
               <label class="checkbox-inline flex-center"
                 style="cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none;">
                 <input type="checkbox" id="chk-comp-nav" checked
-                  style="cursor: pointer; accent-color: var(--color-primary);"> 单位净值
+                  style="cursor: pointer; accent-color: var(--series-nav);"> 单位净值
               </label>
               <label class="checkbox-inline flex-center"
                 style="cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none;">
-                <input type="checkbox" id="chk-comp-sp500" checked style="cursor: pointer; accent-color: #f59e0b;">
+                <input type="checkbox" id="chk-comp-sp500" checked style="cursor: pointer; accent-color: var(--series-sp500);">
                 标普500指数
               </label>
               <label class="checkbox-inline flex-center"
                 style="cursor: pointer; display: flex; align-items: center; gap: 6px; user-select: none;">
-                <input type="checkbox" id="chk-comp-ndx" checked style="cursor: pointer; accent-color: #ec4899;">
+                <input type="checkbox" id="chk-comp-ndx" checked style="cursor: pointer; accent-color: var(--series-ndx);">
                 纳斯达克100指数
               </label>
             </div>
@@ -276,10 +309,6 @@
             <div class="chart-container active" id="chart-tab-nav-container">
               <canvas id="navTrendChart"></canvas>
             </div>
-            <!-- Member Allocation Donut Chart -->
-            <div class="chart-container" id="chart-tab-shares-container">
-              <canvas id="memberAllocationChart"></canvas>
-            </div>
           </div>
         </section>
       </div>
@@ -295,7 +324,7 @@
                 <line x1="12" y1="8" x2="12" y2="16" />
                 <line x1="8" y1="12" x2="16" y2="12" />
               </svg>
-              基金账目登记录入
+              账目登记录入
             </h2>
             <span class="panel-badge badge-green">管理员模式</span>
           </div>
@@ -429,7 +458,7 @@
               <p>内部份额转让支持将一名家庭出资人的部分或全部基金份额，以特定的成交汇率，无缝转移给另一名出资人，基金总额保持守恒。</p>
             </div>
 
-            <div class="form-row">
+            <div class="form-row transfer-members-row">
               <div class="form-group">
                 <label for="tf-from-member">出让方成员 (From)</label>
                 <select id="tf-from-member" class="select-input" required>
@@ -444,7 +473,7 @@
               </div>
             </div>
 
-            <div class="form-row">
+            <div class="form-row transfer-amount-row">
               <div class="form-group">
                 <label for="tf-amount">转让金额 (USD)</label>
                 <div class="input-wrapper text-glow">
@@ -464,7 +493,7 @@
               </div>
             </div>
 
-            <div class="form-row">
+            <div class="form-row transfer-detail-row">
               <div class="form-group">
                 <label for="tf-date">划转日期</label>
                 <input type="date" id="tf-date" required>
@@ -489,7 +518,7 @@
     </main>
 
     <!-- Ledger Block - Full width Transaction Log -->
-    <section class="glass-panel premium-border ledger-section">
+    <section class="glass-panel premium-border ledger-section" id="ledger-section">
       <div class="panel-header">
         <h2 class="panel-title">
           <svg class="panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -499,7 +528,7 @@
             <line x1="16" y1="17" x2="8" y2="17" />
             <polyline points="10 9 9 9 8 9" />
           </svg>
-          历史账目流水日志 (Audit Ledger)
+          流水日志
         </h2>
         <div class="ledger-filters">
           <select id="filter-member" class="select-input">
@@ -523,10 +552,10 @@
               <th>时间</th>
               <th>流水明细</th>
               <th>类型</th>
-              <th>出资/估值金额<br>(USD / CNH)</th>
-              <th>当时折算单位净值</th>
-              <th>结算后份额</th>
-              <th>结算后总市值</th>
+              <th>出资/估值金额</th>
+              <th>成交净值</th>
+              <th>结算份额</th>
+              <th>结算市值</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -544,15 +573,15 @@
   </div>
 
   <!-- Backup & Restore Modal -->
-  <div class="modal-overlay" id="backup-modal">
-    <div class="modal-content glass-panel premium-border">
+  <div class="modal-overlay" id="backup-modal" role="dialog" aria-modal="true" aria-labelledby="backup-modal-title" aria-hidden="true">
+    <div class="modal-content glass-panel premium-border" tabindex="-1">
       <div class="modal-header">
-        <h3>数据备份与灾备恢复</h3>
-        <button class="btn-close" id="btn-close-modal">×</button>
+        <h3 id="backup-modal-title">数据备份与灾备恢复</h3>
+        <button class="btn-close" id="btn-close-modal" type="button" aria-label="关闭数据备份与恢复窗口">×</button>
       </div>
       <div class="modal-body">
         <div class="backup-section">
-          <h4>📥 备份导出数据</h4>
+          <h4><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>备份导出数据</h4>
           <p class="section-desc">将系统内所有的家庭出入金及估值记录打包导出为 `family_fund_data.json` 格式。您可以安全地保存在本地或 Synology
             云端，防止设备丢失造成数据丢失。</p>
           <a href="/api/backup/export" class="btn btn-primary flex-center gap-2" download>
@@ -566,7 +595,7 @@
         <hr class="modal-divider">
 
         <div class="backup-section">
-          <h4>📤 灾备导入数据</h4>
+          <h4><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 21V9M7 14l5-5 5 5"/><path d="M5 9V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4"/></svg>灾备导入数据</h4>
           <p class="section-desc">从您之前导出的 JSON 数据包中恢复所有账目。<strong>警告：导入新数据将完全覆盖当前的本地数据！</strong> 建议操作前先导出备份。</p>
           <div class="file-upload-wrapper">
             <input type="file" id="file-import" accept=".json" style="display: none;">
@@ -587,11 +616,11 @@
   </div>
 
   <!-- 家庭成员管理模态框 (Member Editor Modal) -->
-  <div class="modal-overlay" id="member-modal">
-    <div class="modal-content glass-panel premium-border">
+  <div class="modal-overlay" id="member-modal" role="dialog" aria-modal="true" aria-labelledby="member-modal-title" aria-hidden="true">
+    <div class="modal-content glass-panel premium-border" tabindex="-1">
       <div class="modal-header">
-        <h3>家庭成员管理</h3>
-        <button class="btn-close" id="btn-close-member-modal">×</button>
+        <h3 id="member-modal-title">家庭成员管理</h3>
+        <button class="btn-close" id="btn-close-member-modal" type="button" aria-label="关闭家庭成员管理窗口">×</button>
       </div>
       <div class="modal-body">
         <p class="section-desc">在此可以添加新的出资人，或重命名已存在成员。为了数据完整性，已有出入金记录的成员将限制删除，仅支持重命名修改。</p>
@@ -621,11 +650,11 @@
   </div>
 
   <!-- 编辑账目记录模态框 (Edit Event Modal) -->
-  <div class="modal-overlay" id="edit-event-modal">
-    <div class="modal-content glass-panel premium-border">
+  <div class="modal-overlay" id="edit-event-modal" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title" aria-hidden="true">
+    <div class="modal-content glass-panel premium-border" tabindex="-1">
       <div class="modal-header">
         <h3 id="edit-modal-title">修改账目记录</h3>
-        <button class="btn-close" id="btn-close-edit-modal">×</button>
+        <button class="btn-close" id="btn-close-edit-modal" type="button" aria-label="关闭账目编辑窗口">×</button>
       </div>
       <div class="modal-body">
         <form id="form-edit-event" class="op-form active">
@@ -708,14 +737,14 @@
     </div>
   </div>
   <!-- 标的配置模态框 (Ticker Config Modal) -->
-  <div class="modal-overlay" id="ticker-config-modal">
-    <div class="modal-content glass-panel premium-border" style="width: 520px;">
+  <div class="modal-overlay" id="ticker-config-modal" role="dialog" aria-modal="true" aria-labelledby="ticker-config-modal-title" aria-hidden="true">
+    <div class="modal-content glass-panel premium-border" style="width: 520px;" tabindex="-1">
       <div class="modal-header">
-        <h3>配置展示标的 (最多8个)</h3>
-        <button class="btn-close" id="btn-close-ticker-config-modal">×</button>
+        <h3 id="ticker-config-modal-title">配置展示标的</h3>
+        <button class="btn-close" id="btn-close-ticker-config-modal" type="button" aria-label="关闭标的配置窗口">×</button>
       </div>
       <div class="modal-body">
-        <p class="section-desc">修改或新增顶栏展示的追踪标的（股票、ETF 等，最多支持 8 个）。代码输入后将自动转为大写，并实时从 Yahoo Finance 抓取高点及当前跌幅。</p>
+        <p class="section-desc">修改或新增顶栏展示的追踪标的（股票、ETF 等）。代码输入后将自动转为大写，并实时从 Yahoo Finance 抓取高点及当前跌幅。</p>
 
         <div id="ticker-config-list"
           style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; max-height: 320px; overflow-y: auto; padding-right: 4px;">
@@ -724,7 +753,7 @@
 
         <button class="btn btn-secondary flex-center gap-2 btn-block" id="btn-add-ticker-row"
           style="border-style: dashed; background: rgba(255,255,255,0.01);">
-          ➕ 添加追踪标的
+          <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>添加追踪标的
         </button>
 
         <hr class="modal-divider">

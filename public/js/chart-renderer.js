@@ -6,7 +6,15 @@ window.FundChartRenderer = {
     const { activeTimeSlice } = settings;
     const { navTrendChart, memberAllocationChart } = charts;
     const { chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx, trendStatsGrid } = elements;
-    const { formatMoney, getThemeColors, isDarkTheme, createChartGradient } = ui;
+    const { formatMoney, isDarkTheme, createChartGradient, getMemberAvatarColor } = ui;
+    const resolveMemberAvatarColor = getMemberAvatarColor || ((memberKey, dark, index) => ({
+      background: (dark ? ['#31445B', '#5C4930', '#424A52', '#315541'] : ['#E8EEF7', '#F9EDD8', '#ECEFF1', '#E5F2EA'])[index % 4]
+    }));
+    const seriesColors = ui.getSeriesColors?.() || { assets: '#5a57cc', nav: '#2c61b6', sp500: '#f0bf3b', ndx: '#f38180' };
+    const hexToRgba = ui.hexToRgba || ((color, alpha) => {
+      const value = Number.parseInt(color.replace('#', ''), 16);
+      return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+    });
     const history = state.charts.navHistory;
     const now = new Date();
     const offsets = { YTD: () => new Date(now.getFullYear(), 0, 1), '1Y': () => new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()), '6M': () => new Date(now.getFullYear(), now.getMonth() - 6, now.getDate()), '3M': () => new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()), '1M': () => new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) };
@@ -30,9 +38,9 @@ window.FundChartRenderer = {
     };
     const percent = value => `${value > 0 ? '+' : ''}${(value * 100).toFixed(2)}%`;
     const series = [
-      { label: '单位净值', color: '#00f2fe', values: nav, visible: chkCompNav.checked },
-      { label: '标普500指数', color: '#f59e0b', values: spx, visible: chkCompSp500.checked },
-      { label: '纳斯达克100指数', color: '#ec4899', values: ndx, visible: chkCompNdx.checked }
+      { label: '单位净值', color: seriesColors.nav, values: nav, visible: chkCompNav.checked },
+      { label: '标普500指数', color: seriesColors.sp500, values: spx, visible: chkCompSp500.checked },
+      { label: '纳斯达克100指数', color: seriesColors.ndx, values: ndx, visible: chkCompNdx.checked }
     ];
     const renderStats = (activeIndex = null) => {
       const visible = series.filter(item => item.visible);
@@ -46,8 +54,8 @@ window.FundChartRenderer = {
             <div class="trend-stat-name">${item.label}</div>
             <div class="trend-stat-date ${isHover ? 'is-hovering' : 'is-resting'}">${dateText}</div>
             <div class="trend-stat-values">
-              <span><em>涨幅</em><strong class="${stats.gain >= 0 ? 'positive' : 'negative'}">${percent(stats.gain)}</strong></span>
-              <span><em>最大回撤</em><strong class="negative">${percent(stats.drawdown)}</strong></span>
+              <span><em>涨幅</em><strong class="privacy-sensitive ${stats.gain >= 0 ? 'positive' : 'negative'}">${percent(stats.gain)}</strong></span>
+              <span><em>最大回撤</em><strong class="privacy-sensitive negative">${percent(stats.drawdown)}</strong></span>
             </div>
           </div>`;
         }).join('')
@@ -60,66 +68,72 @@ window.FundChartRenderer = {
     const navCtx = navCanvas.getContext('2d');
     
     // 动态生成高通透度 Apple 风格多阶渐变
-    const navGradient = createChartGradient(
-      navCtx, 
-      dark ? 'rgba(0, 242, 254, 0.28)' : 'rgba(2, 132, 199, 0.22)', 
-      dark ? 'rgba(0, 242, 254, 0.0)' : 'rgba(2, 132, 199, 0.0)'
-    );
+    const navGradient = createChartGradient(navCtx, hexToRgba(seriesColors.nav, dark ? 0.36 : 0.30), hexToRgba(seriesColors.nav, 0));
 
     const datasets = [
       {
         label: '基金总资产',
         data: assets,
-        borderColor: dark ? '#a855f7' : '#7c3aed',
-        borderWidth: 2,
-        borderDash: [4, 4],
+        borderColor: seriesColors.assets,
+        borderWidth: 1.8,
+        borderDash: [8, 6],
         fill: false,
         tension: 0.38,
         pointRadius: 0,
         pointHoverRadius: 5,
-        pointHoverBackgroundColor: dark ? '#a855f7' : '#7c3aed',
+        pointHoverBackgroundColor: seriesColors.assets,
+        borderCapStyle: 'round',
+        borderJoinStyle: 'round',
+        cubicInterpolationMode: 'monotone',
         yAxisID: 'y-assets',
         hidden: !chkCompAssets.checked
       },
       {
         label: '单位净值',
         data: nav,
-        borderColor: dark ? '#00f2fe' : '#0284c7',
-        borderWidth: 3,
+        borderColor: seriesColors.nav,
+        borderWidth: 2.8,
         backgroundColor: navGradient,
         fill: true,
         tension: 0.38,
         pointRadius: 0,
         pointHoverRadius: 7,
-        pointHoverBackgroundColor: dark ? '#00f2fe' : '#0284c7',
+        pointHoverBackgroundColor: seriesColors.nav,
         pointHoverBorderColor: '#ffffff',
         pointHoverBorderWidth: 2,
+        borderCapStyle: 'round',
+        borderJoinStyle: 'round',
+        cubicInterpolationMode: 'monotone',
         yAxisID: 'y-nav',
         hidden: !chkCompNav.checked
       },
       {
         label: '标普500指数',
         data: spx,
-        borderColor: dark ? '#f59e0b' : '#d97706',
+        borderColor: seriesColors.sp500,
         borderWidth: 1.8,
-        borderDash: [3, 3],
         fill: false,
         tension: 0.38,
         pointRadius: 0,
         pointHoverRadius: 5,
+        borderCapStyle: 'round',
+        borderJoinStyle: 'round',
+        cubicInterpolationMode: 'monotone',
         yAxisID: 'y-nav',
         hidden: !chkCompSp500.checked
       },
       {
         label: '纳斯达克100指数',
         data: ndx,
-        borderColor: dark ? '#f43f5e' : '#e11d48',
+        borderColor: seriesColors.ndx,
         borderWidth: 1.8,
-        borderDash: [3, 3],
         fill: false,
         tension: 0.38,
         pointRadius: 0,
         pointHoverRadius: 5,
+        borderCapStyle: 'round',
+        borderJoinStyle: 'round',
+        cubicInterpolationMode: 'monotone',
         yAxisID: 'y-nav',
         hidden: !chkCompNdx.checked
       }
@@ -134,13 +148,90 @@ window.FundChartRenderer = {
       padding: 12,
       cornerRadius: 12,
       boxPadding: 4,
-      usePointStyle: true,
+      usePointStyle: false,
+      boxWidth: 3,
+      boxHeight: 18,
       titleFont: { size: 12, weight: '700', family: 'Outfit, sans-serif' },
       bodyFont: { size: 11, weight: '500', family: 'Inter, sans-serif' }
     };
 
     const gridColor = dark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)';
     const tickColor = dark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)';
+    const externalTooltip = ({ chart, tooltip }) => {
+      const container = chart.canvas.parentElement;
+      if (!container) return;
+      let element = container.querySelector('.chart-external-tooltip');
+      if (!element) {
+        element = document.createElement('div');
+        element.className = 'chart-external-tooltip';
+        container.appendChild(element);
+      }
+      if (tooltip.opacity === 0) {
+        element.style.opacity = '0';
+        return;
+      }
+
+      element.replaceChildren();
+      const title = document.createElement('div');
+      title.className = 'chart-external-tooltip-title';
+      title.textContent = tooltip.title?.[0] || '';
+      element.appendChild(title);
+      if (chart.config.type === 'doughnut') {
+        const point = tooltip.dataPoints[0];
+        const value = point.parsed;
+        const share = total > 0 ? (value / total * 100).toFixed(2) : '0.00';
+        const color = point.dataset.backgroundColor[point.dataIndex];
+        [['占比', `${share}%`], ['价值', `$${formatMoney(value)}`]].forEach(([labelText, valueText]) => {
+          const row = document.createElement('div');
+          row.className = 'chart-external-tooltip-row';
+          const marker = document.createElement('i');
+          marker.className = 'chart-external-tooltip-marker';
+          marker.style.setProperty('--tooltip-series-color', color);
+          const label = document.createElement('span');
+          label.textContent = labelText;
+          const valueElement = document.createElement('strong');
+          valueElement.textContent = valueText;
+          row.append(marker, label, valueElement);
+          element.appendChild(row);
+        });
+      } else {
+      tooltip.dataPoints.forEach(point => {
+        const row = document.createElement('div');
+        row.className = 'chart-external-tooltip-row';
+        const marker = document.createElement('i');
+        marker.className = 'chart-external-tooltip-marker';
+        marker.style.setProperty('--tooltip-series-color', point.dataset.borderColor);
+        const label = document.createElement('span');
+        label.textContent = point.dataset.label;
+        const value = document.createElement('strong');
+        value.textContent = point.datasetIndex === 0 ? `$${formatMoney(point.parsed.y)}` : point.parsed.y.toFixed(3);
+        row.append(marker, label, value);
+        element.appendChild(row);
+      });
+      }
+      if (tooltip.afterBody?.length) {
+        const details = document.createElement('div');
+        details.className = 'chart-external-tooltip-details';
+        details.textContent = tooltip.afterBody.join('\n');
+        element.appendChild(details);
+      }
+      const inset = 12;
+      const halfHeight = Math.ceil(element.offsetHeight / 2);
+      const maxLeft = Math.max(inset, container.clientWidth - element.offsetWidth - inset);
+      const maxTop = Math.max(inset + halfHeight, container.clientHeight - halfHeight - inset);
+      const left = Math.min(Math.max(tooltip.caretX + 14, inset), maxLeft);
+      const top = Math.min(Math.max(tooltip.caretY, inset + halfHeight), maxTop);
+      const tooltipTop = top - halfHeight;
+      // Canvas is often composited separately, so backdrop-filter alone cannot reliably blur it.
+      // Sample the chart once per render and use it as the tooltip's blurred backdrop instead.
+      if (!chart.$glassTooltipBackdrop) chart.$glassTooltipBackdrop = chart.canvas.toDataURL();
+      element.style.setProperty('--tooltip-chart-image', `url("${chart.$glassTooltipBackdrop}")`);
+      element.style.setProperty('--tooltip-chart-size', `${container.clientWidth}px ${container.clientHeight}px`);
+      element.style.setProperty('--tooltip-chart-position', `${-left + 28}px ${-tooltipTop + 28}px`);
+      element.style.left = `${left}px`;
+      element.style.top = `${top}px`;
+      element.style.opacity = '1';
+    };
 
     let nextNav = navTrendChart;
     if (nextNav) {
@@ -150,9 +241,14 @@ window.FundChartRenderer = {
       nextNav.options.scales.x.grid.color = gridColor;
       nextNav.options.scales.x.ticks.color = tickColor;
       nextNav.options.scales['y-nav'].grid.color = gridColor;
-      nextNav.options.scales['y-nav'].ticks.color = dark ? 'rgba(0, 242, 254, 0.7)' : 'rgba(2, 132, 199, 0.8)';
-      nextNav.options.scales['y-assets'].ticks.color = dark ? 'rgba(168, 85, 247, 0.7)' : 'rgba(124, 58, 237, 0.8)';
+      nextNav.options.scales['y-nav'].ticks.color = hexToRgba(seriesColors.nav, 0.8);
+      nextNav.options.scales['y-nav'].title.color = hexToRgba(seriesColors.nav, 0.9);
+      nextNav.options.scales['y-assets'].ticks.color = hexToRgba(seriesColors.assets, 0.8);
+      nextNav.options.scales['y-assets'].title.color = hexToRgba(seriesColors.assets, 0.9);
       Object.assign(nextNav.options.plugins.tooltip, tooltipTheme);
+      nextNav.options.plugins.tooltip.enabled = false;
+      nextNav.options.plugins.tooltip.external = externalTooltip;
+      nextNav.$glassTooltipBackdrop = null;
       nextNav.update();
     } else {
       nextNav = new Chart(navCtx, {
@@ -177,6 +273,8 @@ window.FundChartRenderer = {
             },
             tooltip: {
               ...tooltipTheme,
+              enabled: false,
+              external: externalTooltip,
               mode: 'index',
               intersect: false,
               callbacks: {
@@ -184,6 +282,9 @@ window.FundChartRenderer = {
                   return context.datasetIndex === 0
                     ? ` ${context.dataset.label}: $${formatMoney(context.parsed.y)}`
                     : ` ${context.dataset.label}: ${context.parsed.y.toFixed(3)}`;
+                },
+                labelColor(context) {
+                  return { borderColor: context.dataset.borderColor, backgroundColor: context.dataset.borderColor, borderWidth: 0 };
                 }
               }
             }
@@ -196,15 +297,15 @@ window.FundChartRenderer = {
             'y-nav': {
               position: 'left',
               grid: { color: gridColor },
-              ticks: { color: dark ? 'rgba(0, 242, 254, 0.7)' : 'rgba(2, 132, 199, 0.8)', font: { family: 'Outfit, sans-serif' }, callback: value => value.toFixed(3) },
-              title: { display: true, text: '单位净值', color: dark ? 'rgba(0, 242, 254, 0.8)' : 'rgba(2, 132, 199, 0.9)', font: { size: 11, weight: '600' } }
+              ticks: { color: hexToRgba(seriesColors.nav, 0.8), font: { family: 'Outfit, sans-serif' }, callback: value => value.toFixed(3) },
+              title: { display: true, text: '单位净值', color: hexToRgba(seriesColors.nav, 0.9), font: { size: 11, weight: '600' } }
             },
             'y-assets': {
               position: 'right',
               display: chkCompAssets.checked,
               grid: { drawOnChartArea: false },
-              ticks: { color: dark ? 'rgba(168, 85, 247, 0.7)' : 'rgba(124, 58, 237, 0.8)', font: { family: 'Outfit, sans-serif' }, callback: value => `$${formatMoney(value)}` },
-              title: { display: true, text: '总资产 (USD)', color: dark ? 'rgba(168, 85, 247, 0.8)' : 'rgba(124, 58, 237, 0.9)', font: { size: 11, weight: '600' } }
+              ticks: { color: hexToRgba(seriesColors.assets, 0.8), font: { family: 'Outfit, sans-serif' }, callback: value => `$${formatMoney(value)}` },
+              title: { display: true, text: '总资产 (USD)', color: hexToRgba(seriesColors.assets, 0.9), font: { size: 11, weight: '600' } }
             }
           }
         }
@@ -231,19 +332,19 @@ window.FundChartRenderer = {
       navCanvas.dataset.trendStatsLeaveBound = 'true';
     }
 
-    const { palette } = getThemeColors(dark);
     const values = members.map(member => state.members[member.id]?.currentValue || 0);
     const total = values.reduce((sum, value) => sum + value, 0);
     const empty = total === 0;
-    const colors = empty ? members.map(() => dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.05)') : members.map((_, index) => palette[index % palette.length]);
+    const colors = empty ? members.map(() => dark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.05)') : members.map((member, index) => resolveMemberAvatarColor(member.id || member.name, dark, index).background);
     const shareCanvas = document.getElementById('memberAllocationChart');
     let nextAllocation = memberAllocationChart;
     if (nextAllocation) {
       Object.assign(nextAllocation.data, { labels: members.map(member => member.name) });
       Object.assign(nextAllocation.data.datasets[0], { data: empty ? members.map(() => 1) : values, backgroundColor: colors });
+      Object.assign(nextAllocation.options.plugins.tooltip, tooltipTheme, { enabled: false, external: externalTooltip });
       nextAllocation.update();
     } else {
-      nextAllocation = new Chart(shareCanvas.getContext('2d'), { type: 'doughnut', data: { labels: members.map(member => member.name), datasets: [{ data: empty ? members.map(() => 1) : values, backgroundColor: colors, borderWidth: 3, hoverOffset: 10 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { color: 'rgba(255,255,255,.7)', font: { size: 11, weight: '500' } } }, tooltip: { callbacks: { label(context) { if (empty) return ' 暂无出资占比'; const value = values[context.dataIndex]; return ` 资产价值: $${formatMoney(value)} (${(value / total * 100).toFixed(2)}%)`; } } } } } });
+      nextAllocation = new Chart(shareCanvas.getContext('2d'), { type: 'doughnut', data: { labels: members.map(member => member.name), datasets: [{ data: empty ? members.map(() => 1) : values, backgroundColor: colors, borderWidth: 3, hoverOffset: 10 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'right', labels: { color: 'rgba(255,255,255,.7)', font: { size: 11, weight: '500' } } }, tooltip: { ...tooltipTheme, enabled: false, external: externalTooltip } } } });
     }
     return { navTrendChart: nextNav, memberAllocationChart: nextAllocation, filteredHistory: filtered, trendSeries: series };
   }

@@ -5,30 +5,28 @@
 window.FundMemberRenderer = {
   renderGrid({ state, members, elements, utils, isDark }) {
     const { grid, countBadge } = elements;
-    const { escapeHtml, formatMoney, formatCnhWan, getAvatarText, getThemeColors } = utils;
+    const { escapeHtml, formatMoney, formatCnhWan, getAvatarText, getMemberAvatarColor } = utils;
     countBadge.textContent = `成员人数: ${members.length} 人`;
 
     if (members.length === 0) {
-      grid.innerHTML = '<div style="grid-column:1 / -1;text-align:center;color:var(--color-text-muted);padding:30px;font-size:0.85rem;">⚠️ 暂无家庭成员。请点击右上角【家庭成员管理】添加出资人。</div>';
+      grid.innerHTML = '<div style="grid-column:1 / -1;text-align:center;color:var(--color-text-muted);padding:30px;font-size:0.85rem;">暂无家庭成员。请点击右上角【家庭成员管理】添加出资人。</div>';
       return;
     }
 
-    const { palette, textPalette } = getThemeColors(isDark);
     grid.innerHTML = members.map((member, index) => {
       const account = state.members[member.id] || {
         currentValue: 0, shares: 0, totalDeposit: 0, totalWithdraw: 0, profitRate: 0,
         cnhCurrentValue: 0, cnhDeposit: 0, cnhProfitRate: 0
       };
-      const color = palette[index % palette.length];
-      const textColor = textPalette[index % textPalette.length];
       const usdClass = account.profitRate >= 0 ? 'text-green' : 'text-magenta';
       const cnhClass = account.cnhProfitRate >= 0 ? 'text-green' : 'text-magenta';
       const displayName = escapeHtml(member.name);
       const avatar = escapeHtml(getAvatarText(member.name));
+      const avatarColor = getMemberAvatarColor(member.id || member.name, isDark, index);
       const dimmed = account.totalDeposit === 0 ? 'opacity:0.55;' : '';
       return `
-        <div class="member-card" style="${dimmed}border-left:3px solid ${color};">
-          <div class="member-avatar" style="background:${color};color:${textColor};">${avatar}</div>
+        <div class="member-card" style="${dimmed}">
+          <div class="member-avatar" style="background:${avatarColor.background};color:${avatarColor.color};">${avatar}</div>
           <div class="member-details">
             <div class="member-header" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
               <span class="member-name" title="${displayName}" style="font-weight:700;font-size:0.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px;">${displayName}</span>
