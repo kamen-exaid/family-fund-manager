@@ -27,7 +27,7 @@ window.FundTickerPanel = {
         const drawdownPrefix = item.drawdown > 0 ? '+' : '';
 
         return `
-          <tr title="${safeLongName} · ATH 日期 ${athDate}">
+          <tr data-ticker="${safeTicker}">
             <th scope="row" class="ticker-table-symbol font-outfit">${safeTicker}</th>
             <td class="ticker-table-number ticker-table-ath font-outfit">$${item.ath.toFixed(2)}</td>
             <td class="ticker-table-number font-outfit">$${item.regularClose.toFixed(2)}</td>
@@ -49,6 +49,7 @@ window.FundTickerPanel = {
           </thead>
           <tbody>${rows}</tbody>
         </table>`;
+      bindTickerTooltips(container, data, formatMonthDay);
     } catch (error) {
       // textContent keeps unexpected network error text out of HTML parsing.
       container.replaceChildren();
@@ -59,3 +60,94 @@ window.FundTickerPanel = {
     }
   }
 };
+
+function bindTickerTooltips(container, data, formatMonthDay) {
+  const panel = container.closest('.ticker-ath-bar');
+  if (!panel) return;
+
+  let tooltip = panel.querySelector('.ticker-external-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.className = 'chart-external-tooltip ticker-external-tooltip';
+    tooltip.setAttribute('role', 'tooltip');
+    panel.appendChild(tooltip);
+  }
+
+  const hideTooltip = () => {
+    tooltip.style.opacity = '0';
+  };
+
+  const renderTooltip = item => {
+    tooltip.replaceChildren();
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'ticker-tooltip-backdrop';
+    backdrop.setAttribute('aria-hidden', 'true');
+    const tableCopy = container.cloneNode(true);
+    tableCopy.removeAttribute('id');
+    backdrop.appendChild(tableCopy);
+    tooltip.appendChild(backdrop);
+
+    const title = document.createElement('div');
+    title.className = 'chart-external-tooltip-title';
+    title.textContent = `${item.ticker} · ${item.longName || item.name || item.ticker}`;
+    tooltip.appendChild(title);
+
+    [
+      ['ATH', `$${item.ath.toFixed(2)}`, 'var(--color-primary)'],
+      ['最新收盘', `$${item.regularClose.toFixed(2)}`, 'var(--color-cyan)'],
+      ['回调幅度', `${item.drawdown > 0 ? '+' : ''}${item.drawdown.toFixed(2)}%`, item.drawdown >= 0 ? 'var(--color-green)' : 'var(--color-magenta)']
+    ].forEach(([labelText, valueText, color]) => {
+      const row = document.createElement('div');
+      row.className = 'chart-external-tooltip-row';
+      const marker = document.createElement('i');
+      marker.className = 'chart-external-tooltip-marker';
+      marker.style.setProperty('--tooltip-series-color', color);
+      const label = document.createElement('span');
+      label.textContent = labelText;
+      const value = document.createElement('strong');
+      value.textContent = valueText;
+      row.append(marker, label, value);
+      tooltip.appendChild(row);
+    });
+
+    const details = document.createElement('div');
+    details.className = 'chart-external-tooltip-details';
+    details.textContent = `ATH 日期：${item.athDate ? formatMonthDay(item.athDate) : '--'}\n收盘日期：${item.regularCloseDate ? formatMonthDay(item.regularCloseDate) : '--'}`;
+    tooltip.appendChild(details);
+    tooltip.dataset.ticker = item.ticker;
+  };
+
+  const positionTooltip = event => {
+    const panelBounds = panel.getBoundingClientRect();
+    const inset = 12;
+    const halfHeight = Math.ceil(tooltip.offsetHeight / 2);
+    const left = Math.min(Math.max(event.clientX - panelBounds.left + 14, inset), panel.clientWidth - tooltip.offsetWidth - inset);
+    const top = Math.min(Math.max(event.clientY - panelBounds.top, inset + halfHeight), panel.clientHeight - halfHeight - inset);
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+    tooltip.style.opacity = '1';
+
+    const tooltipBounds = tooltip.getBoundingClientRect();
+    const containerBounds = container.getBoundingClientRect();
+    const backdrop = tooltip.querySelector('.ticker-tooltip-backdrop');
+    backdrop.style.left = `${containerBounds.left - tooltipBounds.left}px`;
+    backdrop.style.top = `${containerBounds.top - tooltipBounds.top}px`;
+    backdrop.style.width = `${containerBounds.width}px`;
+  };
+
+  const showTooltip = (item, event) => {
+    if (tooltip.dataset.ticker !== item.ticker) {
+      renderTooltip(item);
+    }
+    positionTooltip(event);
+  };
+
+  container.querySelectorAll('tr[data-ticker]').forEach(row => {
+    const item = data[row.dataset.ticker];
+    if (!item || item.error) return;
+    row.addEventListener('mouseenter', event => showTooltip(item, event));
+    row.addEventListener('mousemove', event => showTooltip(item, event));
+    row.addEventListener('mouseleave', hideTooltip);
+  });
+}

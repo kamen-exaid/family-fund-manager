@@ -61,17 +61,21 @@ app.get('/api/state', (req, res) => {
 // 标的 ATH 缓存与后台同步机制
 let tickerAthCache = null;
 let tickerAthCacheTime = 0;
+let tickerAthCacheSignature = null;
 const TICKER_CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
 
 app.get('/api/ticker-ath', async (req, res) => {
   try {
     const now = Date.now();
-    if (tickerAthCache && (now - tickerAthCacheTime < TICKER_CACHE_DURATION)) {
+    const config = readConfig();
+    const configSignature = JSON.stringify(config.tickers);
+    if (tickerAthCache && tickerAthCacheSignature === configSignature && (now - tickerAthCacheTime < TICKER_CACHE_DURATION)) {
       return res.json({ success: true, data: tickerAthCache, cached: true });
     }
-    const data = await fetchTickerAthData(readConfig());
+    const data = await fetchTickerAthData(config);
     tickerAthCache = data;
     tickerAthCacheTime = now;
+    tickerAthCacheSignature = configSignature;
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -500,8 +504,8 @@ app.post('/api/settings/tickers', (req, res) => {
     if (!Array.isArray(tickers)) {
       return res.status(400).json({ success: false, message: '无效的标的列表数据格式' });
     }
-    if (tickers.length < 1 || tickers.length > 8) {
-      return res.status(400).json({ success: false, message: '标的追踪数量必须在 1 到 8 个之间' });
+    if (tickers.length < 1) {
+      return res.status(400).json({ success: false, message: '至少需要追踪 1 个标的' });
     }
 
     const cleanedTickers = tickers.map(e => {
@@ -514,8 +518,7 @@ app.post('/api/settings/tickers', (req, res) => {
         throw new Error(`标的代码格式非法（只允许字母、数字、.-^符号）: ${cleanTicker}`);
       }
       return {
-        ticker: cleanTicker,
-        name: (e.name || '').trim().substring(0, 50) // 限制名称最大长度
+        ticker: cleanTicker
       };
     });
 
@@ -526,6 +529,7 @@ app.post('/api/settings/tickers', (req, res) => {
     // 清除缓存，强制下次获取数据时实时抓取最新标的
     tickerAthCache = null;
     tickerAthCacheTime = 0;
+    tickerAthCacheSignature = null;
 
     res.json({ success: true, message: '标的配置保存成功！', data: cleanedTickers });
   } catch (error) {

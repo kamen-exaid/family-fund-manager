@@ -1975,6 +1975,58 @@ select:focus-visible {
 }
 
 /* 撤销 Toast 专用样式 */
+.toast.toast-submission-success {
+  min-width: 300px;
+  max-width: 380px;
+  padding: 14px 16px;
+  border-color: rgba(16, 185, 129, 0.6);
+  background: linear-gradient(135deg, rgba(5, 72, 51, 0.96), rgba(15, 37, 35, 0.96));
+  box-shadow: 0 16px 38px rgba(5, 150, 105, 0.28), 0 0 0 1px rgba(16, 185, 129, 0.1);
+}
+
+.toast.toast-submission-success::before {
+  display: none;
+}
+
+.toast-success-icon {
+  width: 24px;
+  height: 24px;
+  padding: 5px;
+  border-radius: 50%;
+  background: var(--color-green);
+  color: #06352a;
+  stroke-width: 3;
+}
+
+.toast-submission-success div {
+  display: grid;
+  gap: 2px;
+}
+
+.toast-submission-success strong {
+  color: #ffffff;
+  font-size: 0.96rem;
+  line-height: 1.2;
+}
+
+.toast-submission-success span {
+  color: rgba(236, 253, 245, 0.82);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 480px) {
+  .toast-container {
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+  }
+
+  .toast.toast-submission-success {
+    min-width: 0;
+    max-width: none;
+  }
+}
+
 .toast.toast-undo {
   border-color: rgba(245, 158, 11, 0.35);
   max-width: 380px;
@@ -2085,11 +2137,11 @@ select:focus-visible {
   }
 
   .app-header .header-logo {
-    display: flex;
+    display: none;
   }
 
   .welcome-copy {
-    display: none;
+    display: flex;
   }
 }
 
@@ -2142,18 +2194,10 @@ select:focus-visible {
     padding: 12px;
   }
 
-  .app-header .header-logo {
-    min-width: 0;
+  .welcome-copy {
     flex: 1 1 100%;
   }
 
-  .logo-text h1 {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sub-logo,
   .system-time {
     display: none;
   }
@@ -2246,6 +2290,75 @@ select:focus-visible {
   padding: 8px 12px;
   gap: 12px;
   transition: all 0.2s ease;
+}
+
+.ticker-config-row {
+  padding-left: 8px;
+  will-change: transform;
+}
+
+.ticker-sort-controls {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.ticker-drag-handle {
+  display: grid;
+  width: 28px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--color-panel-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: grab;
+  transition: transform 0.18s ease, color 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.ticker-drag-handle:active {
+  cursor: grabbing;
+  transform: scale(0.92);
+}
+
+.ticker-drag-handle svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.ticker-drag-handle:hover,
+.ticker-drag-handle:focus-visible {
+  border-color: var(--color-panel-border);
+  background: rgba(var(--color-primary-rgb), 0.09);
+  color: var(--color-primary);
+  box-shadow: 0 3px 8px rgba(var(--color-primary-rgb), 0.14);
+}
+
+.ticker-sort-chosen {
+  opacity: 0.48;
+}
+
+.ticker-sort-ghost {
+  background: rgba(var(--color-primary-rgb), 0.05) !important;
+  border-color: rgba(var(--color-primary-rgb), 0.45) !important;
+  border-style: dashed !important;
+}
+
+.ticker-sort-ghost > * {
+  visibility: hidden;
+}
+
+.ticker-sort-fallback {
+  z-index: 10001 !important;
+  pointer-events: none !important;
+  opacity: 0.98 !important;
+  border-color: rgba(var(--color-primary-rgb), 0.6) !important;
+  background: var(--color-panel-bg) !important;
+  box-shadow: 0 18px 38px rgba(18, 49, 79, 0.28), 0 0 0 1px rgba(var(--color-primary-rgb), 0.14) !important;
+  transform-origin: center !important;
 }
 
 body.theme-light .member-edit-item {
@@ -2899,6 +3012,59 @@ body.theme-light .scale-slice-btn.active {
   white-space: pre-line;
 }
 
+.ticker-ath-bar {
+  position: relative;
+}
+
+/* Nested backdrop filters are not composited consistently once the panel itself
+   is already a backdrop root. Keep a moderate native blur as a fallback, then
+   blur a position-matched copy of the table for a reliable Gaussian result. */
+.ticker-external-tooltip {
+  background: rgba(247, 250, 255, 0.46);
+  box-shadow:
+    0 20px 44px rgba(41, 59, 85, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(28px) saturate(115%);
+  -webkit-backdrop-filter: blur(28px) saturate(115%);
+}
+
+.ticker-tooltip-backdrop {
+  position: absolute;
+  z-index: -2;
+  pointer-events: none;
+  transform: scale(1.14);
+  transform-origin: center;
+  filter: blur(24px) saturate(110%);
+  opacity: 1;
+}
+
+.ticker-tooltip-backdrop .ticker-ath-cards {
+  overflow: visible;
+  border-color: transparent;
+  background: rgba(241, 246, 253, 0.84);
+  box-shadow: none;
+}
+
+.ticker-external-tooltip::after {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.34), rgba(226, 237, 252, 0.2)),
+    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.3), transparent 56%);
+}
+
+body.theme-dark .chart-external-tooltip.ticker-external-tooltip {
+  background: rgba(18, 24, 37, 0.42);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+body.theme-dark .chart-external-tooltip.ticker-external-tooltip::after {
+  background: linear-gradient(135deg, rgba(20, 27, 42, 0.36), rgba(37, 48, 70, 0.18));
+}
+
+body.theme-dark .ticker-tooltip-backdrop .ticker-ath-cards {
+  background: rgba(16, 22, 34, 0.84);
+}
+
+
 body.theme-dark .chart-external-tooltip {
   border-color: rgba(255, 255, 255, 0.16);
   background: linear-gradient(135deg, rgba(18, 23, 35, 0.36), rgba(32, 41, 58, 0.24));
@@ -2918,6 +3084,18 @@ body.theme-dark .chart-external-tooltip::after {
 
   body:not(.theme-light) .chart-external-tooltip::after {
     background: linear-gradient(135deg, rgba(18, 23, 35, 0.42), rgba(32, 41, 58, 0.28));
+  }
+
+  body:not(.theme-light) .chart-external-tooltip.ticker-external-tooltip {
+    background: rgba(18, 24, 37, 0.42);
+  }
+
+  body:not(.theme-light) .chart-external-tooltip.ticker-external-tooltip::after {
+    background: linear-gradient(135deg, rgba(20, 27, 42, 0.36), rgba(37, 48, 70, 0.18));
+  }
+
+  body:not(.theme-light) .ticker-tooltip-backdrop .ticker-ath-cards {
+    background: rgba(16, 22, 34, 0.84);
   }
 }
 

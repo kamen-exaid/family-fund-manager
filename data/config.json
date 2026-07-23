@@ -2,35 +2,35 @@
   "tickers": [
     {
       "ticker": "VOO",
-      "name": "先锋标普500 ETF"
+      "name": ""
     },
     {
       "ticker": "QQQ",
-      "name": "景顺纳指100 ETF"
+      "name": ""
     },
     {
       "ticker": "VGT",
-      "name": "先锋信息技术 ETF"
+      "name": ""
     },
     {
       "ticker": "SMH",
-      "name": "范达半导体 ETF"
+      "name": ""
     },
     {
       "ticker": "AAPL",
-      "name": "苹果"
+      "name": ""
     },
     {
       "ticker": "NVDA",
-      "name": "英伟达"
+      "name": ""
     },
     {
       "ticker": "GOOGL",
-      "name": "谷歌"
+      "name": ""
     },
     {
-      "ticker": "MU",
-      "name": "美光"
+      "ticker": "XLK",
+      "name": ""
     }
   ]
 }

@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTrendStatSeries = [];
   let isTrendStatsHovering = false;
   let isPrivacyMode = true; // 默认开启隐私遮罩，用户可按需查看数据
+  let tickerSortable = null;
 
   const modalTriggers = new WeakMap();
 
@@ -307,12 +308,51 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    document.querySelectorAll('.sidebar-nav a').forEach((link) => {
-      link.addEventListener('click', () => {
-        document.querySelectorAll('.sidebar-nav a').forEach((item) => item.classList.remove('active'));
-        link.classList.add('active');
+    const navigationLinks = [...document.querySelectorAll('.sidebar-nav a[href^="#"]')];
+    const navigationSections = navigationLinks
+      .map(link => ({ link, section: document.querySelector(link.hash) }))
+      .filter(({ section }) => section);
+    let navigationFrame = null;
+
+    const setActiveNavigation = (sectionId) => {
+      navigationLinks.forEach(link => {
+        const isActive = link.hash === `#${sectionId}`;
+        link.classList.toggle('active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
       });
+    };
+
+    const syncNavigationWithScroll = () => {
+      navigationFrame = null;
+      if (window.scrollY <= 8) {
+        setActiveNavigation('dashboard-home');
+        return;
+      }
+
+      let active = navigationSections[0];
+      let largestVisibleArea = 0;
+
+      navigationSections.forEach(item => {
+        const rect = item.section.getBoundingClientRect();
+        const visibleArea = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+        if (visibleArea > largestVisibleArea) {
+          active = item;
+          largestVisibleArea = visibleArea;
+        }
+      });
+
+      if (active) setActiveNavigation(active.section.id);
+    };
+
+    navigationLinks.forEach(link => {
+      link.addEventListener('click', () => setActiveNavigation(link.hash.slice(1)));
     });
+    window.addEventListener('scroll', () => {
+      if (!navigationFrame) navigationFrame = requestAnimationFrame(syncNavigationWithScroll);
+    }, { passive: true });
+    window.addEventListener('resize', syncNavigationWithScroll);
+    syncNavigationWithScroll();
 
     // 绑定三个主题选择按钮的点击事件
     themeBtns.forEach(btn => {
@@ -415,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         await Api.addTransfer({ fromMember, toMember, amount, cnhRate, date, remark });
-        showToast('内部份额转让划转登记成功', 'success');
+        showSubmissionSuccess('内部份额转让已提交并保存');
         formTransfer.reset();
         setDefaultDates();
         await loadAllData();
@@ -585,7 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         await Api.addTransaction({ member, type, amount, cnhAmount, date, remark });
-        showToast('交易记录登记成功', 'success');
+        showSubmissionSuccess('交易记录已提交并保存');
         formTransaction.reset();
         setDefaultDates();
         await loadAllData();
@@ -606,7 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         await Api.updateValuation({ totalNAV, date, remark });
-        showToast('基金资产估值重估完成', 'success');
+        showSubmissionSuccess('基金估值已提交并完成重估');
         formValuation.reset();
         setDefaultDates();
         await loadAllData();
@@ -688,17 +728,47 @@ document.addEventListener('DOMContentLoaded', () => {
     async function renderTickerConfigList() {
       try {
         const tickers = await Api.getTickers();
-        tickerConfigList.innerHTML = '';
+        tickerConfigList.replaceChildren();
         tickers.forEach(ticker => {
-          addTickerRow(ticker.ticker, ticker.name);
+          addTickerRow(ticker.ticker);
         });
+        initTickerSortable();
       } catch (err) {
         showToast(err.message, 'error');
       }
     }
 
+    function initTickerSortable() {
+      tickerSortable?.destroy();
+      tickerSortable = new Sortable(tickerConfigList, {
+        animation: 180,
+        easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+        handle: '.ticker-drag-handle',
+        draggable: '.ticker-config-row',
+        ghostClass: 'ticker-sort-ghost',
+        chosenClass: 'ticker-sort-chosen',
+        forceFallback: false,
+        fallbackOnBody: true,
+        fallbackClass: 'ticker-sort-fallback',
+        fallbackTolerance: 4,
+        swapThreshold: 0.65,
+        invertSwap: true,
+        scroll: true,
+        bubbleScroll: true,
+        scrollSensitivity: 60,
+        scrollSpeed: 12
+      });
+    }
+
+    function moveTickerRow(row, direction) {
+      const sibling = direction === 'up' ? row.previousElementSibling : row.nextElementSibling;
+      if (!sibling) return;
+      if (direction === 'up') tickerConfigList.insertBefore(row, sibling);
+      else tickerConfigList.insertBefore(sibling, row);
+    }
+
     // 动态添加一个配置行
-    function addTickerRow(ticker = '', name = '') {
+    function addTickerRow(ticker = '') {
       const row = document.createElement('div');
       row.className = 'ticker-config-row member-edit-item';
       row.style.display = 'flex';
@@ -706,11 +776,15 @@ document.addEventListener('DOMContentLoaded', () => {
       row.style.width = '100%';
       row.style.alignItems = 'center';
       row.innerHTML = `
-        <div style="flex: 1; display: flex; gap: 8px; min-width: 0;">
-          <input type="text" class="ticker-symbol-input" value="${escapeHtml(ticker)}" placeholder="代码 (如: AAPL)" style="width: 120px; font-weight: 700; text-transform: uppercase;" required>
-          <input type="text" class="ticker-name-input" value="${escapeHtml(name)}" placeholder="中文简称 (如: 苹果)" style="flex: 1; min-width: 0;" required>
+        <div class="ticker-sort-controls" aria-label="调整展示顺序">
+          <button class="ticker-drag-handle" type="button" title="拖动排序（也可用上下方向键）" aria-label="拖动此标的调整顺序">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
+          </button>
         </div>
-        <button class="btn-delete btn-remove-ticker-row" title="移除此标的" style="flex-shrink: 0; padding: 6px;">
+        <div style="flex: 1; min-width: 0;">
+          <input type="text" class="ticker-symbol-input" value="${escapeHtml(ticker)}" placeholder="代码（如：AAPL）" style="width: 100%; font-weight: 700; text-transform: uppercase;" required>
+        </div>
+        <button class="btn-delete btn-remove-ticker-row" type="button" title="移除此标的" style="flex-shrink: 0; padding: 6px;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -722,13 +796,22 @@ document.addEventListener('DOMContentLoaded', () => {
       row.querySelector('.btn-remove-ticker-row').addEventListener('click', () => {
         row.remove();
       });
+      const dragHandle = row.querySelector('.ticker-drag-handle');
+      dragHandle.addEventListener('keydown', event => {
+        if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+        event.preventDefault();
+        moveTickerRow(row, event.key === 'ArrowUp' ? 'up' : 'down');
+      });
 
       tickerConfigList.appendChild(row);
     }
 
     // 添加配置行事件
     if (btnAddTickerRow) {
-      btnAddTickerRow.addEventListener('click', () => addTickerRow());
+      btnAddTickerRow.addEventListener('click', () => {
+        addTickerRow();
+        tickerConfigList.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
     }
 
     // 保存配置事件
@@ -740,25 +823,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         rows.forEach(row => {
           const tickerInput = row.querySelector('.ticker-symbol-input');
-          const nameInput = row.querySelector('.ticker-name-input');
           const ticker = tickerInput.value.trim();
-          const name = nameInput.value.trim();
 
           if (!ticker) {
             tickerInput.focus();
             valid = false;
             return;
           }
-          if (!name) {
-            nameInput.focus();
-            valid = false;
-            return;
-          }
-          tickers.push({ ticker, name });
+          tickers.push({ ticker });
         });
 
         if (!valid) {
-          showToast('请完整填写代码和中文简称', 'error');
+          showToast('请填写标的代码', 'error');
           return;
         }
 
@@ -1352,6 +1428,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
     toast.textContent = message;
 
     container.appendChild(toast);
@@ -1363,5 +1441,23 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.remove();
       });
     }, 3500);
+  }
+
+  function showSubmissionSuccess(message) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-success toast-submission-success';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    toast.innerHTML = `
+      <svg class="toast-success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m5 12 4.2 4.2L19 6.5"/></svg>
+      <div><strong>提交成功</strong><span>${escapeHtml(message)}</span></div>
+    `;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.animation = 'toastSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) reverse forwards';
+      toast.addEventListener('animationend', () => toast.remove(), { once: true });
+    }, 4200);
   }
 });
