@@ -17,11 +17,8 @@ a_归档/
 *.rar
 *.7z
 
-# 忽略本地运行时的动态数据库文件 (避免把测试数据/隐私账目推送到公开仓库)
-# 如果需要保留默认模板，可创建 data/db.json.template，而将实际的 db.json 忽略
-data/db.json
-# 如果 config.json 中包含敏感配置（如 API 密钥、密码等），建议予以忽略
-# data/config.json
+# 忽略全部本地运行数据与配置（避免提交测试数据、隐私账目或敏感配置）
+data/
 
 # --- 日志与调试文件 (Logs & Diagnostics) ---
 logs
@@ -62,6 +59,10 @@ out/
 .env.test.local
 .env.production.local
 *.env
+
+# --- 本地 Codex / Agent 配置 (Local AI Tooling) ---
+.agents/
+.codex/
 
 # --- 常见 IDE / 编辑器配置 (Editor & IDE) ---
 .vscode/

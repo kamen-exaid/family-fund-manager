@@ -68,10 +68,12 @@ function bindTickerTooltips(container, data, formatMonthDay) {
   let tooltip = panel.querySelector('.ticker-external-tooltip');
   if (!tooltip) {
     tooltip = document.createElement('div');
-    tooltip.className = 'chart-external-tooltip ticker-external-tooltip';
+    tooltip.className = 'glass-tooltip chart-external-tooltip ticker-external-tooltip';
     tooltip.setAttribute('role', 'tooltip');
     panel.appendChild(tooltip);
   }
+  tooltip.classList.add('glass-tooltip');
+  tooltip.style.opacity = '0';
 
   const hideTooltip = () => {
     tooltip.style.opacity = '0';
@@ -81,10 +83,11 @@ function bindTickerTooltips(container, data, formatMonthDay) {
     tooltip.replaceChildren();
 
     const backdrop = document.createElement('div');
-    backdrop.className = 'ticker-tooltip-backdrop';
+    backdrop.className = 'glass-tooltip-backdrop ticker-tooltip-backdrop';
     backdrop.setAttribute('aria-hidden', 'true');
     const tableCopy = container.cloneNode(true);
     tableCopy.removeAttribute('id');
+    tableCopy.classList.add('glass-tooltip-backdrop-surface');
     backdrop.appendChild(tableCopy);
     tooltip.appendChild(backdrop);
 

@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTheme = 'system';
   let currentFilteredHistory = [];
   let currentTrendStatSeries = [];
+  let renderTrendStats = null;
   let isTrendStatsHovering = false;
   let isPrivacyMode = true; // 默认开启隐私遮罩，用户可按需查看数据
   let tickerSortable = null;
@@ -470,25 +471,38 @@ document.addEventListener('DOMContentLoaded', () => {
     filterType.addEventListener('change', renderLedger);
 
     // 对标指数复选框切换监听
-    const updateCompVisibility = () => {
+    const comparisonDatasetIndexes = new Map([
+      [chkCompAssets, 0],
+      [chkCompNav, 1],
+      [chkCompSp500, 2],
+      [chkCompNdx, 3]
+    ]);
+
+    const updateCompVisibility = event => {
       if (!navTrendChart) return;
 
-      const showNav = chkCompNav.checked;
-      const showAssets = chkCompAssets.checked;
-      const showSpx = chkCompSp500.checked;
-      const showNdx = chkCompNdx.checked;
+      const checkbox = event.currentTarget;
+      const datasetIndex = comparisonDatasetIndexes.get(checkbox);
+      const visible = checkbox.checked;
+      const isAssets = datasetIndex === 0;
 
-      // 切换 Dataset 隐藏/显示状态
-      navTrendChart.setDatasetVisibility(0, showAssets);
-      navTrendChart.setDatasetVisibility(1, showNav);
-      navTrendChart.setDatasetVisibility(2, showSpx);
-      navTrendChart.setDatasetVisibility(3, showNdx);
-
-      // 动态显示/隐藏右侧 Y 轴
-      navTrendChart.options.scales['y-assets'].display = showAssets;
-
-      navTrendChart.update();
-      renderCharts();
+      // The asset axis changes the chart layout. Settle that layout without
+      // animation first, then fade the dataset so it never flies in.
+      if (isAssets && visible) {
+        navTrendChart.options.scales['y-assets'].display = true;
+        navTrendChart.update('none');
+      }
+      navTrendChart.$glassTooltipBackdrop = null;
+      window.FundChartRenderer.animateDatasetVisibility(navTrendChart, datasetIndex, visible, {
+        duration: visible ? 320 : 240,
+        onComplete: () => {
+          if (isAssets && !visible) {
+            navTrendChart.options.scales['y-assets'].display = false;
+            navTrendChart.update('none');
+          }
+        }
+      });
+      renderTrendStats?.();
     };
 
     chkCompNav.addEventListener('change', updateCompVisibility);
@@ -1410,6 +1424,7 @@ document.addEventListener('DOMContentLoaded', () => {
     memberAllocationChart = rendered.memberAllocationChart;
     currentFilteredHistory = rendered.filteredHistory;
     currentTrendStatSeries = rendered.trendSeries;
+    renderTrendStats = rendered.renderTrendStats;
     updateChartsColors(currentTheme);
   }
 
