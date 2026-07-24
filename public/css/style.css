@@ -49,7 +49,6 @@
   --grad-purple: linear-gradient(135deg, #6a68de 0%, #5856d6 100%);
   --grad-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(240, 244, 248, 0.78) 100%);
 
-  --blob-opacity: 0.09;
   /* 光源位于顶部：阴影正向向下 (Y+), 顶部 1px 高光切线 (inset 0 1px 0) */
   --glass-shadow: 0 8px 24px -6px rgba(31, 38, 135, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7);
   --glass-shadow-hover: 0 20px 48px -12px rgba(31, 38, 135, 0.16), 0 4px 12px -2px rgba(31, 38, 135, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -110,7 +109,6 @@
     --grad-purple: linear-gradient(135deg, #5e5ce6 0%, #5856d6 100%);
     --grad-panel: linear-gradient(180deg, rgba(25, 27, 43, 0.88) 0%, rgba(13, 14, 22, 0.88) 100%);
 
-    --blob-opacity: 0.14;
     /* 深色物理阴影：正向向下沉降 + 顶部纯净微光切线 */
     --glass-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
     --glass-shadow-hover: 0 24px 55px -12px rgba(0, 0, 0, 0.75), 0 4px 16px -2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
@@ -167,7 +165,6 @@ body.theme-light {
   --grad-purple: linear-gradient(135deg, #6a68de 0%, #5856d6 100%);
   --grad-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(240, 244, 248, 0.78) 100%);
 
-  --blob-opacity: 0.09;
   --glass-shadow: 0 8px 24px -6px rgba(31, 38, 135, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7);
   --glass-shadow-hover: 0 20px 48px -12px rgba(31, 38, 135, 0.16), 0 4px 12px -2px rgba(31, 38, 135, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   --glass-shadow-active: 0 2px 8px -2px rgba(31, 38, 135, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
@@ -221,7 +218,6 @@ body.theme-dark {
   --grad-purple: linear-gradient(135deg, #5e5ce6 0%, #5856d6 100%);
   --grad-panel: linear-gradient(180deg, rgba(25, 27, 43, 0.88) 0%, rgba(13, 14, 22, 0.88) 100%);
 
-  --blob-opacity: 0.14;
   --glass-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   --glass-shadow-hover: 0 24px 55px -12px rgba(0, 0, 0, 0.75), 0 4px 16px -2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
   --glass-shadow-active: 0 2px 10px -2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -476,55 +472,6 @@ body.theme-dark .app-sidebar {
   border-color: rgba(255, 255, 255, 0.1);
   background: rgba(15, 18, 30, 0.68);
   box-shadow: 0 18px 42px -24px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-
-/* 霓虹发光背景光晕 */
-.blur-blob {
-  position: fixed;
-  border-radius: 50%;
-  filter: blur(110px);
-  opacity: var(--blob-opacity, 0.12);
-  z-index: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-
-.blob-1 {
-  background: #8cc9ff;
-  width: 520px;
-  height: 520px;
-  top: -190px;
-  left: -190px;
-  animation: blobFloat 12s infinite alternate ease-in-out;
-}
-
-.blob-2 {
-  background: #ffe08a;
-  width: 600px;
-  height: 600px;
-  bottom: -240px;
-  right: -180px;
-  animation: blobFloat 16s infinite alternate-reverse ease-in-out;
-}
-
-.blob-3 {
-  background: #b9a7ff;
-  width: 420px;
-  height: 420px;
-  top: 38%;
-  left: 48%;
-  transform: translate(-50%, -50%);
-  opacity: 0.055;
-}
-
-@keyframes blobFloat {
-  0% {
-    transform: translate(0, 0) scale(1);
-  }
-
-  100% {
-    transform: translate(60px, 40px) scale(1.15);
-  }
 }
 
 /* 高端数字字体 */
