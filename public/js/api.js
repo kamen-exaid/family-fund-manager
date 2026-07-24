@@ -51,7 +51,9 @@ const Api = {
   async deleteMember(id) { return (await requestApi(`/api/members/${id}`, { method: 'DELETE' })).data; },
   async syncCnhRate() { return (await requestApi('/api/settings/sync-rate', { method: 'POST' })).cnhRate; },
   async addTransfer(data) { return jsonRequest('/api/transfer', 'POST', data); },
-  async getTickerAth() { return (await requestApi('/api/ticker-ath')).data; },
+  async getTickerAth() {
+    return (await requestApi('/api/ticker-ath', { cache: 'no-store' })).data;
+  },
   async getTickers() { return (await requestApi('/api/settings/tickers')).data; },
   async saveTickers(tickers) { return jsonRequest('/api/settings/tickers', 'POST', { tickers }); }
 };

@@ -65,6 +65,7 @@ let tickerAthCacheSignature = null;
 const TICKER_CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
 
 app.get('/api/ticker-ath', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
   try {
     const now = Date.now();
     const config = readConfig();

@@ -22,9 +22,14 @@ window.FundTickerPanel = {
 
         const safeLongName = escapeHtml(item.longName || item.name || ticker);
         const athDate = item.athDate ? formatMonthDay(item.athDate) : '--';
-        const updatedAt = item.regularCloseDate ? formatMonthDay(item.regularCloseDate) : '--';
         const drawdownClass = item.drawdown >= 0 ? 'text-green' : 'text-magenta';
         const drawdownPrefix = item.drawdown > 0 ? '+' : '';
+        const hasYtdChange = Number.isFinite(item.ytdChange);
+        const ytdClass = hasYtdChange
+          ? (item.ytdChange >= 0 ? 'text-green' : 'text-magenta')
+          : '';
+        const ytdPrefix = hasYtdChange && item.ytdChange > 0 ? '+' : '';
+        const ytdText = hasYtdChange ? `${ytdPrefix}${item.ytdChange.toFixed(2)}%` : '--';
 
         return `
           <tr data-ticker="${safeTicker}">
@@ -32,7 +37,7 @@ window.FundTickerPanel = {
             <td class="ticker-table-number ticker-table-ath font-outfit">$${item.ath.toFixed(2)}</td>
             <td class="ticker-table-number font-outfit">$${item.regularClose.toFixed(2)}</td>
             <td class="ticker-table-number ticker-table-drawdown ${drawdownClass} font-outfit">${drawdownPrefix}${item.drawdown.toFixed(2)}%</td>
-            <td class="ticker-table-updated">${updatedAt}</td>
+            <td class="ticker-table-number ticker-table-ytd ${ytdClass} font-outfit">${ytdText}</td>
           </tr>`;
       }).join('');
 
@@ -44,7 +49,7 @@ window.FundTickerPanel = {
               <th scope="col">ATH</th>
               <th scope="col">收盘</th>
               <th scope="col">回调幅度</th>
-              <th scope="col">更新时间</th>
+              <th scope="col">今年涨幅</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
