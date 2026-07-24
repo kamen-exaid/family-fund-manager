@@ -98,7 +98,11 @@ function bindTickerTooltips(container, data, formatMonthDay) {
 
     const title = document.createElement('div');
     title.className = 'chart-external-tooltip-title';
-    title.textContent = `${item.ticker} · ${item.longName || item.name || item.ticker}`;
+    const titleTicker = document.createElement('span');
+    titleTicker.textContent = `${item.ticker} ·`;
+    const titleName = document.createElement('span');
+    titleName.textContent = item.longName || item.name || item.ticker;
+    title.append(titleTicker, titleName);
     tooltip.appendChild(title);
 
     [
