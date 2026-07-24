@@ -5,12 +5,14 @@
 
 /* --- 默认明亮毛玻璃主题 (Light Mode - Standard) --- */
 :root {
-  --sidebar-width: 280px;
-  --sidebar-gutter: 24px;
+  --layout-margin: 20px;
+  --layout-gutter: 20px;
+  --sidebar-width: 300px;
+  --sidebar-gutter: var(--layout-margin);
   /* Auxiliary actions should support the main workspace, not compete with it. */
   --fixed-panel-width: clamp(360px, 22vw, 420px);
-  --fixed-panel-gutter: 32px;
-  --fixed-panel-top: 28px;
+  --fixed-panel-gutter: var(--layout-margin);
+  --fixed-panel-top: var(--layout-margin);
   --color-bg: #f4f6fa;
   --ambient-bg: radial-gradient(ellipse 62% 48% at 8% 100%, rgba(188, 223, 255, 0.72) 0%, rgba(222, 240, 255, 0.36) 34%, transparent 72%), radial-gradient(ellipse 50% 38% at 45% 0%, rgba(255, 237, 177, 0.52) 0%, rgba(255, 247, 218, 0.26) 42%, transparent 76%);
   --color-panel-bg: rgba(255, 255, 255, 0.45);
@@ -256,6 +258,11 @@ body {
   overflow-x: hidden;
 }
 
+html.modal-open,
+body.modal-open {
+  overflow: hidden;
+}
+
 /* The bottom scroll fade is clear at its top edge and reaches full blur only at the viewport bottom. */
 body::after {
   content: '';
@@ -303,6 +310,7 @@ button svg,
 
 html {
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
 }
 
 /* SaaS-style persistent navigation: it sits above the ambient background,
@@ -386,6 +394,25 @@ html {
   gap: 6px;
 }
 
+.sidebar-nav {
+  position: relative;
+  isolation: isolate;
+}
+
+.sidebar-nav::before {
+  position: absolute;
+  z-index: 0;
+  top: var(--active-top, 0);
+  left: 0;
+  width: 100%;
+  height: var(--active-height, 44px);
+  border-radius: 12px;
+  content: '';
+  background: rgba(var(--color-primary-rgb), 0.12);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+  transition: top 320ms cubic-bezier(0.32, 0.72, 0, 1), height 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 /* The visual order mirrors the centre workspace: dashboard, trends, members, ledger. */
 .sidebar-nav a[href="#trends-section"] {
   order: 1;
@@ -406,6 +433,8 @@ html {
 }
 
 .sidebar-nav-item {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -434,14 +463,13 @@ html {
 
 .sidebar-nav-item:hover {
   color: var(--color-primary);
-  background: rgba(var(--color-primary-rgb), 0.09);
-  transform: translateX(2px);
+  background: rgba(var(--color-primary-rgb), 0.06);
 }
 
 .sidebar-nav-item.active {
   color: var(--color-primary);
-  background: rgba(var(--color-primary-rgb), 0.12);
-  box-shadow: inset 3px 0 0 var(--color-primary);
+  background: transparent;
+  box-shadow: none;
 }
 
 body.theme-dark .app-sidebar {
@@ -545,10 +573,14 @@ body.theme-dark .app-sidebar {
   max-width: none;
   width: 100%;
   margin: 0 auto;
-  padding: 28px calc(var(--fixed-panel-width) + var(--fixed-panel-gutter) + 40px) 28px calc(var(--sidebar-width) + var(--sidebar-gutter) + 40px);
+  padding:
+    var(--layout-margin)
+    calc(var(--fixed-panel-width) + var(--fixed-panel-gutter) + var(--layout-gutter))
+    var(--layout-margin)
+    calc(var(--sidebar-width) + var(--sidebar-gutter) + var(--layout-gutter));
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--layout-gutter);
   position: relative;
   z-index: 1;
   padding-bottom: 124px;
@@ -792,6 +824,14 @@ body.theme-dark .app-sidebar {
 }
 
 /* 顶部指标卡片 */
+#dashboard-home {
+  padding-block: 20px;
+}
+
+#dashboard-home .panel-header {
+  margin-bottom: 10px !important;
+}
+
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -824,8 +864,8 @@ body.theme-dark .app-sidebar {
 .metric-card {
   width: 100%;
   min-width: 0;
-  min-height: 98px;
-  padding: 14px clamp(18px, 1.8vw, 28px);
+  min-height: 86px;
+  padding: 8px clamp(18px, 1.8vw, 28px);
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -866,7 +906,7 @@ body.theme-dark .app-sidebar {
 
 .metric-info {
   display: grid;
-  grid-template-rows: 18px 34px 18px;
+  grid-template-rows: 18px 34px 20px;
   align-content: center;
   flex: 1 1 auto;
   min-width: 0;
@@ -905,7 +945,7 @@ body.theme-dark .app-sidebar {
   text-overflow: ellipsis;
   color: var(--color-text-muted);
   font-family: 'Inter', sans-serif;
-  font-size: 0.56rem;
+  font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0;
   white-space: nowrap;
@@ -915,31 +955,41 @@ body.theme-dark .app-sidebar {
 .text-cyan .metric-inline,
 .text-magenta .metric-inline {
   color: currentColor;
-  opacity: 0.72;
+  opacity: 0.86;
 }
 
 .metric-sub {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 17px;
-  font-size: 0.65rem;
-  font-weight: 600;
-  line-height: 17px;
-  color: var(--color-text-muted);
+  min-height: 20px;
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 20px;
+  color: color-mix(in srgb, var(--color-text-main) 72%, var(--color-text-muted));
+  font-variant-numeric: tabular-nums;
 }
 
 .metric-sub-primary {
+  display: inline-flex;
+  align-items: center;
   min-width: 0;
+  min-height: 20px;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 0.72rem;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .metric-sub .metric-inline {
+  display: inline-flex;
+  align-items: baseline;
   margin-left: 0;
   flex: 0 0 auto;
-  font-size: 0.65rem;
+  min-height: 20px;
+  font-size: 0.69rem;
+  line-height: 20px;
 }
 
 .metric-sub .metric-inline strong {
@@ -948,8 +998,8 @@ body.theme-dark .app-sidebar {
 }
 
 .metric-profit-inline {
-  font-size: 0.68rem;
-  font-weight: 600;
+  font-size: 0.74rem;
+  font-weight: 700;
   letter-spacing: 0;
 }
 
@@ -1065,7 +1115,7 @@ body.theme-dark .app-sidebar {
 .dashboard-layout {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 24px;
+  gap: var(--layout-gutter);
   align-items: stretch;
 }
 
@@ -1076,7 +1126,7 @@ body.theme-dark .app-sidebar {
 .layout-right {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--layout-gutter);
   position: fixed;
   top: var(--fixed-panel-top);
   right: var(--fixed-panel-gutter);
@@ -1812,6 +1862,7 @@ input:focus,
   opacity: 0;
   visibility: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overscroll-behavior: contain;
 }
 
 .modal-overlay.active {
@@ -1822,6 +1873,9 @@ input:focus,
 .modal-content {
   width: 480px;
   max-width: 90%;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-radius: 22px;
   transform: translateY(24px) scale(0.96);
   transition: transform 0.35s var(--spring-ease), opacity 0.3s var(--smooth-ease);
@@ -2514,6 +2568,54 @@ body.theme-light .op-tab-btn.active {
   box-shadow: 0 2px 8px rgba(31, 38, 135, 0.06);
 }
 
+/* Theme and operation tabs share the same gliding indicator motion as the time slicer. */
+.theme-selector-group,
+.operation-tabs {
+  position: relative;
+  isolation: isolate;
+}
+
+.theme-selector-group::before,
+.operation-tabs::before {
+  position: absolute;
+  z-index: 0;
+  left: var(--active-left, 4px);
+  width: var(--active-width, 0px);
+  content: '';
+  border: 1px solid var(--color-panel-border);
+  background: var(--color-panel-bg);
+  box-shadow: 0 2px 8px rgba(31, 38, 135, 0.1);
+  transition: left 280ms cubic-bezier(0.22, 1, 0.36, 1), width 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.theme-selector-group::before {
+  top: 3px;
+  height: calc(100% - 6px);
+  border-radius: 8px;
+}
+
+.operation-tabs::before {
+  top: 4px;
+  height: calc(100% - 8px);
+  border-radius: 8px;
+}
+
+.theme-selector-group .theme-btn,
+.operation-tabs .op-tab-btn {
+  position: relative;
+  z-index: 1;
+}
+
+.theme-selector-group .theme-btn.active,
+.theme-selector-group .theme-btn.active:hover,
+.operation-tabs .op-tab-btn.active,
+.operation-tabs .op-tab-btn.active:hover {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-main);
+}
+
 body.theme-light .tab-buttons {
   background: rgba(0, 0, 0, 0.04);
 }
@@ -2726,9 +2828,13 @@ body.theme-light .btn-sync-rate:hover {
 
 .time-slicer-group {
   display: grid !important;
-  grid-template-columns: repeat(6, 1fr) !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
   width: 100% !important;
-  gap: 2px !important;
+  gap: 4px !important;
+  padding: 4px;
+  border: 1px solid var(--color-panel-border);
+  border-radius: 10px;
+  background: rgba(31, 41, 55, 0.045);
 }
 
 .trend-stats-grid {
@@ -2832,18 +2938,20 @@ body.theme-light .trend-stat-card {
 /* --- 时间区间选择器分段按钮与坐标轴分段按钮样式 (Time Horizon & Scale Slicer) --- */
 .time-slice-btn,
 .scale-slice-btn {
-  font-size: 0.65rem;
-  padding: 4px 10px;
-  border-radius: 4px;
+  min-height: 30px;
+  padding: 6px 12px;
+  border-radius: 7px;
   border: none;
   background: transparent;
   color: var(--color-text-muted) !important;
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  font-weight: 500;
+  font-size: 0.7rem;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
 }
 
 .time-slice-btn:hover,
@@ -2882,11 +2990,11 @@ body.theme-light .scale-slice-btn.active {
 #time-slicer-group::before {
   position: absolute;
   z-index: 0;
-  top: 2px;
-  left: var(--active-left, 2px);
+  top: 4px;
+  left: var(--active-left, 4px);
   width: var(--active-width, 0px);
-  height: calc(100% - 4px);
-  border-radius: 4px;
+  height: calc(100% - 8px);
+  border-radius: 7px;
   content: '';
   background: var(--color-primary);
   box-shadow: 0 3px 9px rgba(var(--color-primary-rgb), 0.24);
@@ -3094,7 +3202,7 @@ body.theme-dark .glass-tooltip {
   }
 }
 
-/* Once mounted inside .layout-right, both right-hand panels share one 24px flex gap. */
+/* Once mounted inside .layout-right, both right-hand panels share the page gutter. */
 .layout-right .operations-panel {
   flex: 0 0 auto;
 }
@@ -3465,6 +3573,18 @@ body.privacy-mode-active #btn-privacy-toggle {
 .type-selector-grid #t-select-withdraw:checked + .selector-btn {
   background: rgba(var(--color-negative-rgb), 0.08);
   border-color: rgba(var(--color-negative-rgb), 0.55);
+  color: var(--color-negative);
+}
+
+.type-selector-grid #t-select-deposit:not(:checked) + .selector-btn:hover {
+  background: rgba(var(--color-positive-rgb), 0.06);
+  border-color: rgba(var(--color-positive-rgb), 0.34);
+  color: var(--color-positive);
+}
+
+.type-selector-grid #t-select-withdraw:not(:checked) + .selector-btn:hover {
+  background: rgba(var(--color-negative-rgb), 0.06);
+  border-color: rgba(var(--color-negative-rgb), 0.34);
   color: var(--color-negative);
 }
 

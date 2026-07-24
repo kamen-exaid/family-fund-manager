@@ -40,7 +40,7 @@
       </svg>
       <span>
         <strong>家庭财富账本</strong>
-        <small>WEALTH LEDGER <b class="sidebar-version">v3.1.3</b></small>
+        <small>WEALTH LEDGER <b class="sidebar-version">v3.2.0</b></small>
       </span>
     </a>
 
@@ -77,9 +77,9 @@
 
   <div class="app-container">
     <!-- Header -->
-    <header class="app-header">
+    <header class="app-header glass-panel premium-border">
       <div class="welcome-copy">
-        <h1>Hello, Investor</h1>
+        <h1 id="welcome-message">Hello, Investor</h1>
       </div>
       <div class="header-logo">
         <svg class="icon-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -87,7 +87,7 @@
         </svg>
         <div class="logo-text">
           <h1>家庭基金账目管理系统</h1>
-          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.1.3</span></span>
+          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.2.0</span></span>
         </div>
       </div>
       <div class="header-actions">
@@ -100,9 +100,9 @@
           </button>
         </div>
         <div class="theme-selector-group">
-          <button class="theme-btn" id="theme-btn-system" data-theme-btn="system"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>系统</button>
-          <button class="theme-btn" id="theme-btn-light" data-theme-btn="light"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>浅色</button>
-          <button class="theme-btn" id="theme-btn-dark" data-theme-btn="dark"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>深色</button>
+          <button class="theme-btn" type="button" id="theme-btn-system" data-theme-btn="system"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>系统</button>
+          <button class="theme-btn" type="button" id="theme-btn-light" data-theme-btn="light"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>浅色</button>
+          <button class="theme-btn" type="button" id="theme-btn-dark" data-theme-btn="dark"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/></svg>深色</button>
         </div>
         <button id="btn-privacy-toggle" class="btn btn-secondary flex-center" title="一键切换隐私/闭眼模式"
           style="padding: 0; width: 38px; height: 38px;">
@@ -187,7 +187,7 @@
           <div class="card-glow glow-blue"></div>
           <div class="metric-info">
             <span class="metric-label">基金单位净值 (NAV / Share)</span>
-            <div class="metric-value font-outfit text-cyan privacy-sensitive" id="fund-nav-per-share">1.0000</div>
+            <div class="metric-value font-outfit privacy-sensitive" id="fund-nav-per-share">1.0000</div>
             <div class="metric-sub" id="nav-indicator">已与市场最新同步</div>
           </div>
           <div class="metric-icon bg-blue-soft">
@@ -203,7 +203,7 @@
           <div class="card-glow glow-magenta"></div>
           <div class="metric-info">
             <span class="metric-label">累计总收益率 (Total ROI)</span>
-            <div class="metric-value font-outfit text-magenta privacy-sensitive" id="fund-profit-rate">0.00%</div>
+            <div class="metric-value font-outfit privacy-sensitive" id="fund-profit-rate">0.00%</div>
             <span class="metric-sub privacy-sensitive" id="fund-profit-rate-sub">家庭合作投资收益率</span>
           </div>
           <div class="metric-icon bg-magenta-soft">
@@ -293,14 +293,13 @@
             </div>
 
             <!-- Segmented Time Horizon Slicer -->
-            <div class="time-slicer-group" id="time-slicer-group"
-              style="display: flex; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 2px; border-radius: 6px; gap: 2px;">
-              <button class="time-slice-btn active" data-time-slice="ALL">自成立以来</button>
-              <button class="time-slice-btn" data-time-slice="YTD">今年以来</button>
-              <button class="time-slice-btn" data-time-slice="1Y">近1年</button>
-              <button class="time-slice-btn" data-time-slice="6M">近6M</button>
-              <button class="time-slice-btn" data-time-slice="3M">近3M</button>
-              <button class="time-slice-btn" data-time-slice="1M">近1M</button>
+            <div class="time-slicer-group" id="time-slicer-group" aria-label="业绩统计周期">
+              <button class="time-slice-btn active" type="button" data-time-slice="ALL">自成立以来</button>
+              <button class="time-slice-btn" type="button" data-time-slice="YTD">今年以来</button>
+              <button class="time-slice-btn" type="button" data-time-slice="1Y">近1年</button>
+              <button class="time-slice-btn" type="button" data-time-slice="6M">近6M</button>
+              <button class="time-slice-btn" type="button" data-time-slice="3M">近3M</button>
+              <button class="time-slice-btn" type="button" data-time-slice="1M">近1M</button>
             </div>
 
             <div class="trend-stats-grid" id="trend-stats-grid" aria-live="polite"></div>
@@ -331,9 +330,9 @@
           </div>
 
           <div class="operation-tabs">
-            <button class="op-tab-btn active" id="tab-btn-tx">出入金登记</button>
-            <button class="op-tab-btn" id="tab-btn-val">估值调整</button>
-            <button class="op-tab-btn" id="tab-btn-tf">内部份额转让</button>
+            <button class="op-tab-btn active" type="button" id="tab-btn-tx">出入金登记</button>
+            <button class="op-tab-btn" type="button" id="tab-btn-val">估值调整</button>
+            <button class="op-tab-btn" type="button" id="tab-btn-tf">内部份额转让</button>
           </div>
 
           <!-- Transaction Form -->

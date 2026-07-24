@@ -4,6 +4,34 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  const welcomeMessages = [
+    'Hello, Investor',
+    'Welcome Back, Investor',
+    'Good to See You',
+    'Ready for Today?',
+    'Your Portfolio Awaits',
+    'Nice to Have You Back',
+    'A Fresh View, Investor'
+  ];
+  const welcomeMessage = document.getElementById('welcome-message');
+  let previousWelcome = null;
+  try {
+    previousWelcome = sessionStorage.getItem('lastWelcomeMessage');
+  } catch (_error) {
+    // The greeting can still rotate when browser storage is unavailable.
+  }
+  const availableWelcomeMessages = welcomeMessages.filter(message => message !== previousWelcome);
+  const nextWelcome = availableWelcomeMessages[Math.floor(Math.random() * availableWelcomeMessages.length)];
+
+  if (welcomeMessage && nextWelcome) {
+    welcomeMessage.textContent = nextWelcome;
+    try {
+      sessionStorage.setItem('lastWelcomeMessage', nextWelcome);
+    } catch (_error) {
+      // Keep the selected greeting without persisting it.
+    }
+  }
+
   const {
     getThemeColors,
     isDarkTheme,
@@ -33,6 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let isTrendStatsHovering = false;
   let isPrivacyMode = true; // 默认开启隐私遮罩，用户可按需查看数据
   let tickerSortable = null;
+  let operationPanelResizeAnimation = null;
+  let operationPanelResizeCleanupTimer = null;
 
   const modalTriggers = new WeakMap();
 
@@ -46,6 +76,8 @@ document.addEventListener('DOMContentLoaded', () => {
     modalTriggers.set(modal, trigger);
     modal.classList.add('active');
     modal.setAttribute('aria-hidden', 'false');
+    document.documentElement.classList.add('modal-open');
+    document.body.classList.add('modal-open');
     requestAnimationFrame(() => (getModalFocusableElements(modal)[0] || modal.querySelector('.modal-content'))?.focus());
   }
 
@@ -53,6 +85,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!modal || !modal.classList.contains('active')) return;
     modal.classList.remove('active');
     modal.setAttribute('aria-hidden', 'true');
+    if (!document.querySelector('.modal-overlay.active')) {
+      document.documentElement.classList.remove('modal-open');
+      document.body.classList.remove('modal-open');
+    }
     modalTriggers.get(modal)?.focus?.();
   }
 
@@ -114,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- DOM 元素定义 ---
   const elSystemTime = document.getElementById('system-time');
   const themeBtns = document.querySelectorAll('[data-theme-btn]');
+  const themeSelectorGroup = document.querySelector('.theme-selector-group');
   const btnPrivacyToggle = document.getElementById('btn-privacy-toggle');
 
   // Dashboard Metrics
@@ -146,6 +183,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnTabTx = document.getElementById('tab-btn-tx');
   const btnTabVal = document.getElementById('tab-btn-val');
   const btnTabTf = document.getElementById('tab-btn-tf');
+  const operationTabs = document.querySelector('.operation-tabs');
+  const operationPanel = document.querySelector('.operations-panel');
   const formTransaction = document.getElementById('form-transaction');
   const formValuation = document.getElementById('form-valuation');
   const formTransfer = document.getElementById('form-transfer');
@@ -215,6 +254,86 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAddTickerRow = document.getElementById('btn-add-ticker-row');
   const btnSaveTickerConfig = document.getElementById('btn-save-ticker-config');
 
+  function setSegmentIndicator(group, button) {
+    if (!group || !button) return;
+    group.style.setProperty('--active-left', `${button.offsetLeft}px`);
+    group.style.setProperty('--active-width', `${button.offsetWidth}px`);
+  }
+
+  function syncSegmentIndicators() {
+    setSegmentIndicator(themeSelectorGroup, themeSelectorGroup?.querySelector('.theme-btn.active'));
+    setSegmentIndicator(operationTabs, operationTabs?.querySelector('.op-tab-btn.active'));
+    const timeSlicerGroup = document.getElementById('time-slicer-group');
+    setSegmentIndicator(timeSlicerGroup, timeSlicerGroup?.querySelector('.time-slice-btn.active'));
+  }
+
+  function switchOperationView(activeButton, activeForm, onActivate) {
+    if (!operationPanel || !activeButton || !activeForm) return;
+    if (activeButton.classList.contains('active') && activeForm.classList.contains('active')) return;
+
+    const currentHeight = operationPanel.getBoundingClientRect().height;
+    const interruptedAnimation = operationPanelResizeAnimation;
+    operationPanelResizeAnimation = null;
+    interruptedAnimation?.cancel();
+    window.clearTimeout(operationPanelResizeCleanupTimer);
+    operationPanelResizeCleanupTimer = null;
+    operationPanel.style.removeProperty('height');
+    operationPanel.style.removeProperty('overflow');
+
+    [btnTabTx, btnTabVal, btnTabTf].forEach(button => {
+      button.classList.toggle('active', button === activeButton);
+    });
+    [formTransaction, formValuation, formTransfer].forEach(form => {
+      form.classList.toggle('active', form === activeForm);
+    });
+    onActivate?.();
+    setSegmentIndicator(operationTabs, activeButton);
+
+    const targetHeight = operationPanel.getBoundingClientRect().height;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) return;
+
+    activeForm.animate(
+      [
+        { opacity: 0, transform: 'translateY(8px) scale(0.985)' },
+        { opacity: 1, transform: 'translateY(0) scale(1)' }
+      ],
+      {
+        duration: 340,
+        easing: 'cubic-bezier(0.32, 0.72, 0, 1)'
+      }
+    );
+
+    if (Math.abs(targetHeight - currentHeight) < 1) return;
+
+    operationPanel.style.height = `${targetHeight}px`;
+    operationPanel.style.overflow = 'clip';
+    operationPanelResizeAnimation = operationPanel.animate(
+      [
+        { height: `${currentHeight}px` },
+        { height: `${targetHeight}px` }
+      ],
+      {
+        duration: 420,
+        easing: 'cubic-bezier(0.32, 0.72, 0, 1)'
+      }
+    );
+
+    const runningAnimation = operationPanelResizeAnimation;
+    const releaseOperationPanelSize = () => {
+      if (operationPanelResizeAnimation !== runningAnimation) return;
+      operationPanelResizeAnimation = null;
+      window.clearTimeout(operationPanelResizeCleanupTimer);
+      operationPanelResizeCleanupTimer = null;
+      operationPanel.style.removeProperty('height');
+      operationPanel.style.removeProperty('overflow');
+    };
+
+    runningAnimation.finished.then(releaseOperationPanelSize).catch(() => {});
+    operationPanelResizeCleanupTimer = window.setTimeout(releaseOperationPanelSize, 520);
+
+  }
+
   // Keep operations and market tracking in one right-side flex column so their gap is structural.
   const rightColumn = document.querySelector('.layout-right');
   const tickerAthPanel = document.getElementById('ticker-ath-container');
@@ -273,6 +392,14 @@ document.addEventListener('DOMContentLoaded', () => {
     bindAccessibleModal(memberModal, btnCloseMemberModal);
     bindAccessibleModal(editEventModal, btnCloseEditModal);
     bindAccessibleModal(tickerConfigModal, btnCloseTickerConfigModal);
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      const activeModals = [...document.querySelectorAll('.modal-overlay.active')];
+      const topmostModal = activeModals.at(-1);
+      if (!topmostModal) return;
+      event.preventDefault();
+      closeModal(topmostModal);
+    });
 
     document.querySelectorAll('[data-sidebar-action]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -314,6 +441,8 @@ document.addEventListener('DOMContentLoaded', () => {
       .map(link => ({ link, section: document.querySelector(link.hash) }))
       .filter(({ section }) => section);
     let navigationFrame = null;
+    let navigationTargetId = null;
+    let navigationSettleTimer = null;
 
     const setActiveNavigation = (sectionId) => {
       navigationLinks.forEach(link => {
@@ -322,38 +451,72 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isActive) link.setAttribute('aria-current', 'page');
         else link.removeAttribute('aria-current');
       });
+      const activeLink = navigationLinks.find(link => link.hash === `#${sectionId}`);
+      const navigation = activeLink?.closest('.sidebar-nav');
+      if (navigation && activeLink) {
+        navigation.style.setProperty('--active-top', `${activeLink.offsetTop}px`);
+        navigation.style.setProperty('--active-height', `${activeLink.offsetHeight}px`);
+      }
     };
 
     const syncNavigationWithScroll = () => {
       navigationFrame = null;
+      if (navigationTargetId) {
+        setActiveNavigation(navigationTargetId);
+        return;
+      }
       if (window.scrollY <= 8) {
         setActiveNavigation('dashboard-home');
         return;
       }
 
-      let active = navigationSections[0];
-      let largestVisibleArea = 0;
+      const activationLine = Math.min(140, Math.max(80, window.innerHeight * 0.16));
+      const sectionsByPosition = navigationSections
+        .map(item => ({ ...item, rect: item.section.getBoundingClientRect() }))
+        .sort((a, b) => a.rect.top - b.rect.top);
+      let active = sectionsByPosition[0];
 
-      navigationSections.forEach(item => {
-        const rect = item.section.getBoundingClientRect();
-        const visibleArea = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
-        if (visibleArea > largestVisibleArea) {
-          active = item;
-          largestVisibleArea = visibleArea;
-        }
+      sectionsByPosition.forEach(item => {
+        if (item.rect.top <= activationLine) active = item;
       });
 
       if (active) setActiveNavigation(active.section.id);
     };
 
     navigationLinks.forEach(link => {
-      link.addEventListener('click', () => setActiveNavigation(link.hash.slice(1)));
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        navigationTargetId = link.hash.slice(1);
+        setActiveNavigation(navigationTargetId);
+        const targetSection = document.getElementById(navigationTargetId);
+        if (targetSection) {
+          const sidebarTop = document.querySelector('.app-sidebar')?.getBoundingClientRect().top ?? 20;
+          const targetTop = window.scrollY + targetSection.getBoundingClientRect().top - sidebarTop;
+          const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          window.scrollTo({ top: Math.max(0, targetTop), behavior: reduceMotion ? 'auto' : 'smooth' });
+          history.replaceState(null, '', link.hash);
+        }
+        window.clearTimeout(navigationSettleTimer);
+        navigationSettleTimer = window.setTimeout(() => {
+          navigationTargetId = null;
+          syncNavigationWithScroll();
+        }, 800);
+      });
     });
     window.addEventListener('scroll', () => {
       if (!navigationFrame) navigationFrame = requestAnimationFrame(syncNavigationWithScroll);
+      if (navigationTargetId) {
+        window.clearTimeout(navigationSettleTimer);
+        navigationSettleTimer = window.setTimeout(() => {
+          navigationTargetId = null;
+          syncNavigationWithScroll();
+        }, 160);
+      }
     }, { passive: true });
     window.addEventListener('resize', syncNavigationWithScroll);
     syncNavigationWithScroll();
+    requestAnimationFrame(syncSegmentIndicators);
+    window.addEventListener('resize', syncSegmentIndicators);
 
     // 绑定三个主题选择按钮的点击事件
     themeBtns.forEach(btn => {
@@ -389,35 +552,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 切换录入表单面板
     btnTabTx.addEventListener('click', () => {
-      btnTabTx.classList.add('active');
-      btnTabVal.classList.remove('active');
-      btnTabTf.classList.remove('active');
-      formTransaction.classList.add('active');
-      formValuation.classList.remove('active');
-      formTransfer.classList.remove('active');
+      switchOperationView(btnTabTx, formTransaction);
     });
 
     btnTabVal.addEventListener('click', () => {
-      btnTabVal.classList.add('active');
-      btnTabTx.classList.remove('active');
-      btnTabTf.classList.remove('active');
-      formValuation.classList.add('active');
-      formTransaction.classList.remove('active');
-      formTransfer.classList.remove('active');
+      switchOperationView(btnTabVal, formValuation);
     });
 
     btnTabTf.addEventListener('click', () => {
-      btnTabTf.classList.add('active');
-      btnTabTx.classList.remove('active');
-      btnTabVal.classList.remove('active');
-      formTransfer.classList.add('active');
-      formTransaction.classList.remove('active');
-      formValuation.classList.remove('active');
-
-      // Auto prefill current global CNH Rate in the transfer rate input when opened
-      const rateVal = parseFloat(inputCnhRate.value) || 7.2;
-      tfRate.value = rateVal.toFixed(4);
-      updateTfCnhDisplay();
+      switchOperationView(btnTabTf, formTransfer, () => {
+        // Auto prefill current global CNH Rate in the transfer rate input when opened
+        const rateVal = parseFloat(inputCnhRate.value) || 7.2;
+        tfRate.value = rateVal.toFixed(4);
+        updateTfCnhDisplay();
+      });
     });
 
     // 划转表单金额及汇率联动
@@ -512,18 +660,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 时间区间选择按钮绑定
     const timeSlicerGroup = document.getElementById('time-slicer-group');
-    const setTimeSlicerIndicator = button => {
-      if (!timeSlicerGroup || !button) return;
-      timeSlicerGroup.style.setProperty('--active-left', `${button.offsetLeft}px`);
-      timeSlicerGroup.style.setProperty('--active-width', `${button.offsetWidth}px`);
-    };
-    requestAnimationFrame(() => setTimeSlicerIndicator(timeSlicerGroup?.querySelector('.time-slice-btn.active')));
-    window.addEventListener('resize', () => setTimeSlicerIndicator(timeSlicerGroup?.querySelector('.time-slice-btn.active')));
+    requestAnimationFrame(() => setSegmentIndicator(timeSlicerGroup, timeSlicerGroup?.querySelector('.time-slice-btn.active')));
     document.querySelectorAll('.time-slice-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         document.querySelectorAll('.time-slice-btn').forEach(b => b.classList.remove('active'));
         e.currentTarget.classList.add('active');
-        setTimeSlicerIndicator(e.currentTarget);
+        setSegmentIndicator(timeSlicerGroup, e.currentTarget);
         activeTimeSlice = e.currentTarget.getAttribute('data-time-slice');
         renderCharts();
       });
@@ -911,6 +1053,9 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.classList.remove('active');
       }
     });
+    requestAnimationFrame(() => {
+      setSegmentIndicator(themeSelectorGroup, themeSelectorGroup?.querySelector('.theme-btn.active'));
+    });
 
     // 动态调整图表的边框、文字、网格线颜色
     updateChartsColors(theme);
@@ -1117,8 +1262,9 @@ document.addEventListener('DOMContentLoaded', () => {
     elFundTotalShares.innerHTML = `<span class="metric-sub-primary">≈ ¥${formatCnhWan(s.cnhTotalNAV)}</span><span class="metric-inline ${s.cnhProfit >= 0 ? 'text-green' : 'text-magenta'}">CNH收益 ${s.cnhProfit >= 0 ? '+' : ''}¥${formatCnhWan(s.cnhProfit)}</span>`;
     elFundTotalShares.classList.add('privacy-sensitive');
 
-    elFundProfitRate.innerHTML = `<span>${s.profitRate >= 0 ? '+' : ''}${s.profitRate.toFixed(2)}%</span>`;
-    elFundProfitRate.className = 'metric-value font-outfit ' + (s.profitRate >= 0 ? 'text-green privacy-sensitive' : 'text-magenta privacy-sensitive');
+    elFundProfitRate.innerHTML = `<span>${s.profitRate > 0 ? '+' : ''}${s.profitRate.toFixed(2)}%</span>`;
+    const profitRateTone = s.profitRate > 0 ? ' text-green' : s.profitRate < 0 ? ' text-magenta' : '';
+    elFundProfitRate.className = `metric-value font-outfit privacy-sensitive${profitRateTone}`;
     elFundProfitRateSub.innerHTML = `<span class="metric-inline"><span>CNH收益率</span><strong class="${s.cnhProfitRate >= 0 ? 'text-green' : 'text-magenta'}">${s.cnhProfitRate >= 0 ? '+' : ''}${s.cnhProfitRate.toFixed(2)}%</strong></span>`;
   }
 
@@ -1268,9 +1414,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 删除单条交易记录 — 10 秒内可撤销
+  // 删除单条交易记录 — 3 秒内可撤销
   function handleDeleteEvent(id, name, type, value) {
-    const UNDO_DELAY = 10000; // 10 秒
+    const UNDO_DELAY = 3000; // 3 秒
 
     // 找到对应的 <tr> 行，视觉上先隐藏（软删除）
     const allRows = ledgerTbody.querySelectorAll('tr');
@@ -1298,7 +1444,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="toast-undo-text">
           <strong>已删除</strong>
           ${type === 'deposit' ? '入金' : type === 'withdraw' ? '出金' : type === 'transfer' ? '转让' : '估值'}记录（$${formatMoney(value)}）<br>
-          <span style="font-size:0.75rem; opacity:0.7;">10 秒内可撤销，操作完成后将重算账目</span>
+          <span style="font-size:0.75rem; opacity:0.7;">3 秒内可撤销，操作完成后将重算账目</span>
         </span>
         <button class="toast-undo-btn" id="undo-btn-${id}">↩ 撤销</button>
       </div>
@@ -1331,7 +1477,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // 10 秒后执行真正删除
+    // 3 秒后执行真正删除
     const deleteTimer = setTimeout(() => {
       if (undone) return;
       Api.deleteEvent(id)
