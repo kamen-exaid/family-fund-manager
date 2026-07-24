@@ -3001,6 +3001,29 @@ body.theme-light .scale-slice-btn.active {
   font-weight: 700;
 }
 
+.ticker-external-tooltip .chart-external-tooltip-title {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 0.25em;
+  align-items: start;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.ticker-external-tooltip {
+  min-width: min(200px, calc(100% - 24px));
+}
+
+.ticker-tooltip-symbol {
+  white-space: nowrap;
+}
+
+.ticker-tooltip-description {
+  min-width: 0;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+
 .chart-external-tooltip-row {
   display: grid;
   grid-template-columns: 3px minmax(0, 1fr) auto;
@@ -3023,6 +3046,10 @@ body.theme-light .scale-slice-btn.active {
   color: var(--color-text-main);
   font-family: Outfit, sans-serif;
   font-size: 0.74rem;
+}
+
+.ticker-external-tooltip .chart-external-tooltip-row strong {
+  margin-right: var(--ticker-value-right-inset, 0);
 }
 
 .chart-external-tooltip-details {

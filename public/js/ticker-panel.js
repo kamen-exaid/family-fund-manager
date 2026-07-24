@@ -84,6 +84,79 @@ function bindTickerTooltips(container, data, formatMonthDay) {
     tooltip.style.opacity = '0';
   };
 
+  const fitDescriptionToTwoLines = description => {
+    const panelInset = 12;
+    const maxWidth = Math.max(176, panel.clientWidth - panelInset * 2);
+    const minWidth = Math.min(200, maxWidth);
+
+    tooltip.style.width = '';
+    tooltip.style.maxWidth = '';
+    description.style.fontSize = '';
+
+    const getLineCount = () => {
+      const range = document.createRange();
+      range.selectNodeContents(description);
+      return new Set(
+        Array.from(range.getClientRects(), rect => Math.round(rect.top))
+      ).size;
+    };
+
+    const initialLineCount = getLineCount();
+    if (initialLineCount < 2) return;
+
+    let tooltipWidth = tooltip.offsetWidth;
+
+    if (initialLineCount === 2) {
+      while (tooltipWidth - 8 >= minWidth) {
+        const candidateWidth = tooltipWidth - 8;
+        tooltip.style.width = `${candidateWidth}px`;
+        if (getLineCount() > 2) {
+          tooltip.style.width = `${tooltipWidth}px`;
+          break;
+        }
+        tooltipWidth = candidateWidth;
+      }
+      return;
+    }
+
+    tooltip.style.width = `${tooltipWidth}px`;
+    tooltip.style.maxWidth = `${maxWidth}px`;
+    while (getLineCount() > 2 && tooltipWidth < maxWidth) {
+      tooltipWidth = Math.min(tooltipWidth + 8, maxWidth);
+      tooltip.style.width = `${tooltipWidth}px`;
+    }
+
+    let fontSize = Number.parseFloat(window.getComputedStyle(description).fontSize);
+    let fitAttempts = 0;
+    while (getLineCount() > 2 && fitAttempts < 48) {
+      fontSize = Math.max(fontSize - 0.25, 1);
+      description.style.fontSize = `${fontSize}px`;
+      fitAttempts += 1;
+    }
+  };
+
+  const alignValuesWithDescription = description => {
+    const range = document.createRange();
+    range.selectNodeContents(description);
+    const lineRects = Array.from(range.getClientRects());
+    const lineTops = new Set(lineRects.map(rect => Math.round(rect.top)));
+
+    if (lineTops.size < 2) {
+      tooltip.style.setProperty('--ticker-value-right-inset', '0px');
+      return;
+    }
+
+    const descriptionRight = description.getBoundingClientRect().right;
+    const textRight = lineRects.reduce(
+      (rightmost, rect) => Math.max(rightmost, rect.right),
+      Number.NEGATIVE_INFINITY
+    );
+    const rightInset = Number.isFinite(textRight)
+      ? Math.max(0, descriptionRight - textRight)
+      : 0;
+    tooltip.style.setProperty('--ticker-value-right-inset', `${rightInset}px`);
+  };
+
   const renderTooltip = item => {
     tooltip.replaceChildren();
 
@@ -98,8 +171,16 @@ function bindTickerTooltips(container, data, formatMonthDay) {
 
     const title = document.createElement('div');
     title.className = 'chart-external-tooltip-title';
-    title.textContent = `${item.ticker} · ${item.longName || item.name || item.ticker}`;
+    const titleTicker = document.createElement('span');
+    titleTicker.className = 'ticker-tooltip-symbol';
+    titleTicker.textContent = `${item.ticker} ·`;
+    const titleDescription = document.createElement('span');
+    titleDescription.className = 'ticker-tooltip-description';
+    titleDescription.textContent = item.longName || item.name || item.ticker;
+    title.append(titleTicker, titleDescription);
     tooltip.appendChild(title);
+    fitDescriptionToTwoLines(titleDescription);
+    alignValuesWithDescription(titleDescription);
 
     [
       ['ATH', `$${item.ath.toFixed(2)}`, 'var(--color-primary)'],
