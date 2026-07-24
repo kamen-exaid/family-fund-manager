@@ -3001,19 +3001,6 @@ body.theme-light .scale-slice-btn.active {
   font-weight: 700;
 }
 
-.ticker-external-tooltip .chart-external-tooltip-title {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  column-gap: 0.25em;
-  line-height: 1.35;
-  white-space: normal;
-}
-
-.ticker-external-tooltip .chart-external-tooltip-title span:last-child {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
 .chart-external-tooltip-row {
   display: grid;
   grid-template-columns: 3px minmax(0, 1fr) auto;
