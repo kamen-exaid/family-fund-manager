@@ -137,6 +137,12 @@ assert.strictEqual(trendLegendLabels[0].strokeStyle, '#5a57cc');
 assert.strictEqual(rendered.navTrendChart.options.animation.duration, 380);
 assert(rendered.navTrendChart.config.plugins.includes(window.FundChartRenderer.datasetOpacityPlugin));
 assert.strictEqual(typeof rendered.renderTrendStats, 'function');
+assert.strictEqual(rendered.navTrendChart.options.plugins.legend.display, false);
+assert.strictEqual(rendered.navTrendChart.options.scales.x.grid.display, false);
+assert.strictEqual(rendered.navTrendChart.options.scales.x.ticks.maxRotation, 0);
+assert.strictEqual(rendered.navTrendChart.options.scales.x.ticks.maxTicksLimit, 7);
+assert.strictEqual(rendered.navTrendChart.options.scales['y-nav'].ticks.maxTicksLimit, 5);
+assert.strictEqual(rendered.navTrendChart.options.scales['y-nav'].border.display, false);
 
 window.FundChartRenderer.animateDatasetVisibility(rendered.navTrendChart, 1, false, { duration: 0 });
 assert.strictEqual(rendered.navTrendChart.isDatasetVisible(1), false);

@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalTriggers = new WeakMap();
 
   function getModalFocusableElements(modal) {
-    return [...modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    return [...modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]):not(.custom-select__native), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
       .filter(element => element.offsetParent !== null);
   }
 
@@ -151,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const elSystemTime = document.getElementById('system-time');
   const themeBtns = document.querySelectorAll('[data-theme-btn]');
   const themeSelectorGroup = document.querySelector('.theme-selector-group');
+  const memberViewTabs = document.querySelector('.tab-buttons');
   const btnPrivacyToggle = document.getElementById('btn-privacy-toggle');
 
   // Dashboard Metrics
@@ -260,11 +261,18 @@ document.addEventListener('DOMContentLoaded', () => {
     group.style.setProperty('--active-width', `${button.offsetWidth}px`);
   }
 
+  function activateSegmentOption(group, button) {
+    if (!group || !button) return;
+    group.querySelectorAll('.segmented-control__button').forEach(option => {
+      option.classList.toggle('active', option === button);
+    });
+    setSegmentIndicator(group, button);
+  }
+
   function syncSegmentIndicators() {
-    setSegmentIndicator(themeSelectorGroup, themeSelectorGroup?.querySelector('.theme-btn.active'));
-    setSegmentIndicator(operationTabs, operationTabs?.querySelector('.op-tab-btn.active'));
-    const timeSlicerGroup = document.getElementById('time-slicer-group');
-    setSegmentIndicator(timeSlicerGroup, timeSlicerGroup?.querySelector('.time-slice-btn.active'));
+    document.querySelectorAll('.segmented-control').forEach(group => {
+      setSegmentIndicator(group, group.querySelector('.segmented-control__button.active'));
+    });
   }
 
   function switchOperationView(activeButton, activeForm, onActivate) {
@@ -280,14 +288,11 @@ document.addEventListener('DOMContentLoaded', () => {
     operationPanel.style.removeProperty('height');
     operationPanel.style.removeProperty('overflow');
 
-    [btnTabTx, btnTabVal, btnTabTf].forEach(button => {
-      button.classList.toggle('active', button === activeButton);
-    });
+    activateSegmentOption(operationTabs, activeButton);
     [formTransaction, formValuation, formTransfer].forEach(form => {
       form.classList.toggle('active', form === activeForm);
     });
     onActivate?.();
-    setSegmentIndicator(operationTabs, activeButton);
 
     const targetHeight = operationPanel.getBoundingClientRect().height;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -349,6 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   initPrivacy();
   setDefaultDates();
+  window.FundCustomSelect?.init();
   bindEvents();
   loadAllData();
   loadTickerAthData();
@@ -421,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentHeight = memberViewsStage?.offsetHeight || 0;
         if (memberViewsStage) memberViewsStage.style.height = `${currentHeight}px`;
         activeMemberView = nextMemberView;
-        document.querySelectorAll('[data-member-view]').forEach(button => button.classList.toggle('active', button === e.currentTarget));
+        activateSegmentOption(memberViewTabs, e.currentTarget);
         elMembersGridContainer.classList.toggle('active', activeMemberView === 'assets');
         memberAllocationSummary?.classList.toggle('active', activeMemberView === 'allocation');
 
@@ -660,12 +666,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 时间区间选择按钮绑定
     const timeSlicerGroup = document.getElementById('time-slicer-group');
-    requestAnimationFrame(() => setSegmentIndicator(timeSlicerGroup, timeSlicerGroup?.querySelector('.time-slice-btn.active')));
     document.querySelectorAll('.time-slice-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        document.querySelectorAll('.time-slice-btn').forEach(b => b.classList.remove('active'));
-        e.currentTarget.classList.add('active');
-        setSegmentIndicator(timeSlicerGroup, e.currentTarget);
+        activateSegmentOption(timeSlicerGroup, e.currentTarget);
         activeTimeSlice = e.currentTarget.getAttribute('data-time-slice');
         renderCharts();
       });
@@ -1046,15 +1049,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 更新主题选择器按钮的 active 状态
-    themeBtns.forEach(btn => {
-      if (btn.getAttribute('data-theme-btn') === theme) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
-      }
-    });
+    const activeThemeButton = [...themeBtns].find(btn => btn.getAttribute('data-theme-btn') === theme);
+    activateSegmentOption(themeSelectorGroup, activeThemeButton);
     requestAnimationFrame(() => {
-      setSegmentIndicator(themeSelectorGroup, themeSelectorGroup?.querySelector('.theme-btn.active'));
+      setSegmentIndicator(themeSelectorGroup, activeThemeButton);
     });
 
     // 动态调整图表的边框、文字、网格线颜色
@@ -1240,6 +1238,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedFilterVal) {
       filterMember.value = savedFilterVal;
     }
+
+    window.FundCustomSelect?.refresh();
   }
 
   // 1. 仪表盘指标渲染 (USD 币种重构 & CNH 人民币对比核算)
@@ -1553,6 +1553,7 @@ document.addEventListener('DOMContentLoaded', () => {
       editCnhRate.value = e.cnhRate || appState.summary.cnhRate || 7.2000;
     }
 
+    window.FundCustomSelect?.refresh(editEventModal);
     openModal(editEventModal);
   }
 

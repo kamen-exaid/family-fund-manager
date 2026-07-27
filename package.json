@@ -1,12 +1,12 @@
 {
   "name": "family-fund-manager",
-  "version": "3.2.0",
+  "version": "3.3.1",
   "description": "Family Fund Management System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test/test-model.js && node test/test-calculator.js && node test/test-api-validation.js && node test/test-api-integration.js && node test/test-chart-renderer.js"
+    "test": "node test/test-model.js && node test/test-calculator.js && node test/test-api-validation.js && node test/test-api-integration.js && node test/test-chart-renderer.js && node test/test-segmented-control.js && node test/test-custom-select.js"
   },
   "dependencies": {
     "decimal.js": "^10.6.0",

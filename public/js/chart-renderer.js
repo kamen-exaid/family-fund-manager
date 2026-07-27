@@ -160,12 +160,12 @@ window.FundChartRenderer = {
           const isHover = Number.isInteger(activeIndex);
           const end = isHover ? Math.min(activeIndex, item.values.length - 1) : item.values.length - 1;
           const stats = calculate(item.values.slice(0, end + 1));
-          const dateText = isHover && labels[end] ? `截至 ${labels[end]}` : '全周期区间历史';
+          const dateText = isHover && labels[end] ? `截至 ${labels[end]}` : '全周期';
           return `<div class="trend-stat-card" style="--series-color:${item.color};">
             <div class="trend-stat-name">${item.label}</div>
             <div class="trend-stat-date ${isHover ? 'is-hovering' : 'is-resting'}">${dateText}</div>
             <div class="trend-stat-values">
-              <span><em>涨幅</em><strong class="privacy-sensitive ${stats.gain >= 0 ? 'positive' : 'negative'}">${percent(stats.gain)}</strong></span>
+              <span><em>区间收益</em><strong class="privacy-sensitive ${stats.gain >= 0 ? 'positive' : 'negative'}">${percent(stats.gain)}</strong></span>
               <span><em>最大回撤</em><strong class="privacy-sensitive negative">${percent(stats.drawdown)}</strong></span>
             </div>
           </div>`;
@@ -289,8 +289,14 @@ window.FundChartRenderer = {
       bodyFont: { size: 11, weight: '500', family: 'Inter, sans-serif' }
     };
 
-    const gridColor = dark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)';
-    const tickColor = dark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)';
+    const gridColor = dark ? 'rgba(255, 255, 255, 0.055)' : 'rgba(42, 61, 82, 0.075)';
+    const tickColor = dark ? 'rgba(255, 255, 255, 0.46)' : 'rgba(42, 61, 82, 0.52)';
+    const formatTrendAxisDate = function formatTrendAxisDate(value) {
+      const label = this.getLabelForValue?.(value) || '';
+      const parts = String(label).split('-').map(Number);
+      if (parts.length !== 3 || parts.some(part => !Number.isFinite(part))) return label;
+      return `${parts[1]}月${parts[2]}日`;
+    };
     const externalTooltip = ({ chart, tooltip }) => {
       const container = chart.canvas.parentElement;
       if (!container) return;
@@ -410,8 +416,7 @@ window.FundChartRenderer = {
           interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: {
-              position: 'top',
-              align: 'end',
+              display: false,
               labels: {
                 color: dark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.7)',
                 font: { size: 11, weight: '600', family: 'Inter, sans-serif' },
@@ -442,20 +447,45 @@ window.FundChartRenderer = {
           },
           scales: {
             x: {
-              grid: { color: gridColor },
-              ticks: { color: tickColor, font: { size: 10, family: 'Inter, sans-serif' } }
+              border: { display: false },
+              grid: { display: false, drawTicks: false },
+              ticks: {
+                color: tickColor,
+                font: { size: 10, family: 'Inter, sans-serif' },
+                autoSkip: true,
+                autoSkipPadding: 28,
+                maxTicksLimit: 7,
+                maxRotation: 0,
+                minRotation: 0,
+                padding: 10,
+                callback: formatTrendAxisDate
+              }
             },
             'y-nav': {
               position: 'left',
-              grid: { color: gridColor },
-              ticks: { color: hexToRgba(seriesColors.nav, 0.8), font: { family: 'Outfit, sans-serif' }, callback: value => value.toFixed(3) },
+              border: { display: false },
+              grid: { color: gridColor, drawTicks: false },
+              ticks: {
+                color: hexToRgba(seriesColors.nav, 0.72),
+                font: { family: 'Outfit, sans-serif', size: 10 },
+                maxTicksLimit: 5,
+                padding: 10,
+                callback: value => value.toFixed(2)
+              },
               title: { display: true, text: '单位净值', color: hexToRgba(seriesColors.nav, 0.9), font: { size: 11, weight: '600' } }
             },
             'y-assets': {
               position: 'right',
               display: chkCompAssets.checked,
-              grid: { drawOnChartArea: false },
-              ticks: { color: hexToRgba(seriesColors.assets, 0.8), font: { family: 'Outfit, sans-serif' }, callback: value => `$${formatMoney(value)}` },
+              border: { display: false },
+              grid: { display: false, drawOnChartArea: false, drawTicks: false },
+              ticks: {
+                color: hexToRgba(seriesColors.assets, 0.72),
+                font: { family: 'Outfit, sans-serif', size: 10 },
+                maxTicksLimit: 5,
+                padding: 10,
+                callback: value => `$${formatMoney(value)}`
+              },
               title: { display: true, text: '总资产 (USD)', color: hexToRgba(seriesColors.assets, 0.9), font: { size: 11, weight: '600' } }
             }
           }
