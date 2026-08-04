@@ -1,3 +1,6 @@
+const express = require('express');
+const AdmZip = require('adm-zip');
+
 function registerApiRoutes(app, deps) {
   const {
     readDb,
@@ -5,6 +8,9 @@ function registerApiRoutes(app, deps) {
     getState,
     readConfig,
     writeConfig,
+    readTickerCache,
+    writeTickerCache,
+    writeSnapshot,
     ensureIndexCache,
     calculateStateFromDb,
     fetchCnhRateFromApi,
@@ -24,26 +30,32 @@ function registerApiRoutes(app, deps) {
     return Number.isFinite(parsed) ? parsed : NaN;
   }
 
-  function isEventFullyCovered(db, eventId) {
-    const validationDb = JSON.parse(JSON.stringify(db));
-    const validationState = calculateStateFromDb(validationDb);
-    const event = validationState.events.find(e => e.id === eventId);
-    return Boolean(event && event._actualAmount + BALANCE_TOLERANCE >= event.amount);
-  }
-
   // The calculator caps underfunded replay events for display safety. Before
   // persisting a mutation, reject any ledger where requested and settled amounts
   // would differ instead.
-  function findInsufficientBalanceEvent(db) {
+  function findLedgerIssue(db) {
     const validationDb = JSON.parse(JSON.stringify(db));
     const validationState = calculateStateFromDb(validationDb);
-    return validationState.events.find(event =>
+    const valuationWithoutShares = validationState.events.find(event =>
+      event.type === 'valuation' && event._hasSharesAtValuation === false
+    );
+    if (valuationWithoutShares) return { type: 'valuation_without_shares', event: valuationWithoutShares };
+
+    const insufficientBalance = validationState.events.find(event =>
       (event.type === 'withdraw' || event.type === 'transfer') &&
       event._actualAmount + BALANCE_TOLERANCE < event.amount
     );
+    return insufficientBalance ? { type: 'insufficient_balance', event: insufficientBalance } : null;
   }
 
-  function rejectInsufficientLedger(res, event) {
+  function rejectLedgerIssue(res, issue) {
+    const { event } = issue;
+    if (issue.type === 'valuation_without_shares') {
+      return res.status(400).json({
+        success: false,
+        message: `估值日期 ${event.date} 当时尚无基金份额，请先在该日期之前录入首次入金。`
+      });
+    }
     return res.status(400).json({
       success: false,
       message: `操作会导致历史${event.type === 'withdraw' ? '出金' : '转让'}余额不足：${event.date} 的记录要求 $${event.amount.toFixed(2)}，实际仅可结算 $${event._actualAmount.toFixed(2)}。`
@@ -58,26 +70,113 @@ app.get('/api/state', (req, res) => {
   }
 });
 
-// 标的 ATH 缓存与后台同步机制
-let tickerAthCache = null;
-let tickerAthCacheTime = 0;
-let tickerAthCacheSignature = null;
-const TICKER_CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
+// Persisted stale-while-revalidate cache. Requests never wait for Yahoo when a
+// usable snapshot exists, and all tabs share one background refresh worker.
+const TICKER_CACHE_DURATION = 5 * 60 * 1000;
+let tickerRefreshPromise = null;
+let queuedTickerConfig = null;
+let activeTickerConfigSignature = null;
+
+function selectTickerData(cache, config, includeMissing = false) {
+  const selected = {};
+  for (const item of config.tickers) {
+    const ticker = item.ticker;
+    if (cache.tickers?.[ticker]) {
+      selected[ticker] = cache.tickers[ticker];
+    } else if (includeMissing) {
+      selected[ticker] = { ticker, error: true, pending: true };
+    }
+  }
+  return selected;
+}
+
+function isTickerCacheStale(cache, config, now = Date.now()) {
+  return config.tickers.some(({ ticker }) => {
+    const updatedAt = Date.parse(cache.tickers?.[ticker]?.updatedAt || '');
+    return !Number.isFinite(updatedAt) || now - updatedAt >= TICKER_CACHE_DURATION;
+  });
+}
+
+async function refreshTickerCache(config) {
+  const cache = readTickerCache();
+  const fetched = await fetchTickerAthData(config, cache.tickers || {});
+  let changed = false;
+  for (const { ticker } of config.tickers) {
+    const candidate = fetched[ticker];
+    if (candidate && !candidate.error) {
+      cache.tickers[ticker] = candidate;
+      changed = true;
+    }
+  }
+  if (changed) {
+    cache.updatedAt = new Date().toISOString();
+    writeTickerCache(cache);
+  }
+  return cache;
+}
+
+function queueTickerRefresh(config) {
+  const configSignature = JSON.stringify(config.tickers);
+  if (tickerRefreshPromise) {
+    if (configSignature !== activeTickerConfigSignature) {
+      queuedTickerConfig = JSON.parse(JSON.stringify(config));
+    }
+    return tickerRefreshPromise;
+  }
+  queuedTickerConfig = JSON.parse(JSON.stringify(config));
+
+  tickerRefreshPromise = (async () => {
+    let latest = readTickerCache();
+    while (queuedTickerConfig) {
+      const nextConfig = queuedTickerConfig;
+      queuedTickerConfig = null;
+      activeTickerConfigSignature = JSON.stringify(nextConfig.tickers);
+      try {
+        latest = await refreshTickerCache(nextConfig);
+      } catch (error) {
+        console.error('[Ticker ATH Background Refresh]:', error.message);
+      }
+    }
+    return latest;
+  })().finally(() => {
+    tickerRefreshPromise = null;
+    activeTickerConfigSignature = null;
+  });
+  return tickerRefreshPromise;
+}
 
 app.get('/api/ticker-ath', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
-    const now = Date.now();
     const config = readConfig();
-    const configSignature = JSON.stringify(config.tickers);
-    if (tickerAthCache && tickerAthCacheSignature === configSignature && (now - tickerAthCacheTime < TICKER_CACHE_DURATION)) {
-      return res.json({ success: true, data: tickerAthCache, cached: true });
+    let cache = readTickerCache();
+    const hasEveryTicker = config.tickers.every(({ ticker }) => cache.tickers?.[ticker]);
+    const stale = isTickerCacheStale(cache, config);
+
+    if (hasEveryTicker) {
+      res.json({
+        success: true,
+        data: selectTickerData(cache, config),
+        cached: true,
+        stale,
+        refreshing: stale,
+        updatedAt: cache.updatedAt
+      });
+      if (stale) setImmediate(() => { void queueTickerRefresh(config); });
+      return;
     }
-    const data = await fetchTickerAthData(config);
-    tickerAthCache = data;
-    tickerAthCacheTime = now;
-    tickerAthCacheSignature = configSignature;
-    res.json({ success: true, data });
+
+    // A newly-added ticker has no value to serve yet. Bootstrap it once; all
+    // subsequent requests, including after a process restart, use disk first.
+    cache = await queueTickerRefresh(config);
+    res.json({
+      success: true,
+      data: selectTickerData(cache, config, true),
+      cached: false,
+      stale: isTickerCacheStale(cache, config),
+      refreshing: false,
+      updatedAt: cache.updatedAt
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -151,8 +250,8 @@ app.post('/api/transaction', (req, res) => {
     };
 
     db.events.push(newEvent);
-    const insufficientEvent = findInsufficientBalanceEvent(db);
-    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
+    const ledgerIssue = findLedgerIssue(db);
+    if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
     writeDb(db);
 
     // 静默后台触发指数同步
@@ -170,24 +269,14 @@ app.post('/api/valuation', (req, res) => {
     const { totalNAV, date, remark } = req.body;
 
     const parsedNAV = toFiniteNumber(totalNAV);
-    if (!Number.isFinite(parsedNAV) || parsedNAV < 0) {
-      return res.status(400).json({ success: false, message: '资产估值金额必须大于等于 0' });
+    if (!Number.isFinite(parsedNAV) || parsedNAV <= 0) {
+      return res.status(400).json({ success: false, message: '资产估值金额必须大于 0，零净值会导致后续份额无法定价。' });
     }
     if (!date) {
       return res.status(400).json({ success: false, message: '日期不能为空' });
     }
 
     const db = readDb();
-
-    // 在没有起投份额时（总份额为0），直接更新估值是不合逻辑的，应先进行首次入金
-    // [Fix #5] 使用带缓存的 getState() 而非直接调用 calculateState()，避免不必要的重算
-    const state = getState();
-    if (state.summary.totalShares === 0 && parsedNAV > 0) {
-      return res.status(400).json({
-        success: false,
-        message: '当前基金尚无份额。请先录入首次出入金（起投金额），随后再进行市值估值更新。'
-      });
-    }
 
     if (!isValidDate(date)) {
       return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
@@ -208,8 +297,8 @@ app.post('/api/valuation', (req, res) => {
     };
 
     db.events.push(newEvent);
-    const insufficientEvent = findInsufficientBalanceEvent(db);
-    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
+    const ledgerIssue = findLedgerIssue(db);
+    if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
     writeDb(db);
 
     // 静默后台触发指数同步
@@ -286,8 +375,8 @@ app.post('/api/transfer', (req, res) => {
     };
 
     db.events.push(newEvent);
-    const insufficientEvent = findInsufficientBalanceEvent(db);
-    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
+    const ledgerIssue = findLedgerIssue(db);
+    if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
     writeDb(db);
 
     // 静默后台触发指数同步
@@ -311,8 +400,8 @@ app.delete('/api/event/:id', (req, res) => {
     }
 
     const removedEvent = db.events.splice(index, 1)[0];
-    const insufficientEvent = findInsufficientBalanceEvent(db);
-    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
+    const ledgerIssue = findLedgerIssue(db);
+    if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
     writeDb(db);
 
     res.json({
@@ -393,8 +482,8 @@ app.put('/api/event/:id', (req, res) => {
 
       if (totalNAV !== undefined) {
         const parsedNAV = toFiniteNumber(totalNAV);
-        if (!Number.isFinite(parsedNAV) || parsedNAV < 0) {
-          return res.status(400).json({ success: false, message: '资产估值金额必须大于等于 0' });
+        if (!Number.isFinite(parsedNAV) || parsedNAV <= 0) {
+          return res.status(400).json({ success: false, message: '资产估值金额必须大于 0，零净值会导致后续份额无法定价。' });
         }
         event.totalNAV = parsedNAV;
       }
@@ -474,8 +563,8 @@ app.put('/api/event/:id', (req, res) => {
       }
     }
 
-    const insufficientEvent = findInsufficientBalanceEvent(db);
-    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
+    const ledgerIssue = findLedgerIssue(db);
+    if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
 
     writeDb(db);
 
@@ -498,7 +587,7 @@ app.get('/api/settings/tickers', (req, res) => {
   }
 });
 
-// 保存用户配置的标的列表 (最大8个)
+// 保存用户配置的标的列表
 app.post('/api/settings/tickers', (req, res) => {
   try {
     const { tickers } = req.body;
@@ -527,10 +616,7 @@ app.post('/api/settings/tickers', (req, res) => {
     config.tickers = cleanedTickers;
     writeConfig(config);
 
-    // 清除缓存，强制下次获取数据时实时抓取最新标的
-    tickerAthCache = null;
-    tickerAthCacheTime = 0;
-    tickerAthCacheSignature = null;
+    void queueTickerRefresh(config);
 
     res.json({ success: true, message: '标的配置保存成功！', data: cleanedTickers });
   } catch (error) {
@@ -585,22 +671,61 @@ app.post('/api/settings/sync-rate', async (req, res) => {
   }
 });
 
-// 5. 数据一键导出备份
+// 5. 数据一键导出备份：完整打包 data/db.json 与 data/config.json
 app.get('/api/backup/export', (req, res) => {
   try {
     const db = readDb();
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename=family_fund_data.json');
-    res.send(JSON.stringify(db, null, 2));
+    const config = readConfig();
+    const zip = new AdmZip();
+    zip.addFile('data/db.json', Buffer.from(JSON.stringify(db, null, 2), 'utf8'));
+    zip.addFile('data/config.json', Buffer.from(JSON.stringify(config, null, 2), 'utf8'));
+
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename=family_fund_backup_${date}.zip`);
+    res.send(zip.toBuffer());
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 6. 数据导入恢复
-app.post('/api/backup/import', (req, res) => {
+// 6. 数据导入恢复：校验 ZIP 快照后覆盖当前 db.json 与 config.json
+app.post('/api/backup/import', express.raw({
+  type: ['application/zip', 'application/octet-stream'],
+  limit: '10mb'
+}), (req, res) => {
   try {
-    const { events, members, cnhRate, indexCache, benchmarkClosePolicy } = req.body;
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ success: false, message: '请选择有效的 ZIP 备份文件。' });
+    }
+
+    let zip;
+    try {
+      zip = new AdmZip(req.body);
+    } catch (_) {
+      return res.status(400).json({ success: false, message: '备份文件不是有效的 ZIP 压缩包。' });
+    }
+
+    const dbEntry = zip.getEntry('data/db.json') || zip.getEntry('db.json');
+    const configEntry = zip.getEntry('data/config.json') || zip.getEntry('config.json');
+    if (!dbEntry || !configEntry || dbEntry.isDirectory || configEntry.isDirectory) {
+      return res.status(400).json({ success: false, message: 'ZIP 中必须包含 data/db.json 和 data/config.json。' });
+    }
+    const totalUncompressedSize = Number(dbEntry.header.size) + Number(configEntry.header.size);
+    if (!Number.isFinite(totalUncompressedSize) || totalUncompressedSize > 10 * 1024 * 1024) {
+      return res.status(400).json({ success: false, message: 'ZIP 内的数据文件过大（最大 10MB）。' });
+    }
+
+    let backupDb;
+    let backupConfig;
+    try {
+      backupDb = JSON.parse(dbEntry.getData().toString('utf8'));
+      backupConfig = JSON.parse(configEntry.getData().toString('utf8'));
+    } catch (_) {
+      return res.status(400).json({ success: false, message: 'ZIP 中的 JSON 数据损坏或无法解析。' });
+    }
+
+    const { events, members, cnhRate, indexCache, benchmarkClosePolicy } = backupDb || {};
     if (!Array.isArray(events)) {
       return res.status(400).json({ success: false, message: '导入的数据格式不正确，缺少 events 数组' });
     }
@@ -626,7 +751,7 @@ app.post('/api/backup/import', (req, res) => {
     }
     const eventIds = new Set();
     for (let e of events) {
-      if (!e || typeof e !== 'object' || typeof e.id !== 'string' || !e.id || eventIds.has(e.id) ||
+      if (!e || typeof e !== 'object' || typeof e.id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(e.id) || eventIds.has(e.id) ||
           !e.type || !e.date || !Number.isFinite(e.createdAt)) {
         return res.status(400).json({ success: false, message: '导入的数据中存在格式不完整的事件项' });
       }
@@ -647,8 +772,12 @@ app.post('/api/backup/import', (req, res) => {
       if ((e.type === 'deposit' || e.type === 'withdraw') && !memberIds.has(e.member)) {
         return res.status(400).json({ success: false, message: 'A transaction references a member that does not exist.' });
       }
+      if ((e.type === 'deposit' || e.type === 'withdraw') && e.cnhAmount !== undefined &&
+          (typeof e.cnhAmount !== 'number' || e.cnhAmount <= 0 || !Number.isFinite(e.cnhAmount))) {
+        return res.status(400).json({ success: false, message: '出入金记录中包含非法人民币金额。' });
+      }
       if (e.type === 'valuation' &&
-          (typeof e.totalNAV !== 'number' || e.totalNAV < 0 || !isFinite(e.totalNAV))) {
+          (typeof e.totalNAV !== 'number' || e.totalNAV <= 0 || !isFinite(e.totalNAV))) {
         return res.status(400).json({ success: false, message: `导入数据中存在非法估值金额: ${e.totalNAV}` });
       }
       if (e.type === 'transfer' &&
@@ -681,24 +810,33 @@ app.post('/api/backup/import', (req, res) => {
         ? indexCache
         : (currentDb.indexCache || {})
     };
-    for (const event of db.events) {
-      if (event.type === 'withdraw' || event.type === 'transfer') {
-        if (!isEventFullyCovered(db, event.id)) {
-          return res.status(400).json({ success: false, message: 'Imported data contains an insufficient historical balance.' });
-        }
-      }
-    }
-    const insufficientEvent = findInsufficientBalanceEvent(db);
-    if (insufficientEvent) return rejectInsufficientLedger(res, insufficientEvent);
+    const ledgerIssue = findLedgerIssue(db);
+    if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
 
-    writeDb(db);
+    if (!backupConfig || !Array.isArray(backupConfig.tickers) || backupConfig.tickers.length < 1) {
+      return res.status(400).json({ success: false, message: '备份中的标的配置无效（至少需要 1 个标的）。' });
+    }
+    const importedTickers = [];
+    for (const item of backupConfig.tickers) {
+      const ticker = typeof item?.ticker === 'string' ? item.ticker.trim().toUpperCase() : '';
+      if (!/^[\^A-Z0-9.\-]{1,20}$/.test(ticker)) {
+        return res.status(400).json({ success: false, message: `备份中的标的代码无效：${ticker || '(空)'}` });
+      }
+      importedTickers.push({ ticker });
+    }
+    if (new Set(importedTickers.map(item => item.ticker)).size !== importedTickers.length) {
+      return res.status(400).json({ success: false, message: '备份中的标的代码不能重复。' });
+    }
+
+    writeSnapshot(db, { tickers: importedTickers });
+    void queueTickerRefresh({ tickers: importedTickers });
 
     // 批量导入触发指数同步
     if (events && events.length > 0) {
       ensureIndexCache(events.map(e => e.date));
     }
 
-    res.json({ success: true, message: '数据已成功导入，系统账目已全部重新计算并生效！' });
+    res.json({ success: true, message: 'ZIP 快照已恢复，账目与系统配置均已覆盖并重新计算。' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

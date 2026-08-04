@@ -916,27 +916,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 确认导入备份
-    btnConfirmImport.addEventListener('click', () => {
+    btnConfirmImport.addEventListener('click', async () => {
       const file = fileImport.files[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = JSON.parse(e.target.result);
-          await Api.importBackup(data);
-          showToast('数据灾备恢复成功！所有账目已重新计算并生效。', 'success');
-          closeModal(backupModal);
-          // 重置上传表单
-          fileImport.value = '';
-          fileNameLabel.textContent = '未选择任何文件';
-          btnConfirmImport.setAttribute('disabled', 'true');
-          await loadAllData();
-        } catch (err) {
-          showToast('数据解析失败，请确保上传了正确的 JSON 备份文件：' + err.message, 'error');
-        }
-      };
-      reader.readAsText(file);
+      try {
+        btnConfirmImport.setAttribute('disabled', 'true');
+        await Api.importBackup(file);
+        showToast('ZIP 快照恢复成功！账目和系统配置均已覆盖。', 'success');
+        closeModal(backupModal);
+        fileImport.value = '';
+        fileNameLabel.textContent = '未选择任何文件';
+        await loadAllData();
+      } catch (err) {
+        btnConfirmImport.removeAttribute('disabled');
+        showToast('恢复失败，请确认上传了本系统导出的 ZIP 备份：' + err.message, 'error');
+      }
     });
 
     // 打开标的配置弹窗

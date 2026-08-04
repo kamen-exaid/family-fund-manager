@@ -238,5 +238,5 @@ try {
   console.log('\n🟢 所有双轨数学模型断言全部通过！划转模型零滑点守恒、人民币本金精确分配！');
 } catch (e) {
   console.error('\n🔴 断言检测失败！请检查划转双币重放算法逻辑。', e.message);
+  process.exitCode = 1;
 }
-

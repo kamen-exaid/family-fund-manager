@@ -35,7 +35,7 @@
       </svg>
       <span>
         <strong>家庭财富账本</strong>
-        <small>WEALTH LEDGER <b class="sidebar-version">v3.3.3</b></small>
+        <small>WEALTH LEDGER <b class="sidebar-version">v3.4.0</b></small>
       </span>
     </a>
 
@@ -82,7 +82,7 @@
         </svg>
         <div class="logo-text">
           <h1>家庭基金账目管理系统</h1>
-          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.3.3</span></span>
+          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.4.0</span></span>
         </div>
       </div>
       <div class="header-actions">
@@ -429,7 +429,7 @@
                 <label for="val-total-nav">最新基金总资产 (USD)</label>
                 <div class="input-wrapper text-glow">
                   <span class="currency-prefix">$</span>
-                  <input type="number" id="val-total-nav" step="0.01" min="0" required placeholder="0.00">
+                  <input type="number" id="val-total-nav" step="0.01" min="0.01" required placeholder="0.00">
                 </div>
               </div>
               <div class="form-group">
@@ -589,13 +589,13 @@
       <div class="modal-body">
         <div class="backup-section">
           <h4><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>备份导出数据</h4>
-          <p class="section-desc">将系统内所有的家庭出入金及估值记录打包导出为 `family_fund_data.json` 格式。您可以安全地保存在本地或 Synology
-            云端，防止设备丢失造成数据丢失。</p>
+          <p class="section-desc">将当前 <code>data</code> 数据快照打包为 ZIP，包含全部账目与标的配置。您可以安全地保存在本地或 Synology
+            云端，后续可直接恢复覆盖。</p>
           <a href="/api/backup/export" class="btn btn-primary flex-center gap-2" download>
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
             </svg>
-            一键下载 JSON 数据包
+            一键下载 ZIP 完整备份
           </a>
         </div>
 
@@ -603,14 +603,14 @@
 
         <div class="backup-section">
           <h4><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 21V9M7 14l5-5 5 5"/><path d="M5 9V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v4"/></svg>灾备导入数据</h4>
-          <p class="section-desc">从您之前导出的 JSON 数据包中恢复所有账目。<strong>警告：导入新数据将完全覆盖当前的本地数据！</strong> 建议操作前先导出备份。</p>
+          <p class="section-desc">从本系统导出的 ZIP 快照恢复 <code>db.json</code> 和 <code>config.json</code>。<strong>警告：恢复将完全覆盖当前账目与配置！</strong> 建议操作前先下载一份最新备份。</p>
           <div class="file-upload-wrapper">
-            <input type="file" id="file-import" accept=".json" style="display: none;">
+            <input type="file" id="file-import" accept=".zip,application/zip" style="display: none;">
             <button class="btn btn-secondary flex-center gap-2" id="btn-trigger-upload">
               <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
               </svg>
-              选择 JSON 备份文件
+              选择 ZIP 备份文件
             </button>
             <span class="file-name-label" id="file-name-label">未选择任何文件</span>
           </div>

@@ -11,7 +11,7 @@ function makeApi() {
   const routes = {};
   const app = {};
   for (const method of ['get', 'post', 'put', 'delete']) {
-    app[method] = (path, handler) => { routes[`${method}:${path}`] = handler; };
+    app[method] = (path, ...handlers) => { routes[`${method}:${path}`] = handlers.at(-1); };
   }
 
   let writes = 0;
@@ -27,6 +27,7 @@ function makeApi() {
     getState: () => calculateStateFromDb(clone(db)),
     readConfig: () => ({ tickers: [] }),
     writeConfig: () => {},
+    writeSnapshot: () => {},
     ensureIndexCache: async () => {},
     calculateStateFromDb,
     fetchCnhRateFromApi: async () => null,
@@ -53,7 +54,21 @@ async function request(handler, body) {
   const api = makeApi();
   const transaction = api.routes['post:/api/transaction'];
   const transfer = api.routes['post:/api/transfer'];
+  const valuation = api.routes['post:/api/valuation'];
   const settings = api.routes['post:/api/settings'];
+
+  const zeroValuation = await request(valuation, {
+    totalNAV: 0, date: '2026-01-11'
+  });
+  assert.strictEqual(zeroValuation.status, 400);
+  assert.strictEqual(api.getWrites(), 0);
+
+  const preInceptionValuation = await request(valuation, {
+    totalNAV: 110, date: '2026-01-01'
+  });
+  assert.strictEqual(preInceptionValuation.status, 400);
+  assert.match(preInceptionValuation.body.message, /尚无基金份额/);
+  assert.strictEqual(api.getWrites(), 0);
 
   const historicalWithdrawal = await request(transaction, {
     member: 'a', type: 'withdraw', amount: 100, date: '2026-01-01'

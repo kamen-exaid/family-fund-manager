@@ -72,6 +72,19 @@ function writeConfig(configData) {
   storage.writeConfig(configData);
 }
 
+function writeSnapshot(dbData, configData) {
+  try {
+    storage.writeSnapshot(dbData, configData);
+    _stateCache = null;
+    _stateDirty = true;
+  } catch (error) {
+    storage.clearDbCache();
+    _stateCache = null;
+    _stateDirty = true;
+    throw error;
+  }
+}
+
 /**
  * 解析 Yahoo 价格响应的辅助函数
  */
@@ -172,13 +185,16 @@ registerApiRoutes(app, {
   getState,
   readConfig,
   writeConfig,
+  readTickerCache: storage.readTickerCache,
+  writeTickerCache: storage.writeTickerCache,
+  writeSnapshot,
   ensureIndexCache: EXTERNAL_SYNC_ENABLED ? ensureIndexCache : () => {},
   calculateStateFromDb,
   fetchCnhRateFromApi,
   isValidDate,
   normalizeRemark,
   normalizeMemberName,
-  fetchTickerAthData,
+  fetchTickerAthData: EXTERNAL_SYNC_ENABLED ? fetchTickerAthData : async () => ({}),
   randomUUID
 });
 // 从第三方公开汇率接口获取最新 USD/CNH 汇率

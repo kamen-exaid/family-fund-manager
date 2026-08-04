@@ -57,6 +57,23 @@ const precisionState = calculateStateFromDb(precisionDb);
 assert.strictEqual(precisionState.summary.totalNAV, 10);
 assert.strictEqual(precisionState.events.at(-1)._totalNAVAfter, 10);
 
+// A legacy zero valuation must fail clearly before a later transaction instead
+// of dividing by zero and serializing Infinity/NaN as null throughout the UI.
+const zeroNavDb = {
+  cnhRate: 7.2,
+  members: [{ id: 'alice', name: 'Alice' }],
+  indexCache: {},
+  events: [
+    { id: 'zero-deposit', type: 'deposit', member: 'alice', amount: 100, cnhAmount: 720, date: '2026-03-01', createdAt: 1 },
+    { id: 'zero-valuation', type: 'valuation', totalNAV: 0, date: '2026-03-02', createdAt: 2 },
+    { id: 'after-zero-deposit', type: 'deposit', member: 'alice', amount: 10, cnhAmount: 72, date: '2026-03-03', createdAt: 3 }
+  ]
+};
+assert.throws(
+  () => calculateStateFromDb(zeroNavDb),
+  /净值为 0，无法计算份额/
+);
+
 // Cache entries explicitly record the earlier close date used for each NAV.
 const benchmarkDb = {
   cnhRate: 7.2,
