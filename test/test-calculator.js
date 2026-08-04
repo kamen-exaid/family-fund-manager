@@ -57,4 +57,53 @@ const precisionState = calculateStateFromDb(precisionDb);
 assert.strictEqual(precisionState.summary.totalNAV, 10);
 assert.strictEqual(precisionState.events.at(-1)._totalNAVAfter, 10);
 
+// Cache entries explicitly record the earlier close date used for each NAV.
+const benchmarkDb = {
+  cnhRate: 7.2,
+  members: [{ id: 'alice', name: 'Alice' }],
+  events: [
+    { id: 'base', type: 'deposit', member: 'alice', amount: 100, date: '2026-07-06', createdAt: 1 },
+    { id: 'mark', type: 'valuation', totalNAV: 110, date: '2026-07-07', createdAt: 2 }
+  ],
+  indexCache: {
+    '2026-07-06': { spx: 100, ndx: 200, spxPriceDate: '2026-07-03', ndxPriceDate: '2026-07-03', policy: 'previous' },
+    '2026-07-07': { spx: 110, ndx: 220, spxPriceDate: '2026-07-06', ndxPriceDate: '2026-07-06', policy: 'previous' }
+  }
+};
+const benchmarkState = calculateStateFromDb(benchmarkDb);
+assert.strictEqual(benchmarkState.charts.navHistory[0].sp500NAV, 1);
+assert.strictEqual(benchmarkState.charts.navHistory[1].sp500NAV, 1.1);
+assert.strictEqual(benchmarkState.charts.navHistory[1].ndxNAV, 1.1);
+
+// Legacy same-day entries have no source dates and must be ignored until refreshed.
+const legacyCacheState = calculateStateFromDb({
+  ...benchmarkDb,
+  indexCache: {
+    '2026-07-06': { spx: 100, ndx: 200 },
+    '2026-07-07': { spx: 110, ndx: 220 }
+  }
+});
+assert.strictEqual(legacyCacheState.charts.navHistory[1].sp500NAV, 1);
+
+const sameDayCloseState = calculateStateFromDb({
+  ...benchmarkDb,
+  indexCache: {
+    '2026-07-06': benchmarkDb.indexCache['2026-07-06'],
+    '2026-07-07': { spx: 110, ndx: 220, spxPriceDate: '2026-07-07', ndxPriceDate: '2026-07-07', policy: 'previous' }
+  }
+});
+assert.strictEqual(sameDayCloseState.charts.navHistory[1].sp500NAV, 1);
+
+const sameDayPolicyState = calculateStateFromDb({
+  ...benchmarkDb,
+  benchmarkClosePolicy: 'same_day',
+  indexCache: {
+    '2026-07-06': { spx: 101, ndx: 202, spxPriceDate: '2026-07-06', ndxPriceDate: '2026-07-06', policy: 'same_day' },
+    '2026-07-07': { spx: 111.1, ndx: 222.2, spxPriceDate: '2026-07-07', ndxPriceDate: '2026-07-07', policy: 'same_day' }
+  }
+});
+assert.strictEqual(sameDayPolicyState.charts.navHistory[1].sp500NAV, 1.1);
+assert.strictEqual(sameDayPolicyState.settings.benchmarkClosePolicy, 'same_day');
+assert.strictEqual(sameDayPolicyState.settings.benchmarkCacheReady, true);
+
 console.log('Production calculateStateFromDb assertions passed.');

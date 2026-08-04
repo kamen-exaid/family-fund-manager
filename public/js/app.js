@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let tickerSortable = null;
   let operationPanelResizeAnimation = null;
   let operationPanelResizeCleanupTimer = null;
+  let benchmarkRefreshToken = 0;
 
   const modalTriggers = new WeakMap();
 
@@ -179,6 +180,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const chkCompSp500 = document.getElementById('chk-comp-sp500');
   const chkCompNdx = document.getElementById('chk-comp-ndx');
   const elTrendStatsGrid = document.getElementById('trend-stats-grid');
+  const benchmarkPolicyGroup = document.getElementById('benchmark-policy-group');
+  const benchmarkPolicyButtons = [...document.querySelectorAll('[data-benchmark-policy]')];
 
   // Operation Tabs & Forms
   const btnTabTx = document.getElementById('tab-btn-tx');
@@ -265,8 +268,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!group || !button) return;
     group.querySelectorAll('.segmented-control__button').forEach(option => {
       option.classList.toggle('active', option === button);
+      option.setAttribute('aria-pressed', option === button ? 'true' : 'false');
     });
     setSegmentIndicator(group, button);
+  }
+
+  function syncBenchmarkPolicyControl(policy = 'previous') {
+    const activeButton = benchmarkPolicyButtons.find(button => button.dataset.benchmarkPolicy === policy)
+      || benchmarkPolicyButtons[0];
+    activateSegmentOption(benchmarkPolicyGroup, activeButton);
+  }
+
+  async function waitForBenchmarkRefresh(policy, token) {
+    for (let attempt = 0; attempt < 15; attempt++) {
+      await new Promise(resolve => window.setTimeout(resolve, 1000));
+      if (token !== benchmarkRefreshToken) return false;
+      let nextState;
+      try {
+        nextState = await Api.getState();
+      } catch (_error) {
+        continue;
+      }
+      if (nextState.settings?.benchmarkClosePolicy !== policy) continue;
+      if (!nextState.settings?.benchmarkCacheReady) continue;
+      appState = nextState;
+      renderCharts();
+      return true;
+    }
+    return false;
   }
 
   function syncSegmentIndicators() {
@@ -523,6 +552,41 @@ document.addEventListener('DOMContentLoaded', () => {
     syncNavigationWithScroll();
     requestAnimationFrame(syncSegmentIndicators);
     window.addEventListener('resize', syncSegmentIndicators);
+
+    benchmarkPolicyButtons.forEach(button => {
+      button.addEventListener('click', async event => {
+        const selectedButton = event.currentTarget;
+        const nextPolicy = selectedButton.dataset.benchmarkPolicy;
+        const previousPolicy = appState?.settings?.benchmarkClosePolicy || 'previous';
+        if (nextPolicy === previousPolicy) return;
+
+        const token = ++benchmarkRefreshToken;
+        benchmarkPolicyGroup?.setAttribute('aria-busy', 'true');
+        benchmarkPolicyButtons.forEach(option => { option.disabled = true; });
+        activateSegmentOption(benchmarkPolicyGroup, selectedButton);
+
+        try {
+          await Api.updateSettings({ benchmarkClosePolicy: nextPolicy });
+          if (appState?.settings) {
+            appState.settings.benchmarkClosePolicy = nextPolicy;
+            appState.settings.benchmarkCacheReady = false;
+          }
+          const refreshed = await waitForBenchmarkRefresh(nextPolicy, token);
+          showToast(
+            refreshed ? '指数收盘口径已更新' : '口径已保存，指数数据仍在后台刷新',
+            refreshed ? 'success' : 'warning'
+          );
+        } catch (error) {
+          syncBenchmarkPolicyControl(previousPolicy);
+          showToast('指数口径更新失败：' + error.message, 'error');
+        } finally {
+          if (token === benchmarkRefreshToken) {
+            benchmarkPolicyGroup?.removeAttribute('aria-busy');
+            benchmarkPolicyButtons.forEach(option => { option.disabled = false; });
+          }
+        }
+      });
+    });
 
     // 绑定三个主题选择按钮的点击事件
     themeBtns.forEach(btn => {
@@ -860,7 +924,7 @@ document.addEventListener('DOMContentLoaded', () => {
       reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target.result);
-          await Api.importBackup(data.events, data.members);
+          await Api.importBackup(data);
           showToast('数据灾备恢复成功！所有账目已重新计算并生效。', 'success');
           closeModal(backupModal);
           // 重置上传表单
@@ -1169,6 +1233,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // 同时获取成员列表与基金状态
       membersList = await Api.getMembers();
       appState = await Api.getState();
+      syncBenchmarkPolicyControl(appState.settings?.benchmarkClosePolicy || 'previous');
 
       // 更新动态下拉选项（出入金下拉 + 流水筛选下拉）
       populateDynamicSelectors();

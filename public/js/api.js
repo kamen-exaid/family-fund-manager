@@ -44,7 +44,7 @@ const Api = {
   async deleteEvent(id) { return requestApi(`/api/event/${id}`, { method: 'DELETE' }); },
   async updateEvent(id, data) { return jsonRequest(`/api/event/${id}`, 'PUT', data); },
   async updateSettings(data) { return jsonRequest('/api/settings', 'POST', data); },
-  async importBackup(events, members) { return jsonRequest('/api/backup/import', 'POST', { events, members }); },
+  async importBackup(data) { return jsonRequest('/api/backup/import', 'POST', data); },
   async getMembers() { return (await requestApi('/api/members')).data; },
   async addMember(name) { return (await jsonRequest('/api/members', 'POST', { name })).data; },
   async updateMember(id, name) { return jsonRequest(`/api/members/${id}`, 'PUT', { name }); },

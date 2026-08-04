@@ -3058,6 +3058,108 @@ body.theme-light .btn-sync-rate:hover {
 }
 
 /* --- 图表对标与时间选择控制栏 (Chart Controls Dock) --- */
+.benchmark-policy-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.benchmark-policy-group {
+  width: 162px;
+  padding: 3px;
+}
+
+.benchmark-policy-group::before {
+  top: 3px;
+  height: calc(100% - 6px);
+}
+
+.benchmark-policy-btn.segmented-control__button {
+  height: 26px;
+  padding: 4px 8px;
+  font-size: 0.66rem;
+}
+
+.benchmark-policy-group[aria-busy="true"] {
+  opacity: 0.62;
+}
+
+.benchmark-policy-help-wrap {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 22px;
+  place-items: center;
+}
+
+.benchmark-policy-help {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-panel-border);
+  border-radius: 50%;
+  background: rgba(var(--color-primary-rgb), 0.045);
+  color: var(--color-text-muted);
+  font: 700 0.7rem/1 'Outfit', sans-serif;
+  cursor: help;
+}
+
+.benchmark-policy-tooltip {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 9px);
+  right: -4px;
+  display: grid;
+  width: min(286px, 76vw);
+  gap: 5px;
+  padding: 12px 13px;
+  opacity: 0;
+  visibility: hidden;
+  text-align: left;
+}
+
+.benchmark-policy-tooltip strong {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.benchmark-policy-tooltip > span {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.55;
+}
+
+.benchmark-policy-help-wrap:hover .benchmark-policy-tooltip,
+.benchmark-policy-help:focus-visible + .benchmark-policy-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.benchmark-policy-help:focus-visible {
+  outline: 3px solid rgba(var(--color-primary-rgb), 0.22);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  #trends-section > .panel-header {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .benchmark-policy-control {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .benchmark-policy-group {
+    width: 142px;
+  }
+}
+
 .chart-controls-dock {
   --dock-inset: 14px;
   --dock-radius: 18px;

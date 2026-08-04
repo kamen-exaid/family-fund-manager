@@ -35,7 +35,7 @@
       </svg>
       <span>
         <strong>家庭财富账本</strong>
-        <small>WEALTH LEDGER <b class="sidebar-version">v3.3.2</b></small>
+        <small>WEALTH LEDGER <b class="sidebar-version">v3.3.3</b></small>
       </span>
     </a>
 
@@ -82,7 +82,7 @@
         </svg>
         <div class="logo-text">
           <h1>家庭基金账目管理系统</h1>
-          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.3.2</span></span>
+          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.3.3</span></span>
         </div>
       </div>
       <div class="header-actions">
@@ -260,6 +260,19 @@
               </svg>
               业绩表现
             </h2>
+            <div class="benchmark-policy-control">
+              <div class="benchmark-policy-group segmented-control segmented-control--2" id="benchmark-policy-group" aria-label="指数收盘口径">
+                <button class="benchmark-policy-btn segmented-control__button active" type="button" data-benchmark-policy="previous">上一交易日</button>
+                <button class="benchmark-policy-btn segmented-control__button" type="button" data-benchmark-policy="same_day">当日收盘</button>
+              </div>
+              <span class="benchmark-policy-help-wrap">
+                <button class="benchmark-policy-help" type="button" aria-label="指数口径说明" aria-describedby="benchmark-policy-tooltip">?</button>
+                <span class="glass-tooltip benchmark-policy-tooltip" id="benchmark-policy-tooltip" role="tooltip">
+                  <strong>指数口径</strong>
+                  <span>默认使用上一交易日收盘价。<br>因 IBKR 日期对应的历史净值反映当日开盘时点，若使用当日收盘价，会引入净值产生之后的行情，形成时间错配。</span>
+                </span>
+              </span>
+            </div>
           </div>
 
           <!-- Chart Control Dock (Comparative checkboxes & time slicer in a spacious new row) -->

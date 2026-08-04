@@ -541,7 +541,7 @@ app.post('/api/settings/tickers', (req, res) => {
 // 4.8. 更新全局系统参数（汇率配置）
 app.post('/api/settings', (req, res) => {
   try {
-    const { cnhRate } = req.body;
+    const { cnhRate, benchmarkClosePolicy } = req.body;
     const db = readDb();
 
     if (cnhRate !== undefined) {
@@ -552,7 +552,17 @@ app.post('/api/settings', (req, res) => {
       db.cnhRate = parsedRate;
     }
 
+    if (benchmarkClosePolicy !== undefined) {
+      if (!['previous', 'same_day'].includes(benchmarkClosePolicy)) {
+        return res.status(400).json({ success: false, message: '指数收盘口径无效' });
+      }
+      db.benchmarkClosePolicy = benchmarkClosePolicy;
+    }
+
     writeDb(db);
+    if (benchmarkClosePolicy !== undefined && db.events.length > 0) {
+      ensureIndexCache(db.events.map(event => event.date));
+    }
     res.json({ success: true, message: '系统参数更新成功', data: { cnhRate: db.cnhRate } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -590,7 +600,7 @@ app.get('/api/backup/export', (req, res) => {
 // 6. 数据导入恢复
 app.post('/api/backup/import', (req, res) => {
   try {
-    const { events, members, cnhRate, indexCache } = req.body;
+    const { events, members, cnhRate, indexCache, benchmarkClosePolicy } = req.body;
     if (!Array.isArray(events)) {
       return res.status(400).json({ success: false, message: '导入的数据格式不正确，缺少 events 数组' });
     }
@@ -664,6 +674,9 @@ app.post('/api/backup/import', (req, res) => {
       members: importedMembers.map(member => ({ id: member.id, name: member.name.trim() })),
       events,
       cnhRate: importedCnhRate,
+      benchmarkClosePolicy: ['previous', 'same_day'].includes(benchmarkClosePolicy)
+        ? benchmarkClosePolicy
+        : (currentDb.benchmarkClosePolicy || 'previous'),
       indexCache: (indexCache && typeof indexCache === 'object' && !Array.isArray(indexCache))
         ? indexCache
         : (currentDb.indexCache || {})

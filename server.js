@@ -77,7 +77,7 @@ function writeConfig(configData) {
  */
 const {
   fetchYahooPrices,
-  findClosestPrice,
+  findCloseForPolicy,
   fetchTickerAthData,
   fetchCnhRateFromApi
 } = require('./lib/yahoo');
@@ -89,8 +89,21 @@ async function ensureIndexCache(dates) {
   if (!dates || dates.length === 0) return;
   const db = readDb();
   if (!db.indexCache) db.indexCache = {};
+  const benchmarkClosePolicy = db.benchmarkClosePolicy === 'same_day' ? 'same_day' : 'previous';
+  const isValidSourceDate = (sourceDate, navDate) => benchmarkClosePolicy === 'same_day'
+    ? sourceDate <= navDate
+    : sourceDate < navDate;
 
-  const missingDates = dates.filter(d => !db.indexCache[d]);
+  // Legacy entries have no source-date fields and may contain the same day's close.
+  // Treat them as stale so historical trend data repairs itself on startup.
+  const uniqueDates = [...new Set(dates)];
+  const missingDates = uniqueDates.filter(dateStr => {
+    const cached = db.indexCache[dateStr];
+    return !cached ||
+      cached.policy !== benchmarkClosePolicy ||
+      !cached.spxPriceDate || !isValidSourceDate(cached.spxPriceDate, dateStr) ||
+      !cached.ndxPriceDate || !isValidSourceDate(cached.ndxPriceDate, dateStr);
+  });
   if (missingDates.length === 0) return;
 
   console.log(`[Yahoo Sync Worker] Detecting ${missingDates.length} missing dates in cache. Fetching in background...`);
@@ -99,8 +112,8 @@ async function ensureIndexCache(dates) {
     const sortedMissing = [...missingDates].sort();
     const oldestDate = sortedMissing[0];
 
-    // 向前多垫7天作为安全跨周末余量
-    const startSec = Math.floor(new Date(oldestDate).getTime() / 1000) - 7 * 24 * 3600;
+    // Keep a 14-day lead-in for long weekends and exchange holidays.
+    const startSec = Math.floor(new Date(oldestDate).getTime() / 1000) - 14 * 24 * 3600;
     const nowSec = Math.floor(Date.now() / 1000);
 
     const [spxMap, ndxMap] = await Promise.all([
@@ -110,13 +123,16 @@ async function ensureIndexCache(dates) {
 
     const fetchedUpdates = {};
     missingDates.forEach(dateStr => {
-      const spxClose = findClosestPrice(dateStr, spxMap);
-      const ndxClose = findClosestPrice(dateStr, ndxMap);
+      const spxClose = findCloseForPolicy(dateStr, spxMap, benchmarkClosePolicy);
+      const ndxClose = findCloseForPolicy(dateStr, ndxMap, benchmarkClosePolicy);
 
       if (spxClose && ndxClose) {
         fetchedUpdates[dateStr] = {
-          spx: parseFloat(spxClose.toFixed(2)),
-          ndx: parseFloat(ndxClose.toFixed(2))
+          spx: parseFloat(spxClose.price.toFixed(2)),
+          ndx: parseFloat(ndxClose.price.toFixed(2)),
+          spxPriceDate: spxClose.date,
+          ndxPriceDate: ndxClose.date,
+          policy: benchmarkClosePolicy
         };
       }
     });
@@ -124,6 +140,8 @@ async function ensureIndexCache(dates) {
     if (Object.keys(fetchedUpdates).length > 0) {
       // Re-read before writing so a slow background sync never overwrites newer ledger edits.
       const latestDb = readDb();
+      const latestPolicy = latestDb.benchmarkClosePolicy === 'same_day' ? 'same_day' : 'previous';
+      if (latestPolicy !== benchmarkClosePolicy) return;
       latestDb.indexCache = {
         ...(latestDb.indexCache || {}),
         ...fetchedUpdates

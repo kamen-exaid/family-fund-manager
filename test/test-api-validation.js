@@ -53,6 +53,7 @@ async function request(handler, body) {
   const api = makeApi();
   const transaction = api.routes['post:/api/transaction'];
   const transfer = api.routes['post:/api/transfer'];
+  const settings = api.routes['post:/api/settings'];
 
   const historicalWithdrawal = await request(transaction, {
     member: 'a', type: 'withdraw', amount: 100, date: '2026-01-01'
@@ -77,6 +78,14 @@ async function request(handler, body) {
   });
   assert.strictEqual(historicalTransfer.status, 400);
   assert.strictEqual(api.getWrites(), 0);
+
+  const invalidPolicy = await request(settings, { benchmarkClosePolicy: 'future_close' });
+  assert.strictEqual(invalidPolicy.status, 400);
+  assert.strictEqual(api.getWrites(), 0);
+
+  const validPolicy = await request(settings, { benchmarkClosePolicy: 'same_day' });
+  assert.strictEqual(validPolicy.status, 200);
+  assert.strictEqual(api.getWrites(), 1);
 
   console.log('API validation regression tests passed.');
 })().catch(error => {
