@@ -3711,17 +3711,27 @@ body.theme-dark .glass-tooltip {
   white-space: nowrap;
 }
 
-.ticker-ath-bar #btn-config-tickers {
+.ticker-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 
-.ticker-ath-bar #btn-config-tickers:hover {
+.ticker-ath-bar #btn-config-tickers,
+.ticker-ath-bar #btn-refresh-tickers {
+  flex-shrink: 0;
+}
+
+.ticker-ath-bar #btn-config-tickers:hover,
+.ticker-ath-bar #btn-refresh-tickers:hover {
   background: rgba(var(--color-primary-rgb), 0.08);
   border-color: rgba(var(--color-primary-rgb), 0.34);
   box-shadow: 0 6px 14px -8px rgba(var(--color-primary-rgb), 0.42);
 }
 
-.ticker-ath-bar #btn-config-tickers:focus-visible {
+.ticker-ath-bar #btn-config-tickers:focus-visible,
+.ticker-ath-bar #btn-refresh-tickers:focus-visible {
   outline: 3px solid rgba(var(--color-primary-rgb), 0.2);
   outline-offset: 2px;
 }
@@ -3792,6 +3802,10 @@ body.theme-dark .glass-tooltip {
     inset 0 -1px 0 rgba(81, 104, 128, 0.05);
   backdrop-filter: blur(22px) saturate(145%);
   -webkit-backdrop-filter: blur(22px) saturate(145%);
+}
+
+.ticker-ath-bar #btn-refresh-tickers.spinning svg {
+  animation: rateSpin 0.8s linear infinite;
 }
 
 .ticker-ath-cards {

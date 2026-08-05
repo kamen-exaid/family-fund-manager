@@ -252,6 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Ticker Config Modal
   const btnConfigTickers = document.getElementById('btn-config-tickers');
+  const btnRefreshTickers = document.getElementById('btn-refresh-tickers');
   const tickerConfigModal = document.getElementById('ticker-config-modal');
   const btnCloseTickerConfigModal = document.getElementById('btn-close-ticker-config-modal');
   const tickerConfigList = document.getElementById('ticker-config-list');
@@ -935,6 +936,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 打开标的配置弹窗
+    if (btnRefreshTickers) {
+      btnRefreshTickers.addEventListener('click', async () => {
+        btnRefreshTickers.disabled = true;
+        btnRefreshTickers.classList.add('spinning');
+        try {
+          const result = await Api.refreshTickerAth();
+          await loadTickerAthData();
+          if (result.refreshSuccess) {
+            showToast('标的数据已从 Yahoo Finance 刷新', 'success');
+          } else {
+            showToast(`刷新失败，继续显示本地缓存数据：${result.failedTickers.join('、')}`, 'warning');
+          }
+        } catch (err) {
+          showToast('刷新失败，继续显示本地缓存数据：' + err.message, 'error');
+        } finally {
+          btnRefreshTickers.disabled = false;
+          btnRefreshTickers.classList.remove('spinning');
+        }
+      });
+    }
+
     if (btnConfigTickers) {
       btnConfigTickers.addEventListener('click', () => {
         renderTickerConfigList();

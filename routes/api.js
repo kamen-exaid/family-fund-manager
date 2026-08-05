@@ -18,7 +18,8 @@ function registerApiRoutes(app, deps) {
     normalizeRemark,
     normalizeMemberName,
     fetchTickerAthData,
-    randomUUID
+    randomUUID,
+    now: getNow = () => new Date()
   } = deps;
 
   const BALANCE_TOLERANCE = 0.000001;
@@ -72,10 +73,14 @@ app.get('/api/state', (req, res) => {
 
 // Persisted stale-while-revalidate cache. Requests never wait for Yahoo when a
 // usable snapshot exists, and all tabs share one background refresh worker.
-const TICKER_CACHE_DURATION = 5 * 60 * 1000;
+const TICKER_CLOSE_RETRY_DURATION = 10 * 60 * 1000;
+const TICKER_MISSING_DAY_RETRY_DURATION = 2 * 60 * 60 * 1000;
+const TICKER_WEEKEND_RETRY_DURATION = 6 * 60 * 60 * 1000;
 let tickerRefreshPromise = null;
 let queuedTickerConfig = null;
 let activeTickerConfigSignature = null;
+const tickerRefreshAttempts = new Map();
+const tickerRefreshOutcomes = new Map();
 
 function selectTickerData(cache, config, includeMissing = false) {
   const selected = {};
@@ -90,21 +95,72 @@ function selectTickerData(cache, config, includeMissing = false) {
   return selected;
 }
 
-function isTickerCacheStale(cache, config, now = Date.now()) {
+function getEasternMarketDay(now) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    weekday: 'short', hour: '2-digit', hour12: false
+  }).formatToParts(now);
+  const values = {};
+  parts.forEach(part => { values[part.type] = part.value; });
+  return {
+    date: `${values.year}-${values.month}-${values.day}`,
+    weekday: values.weekday,
+    hour: Number(values.hour)
+  };
+}
+
+function previousWeekday(date) {
+  const cursor = new Date(`${date}T12:00:00Z`);
+  do {
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  } while (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6);
+  return cursor.toISOString().slice(0, 10);
+}
+
+function getTickerRefreshPolicy(now) {
+  const eastern = getEasternMarketDay(now);
+  const isWeekend = eastern.weekday === 'Sat' || eastern.weekday === 'Sun';
+  const isClosePublicationWindow = !isWeekend && eastern.hour >= 20 && eastern.hour < 22;
+  const expectedCloseDate = !isWeekend && eastern.hour >= 20
+    ? eastern.date
+    : previousWeekday(eastern.date);
+  const retryDuration = isWeekend
+    ? TICKER_WEEKEND_RETRY_DURATION
+    : isClosePublicationWindow
+      ? TICKER_CLOSE_RETRY_DURATION
+      : TICKER_MISSING_DAY_RETRY_DURATION;
+  return { expectedCloseDate, retryDuration };
+}
+
+function isTickerCacheStale(cache, config, now = getNow()) {
+  const nowMs = now.getTime();
+  const { expectedCloseDate, retryDuration } = getTickerRefreshPolicy(now);
   return config.tickers.some(({ ticker }) => {
-    const updatedAt = Date.parse(cache.tickers?.[ticker]?.updatedAt || '');
-    return !Number.isFinite(updatedAt) || now - updatedAt >= TICKER_CACHE_DURATION;
+    const cachedTicker = cache.tickers?.[ticker];
+    if (!cachedTicker) return true;
+    if (cachedTicker.regularCloseDate >= expectedCloseDate) return false;
+    const updatedAt = Date.parse(cachedTicker.updatedAt || '');
+    const lastAttemptAt = tickerRefreshAttempts.get(ticker) || 0;
+    const lastCheckedAt = Math.max(Number.isFinite(updatedAt) ? updatedAt : 0, lastAttemptAt);
+    return lastCheckedAt === 0 || nowMs - lastCheckedAt >= retryDuration;
   });
 }
 
 async function refreshTickerCache(config) {
   const cache = readTickerCache();
+  const attemptedAt = getNow().getTime();
+  config.tickers.forEach(({ ticker }) => {
+    tickerRefreshAttempts.set(ticker, attemptedAt);
+    tickerRefreshOutcomes.set(ticker, false);
+  });
   const fetched = await fetchTickerAthData(config, cache.tickers || {});
   let changed = false;
   for (const { ticker } of config.tickers) {
     const candidate = fetched[ticker];
     if (candidate && !candidate.error) {
       cache.tickers[ticker] = candidate;
+      tickerRefreshOutcomes.set(ticker, true);
       changed = true;
     }
   }
@@ -684,6 +740,26 @@ app.get('/api/backup/export', (req, res) => {
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename=family_fund_backup_${date}.zip`);
     res.send(zip.toBuffer());
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/ticker-ath/refresh', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const config = readConfig();
+    const cache = await queueTickerRefresh(config);
+    const failedTickers = config.tickers
+      .map(({ ticker }) => ticker)
+      .filter(ticker => tickerRefreshOutcomes.get(ticker) !== true);
+    res.json({
+      success: true,
+      data: selectTickerData(cache, config, true),
+      refreshSuccess: failedTickers.length === 0,
+      failedTickers,
+      updatedAt: cache.updatedAt
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

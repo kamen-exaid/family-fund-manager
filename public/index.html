@@ -35,7 +35,7 @@
       </svg>
       <span>
         <strong>家庭财富账本</strong>
-        <small>WEALTH LEDGER <b class="sidebar-version">v3.4.0</b></small>
+        <small>WEALTH LEDGER <b class="sidebar-version">v3.4.1</b></small>
       </span>
     </a>
 
@@ -82,7 +82,7 @@
         </svg>
         <div class="logo-text">
           <h1>家庭基金账目管理系统</h1>
-          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.4.0</span></span>
+          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.4.1</span></span>
         </div>
       </div>
       <div class="header-actions">
@@ -128,6 +128,16 @@
           <span>标的回调追踪</span>
 
         </h2>
+        <div class="ticker-panel-actions">
+        <button id="btn-refresh-tickers" class="btn btn-secondary flex-center"
+          style="padding: 6px 10px; font-size: 0.78rem; gap: 4px;" title="强制从 Yahoo Finance 刷新">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="width: 14px; height: 14px;">
+            <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5" />
+            <path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5" />
+          </svg>
+          刷新
+        </button>
         <button id="btn-config-tickers" class="btn btn-secondary flex-center"
           style="padding: 6px 12px; font-size: 0.78rem; gap: 4px;" title="配置展示的追踪标的">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -138,6 +148,7 @@
           </svg>
           配置标的
         </button>
+        </div>
       </div>
       <div class="ticker-ath-cards" id="ticker-ath-cards-container">
         <div class="ticker-table-state loading">

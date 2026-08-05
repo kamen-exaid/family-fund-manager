@@ -22,6 +22,7 @@ let persisted = {
 let fetchCalls = 0;
 let writes = 0;
 let finishFetch;
+let currentNow = new Date('2026-08-05T16:00:00.000Z'); // Wednesday noon ET
 
 registerApiRoutes(app, {
   readDb: () => ({ members: [], events: [], indexCache: {} }),
@@ -42,7 +43,8 @@ registerApiRoutes(app, {
     fetchCalls++;
     return new Promise(resolve => { finishFetch = resolve; });
   },
-  randomUUID
+  randomUUID,
+  now: () => currentNow
 });
 
 async function requestTicker() {
@@ -53,6 +55,17 @@ async function requestTicker() {
     json(value) { result.body = value; return this; }
   };
   await routes['get:/api/ticker-ath']({}, res);
+  return result;
+}
+
+async function requestManualTickerRefresh() {
+  const result = { headers: {}, body: null };
+  const res = {
+    set(name, value) { result.headers[name] = value; return this; },
+    status() { return this; },
+    json(value) { result.body = value; return this; }
+  };
+  await routes['post:/api/ticker-ath/refresh']({}, res);
   return result;
 }
 
@@ -78,13 +91,54 @@ const nextTurn = () => new Promise(resolve => setImmediate(resolve));
       ...persisted.tickers.VOO,
       ath: 110,
       regularClose: 105,
-      updatedAt: new Date().toISOString()
+      regularCloseDate: '2026-08-04',
+      updatedAt: currentNow.toISOString()
     }
   });
   await nextTurn();
   await nextTurn();
   assert.strictEqual(writes, 1);
   assert.strictEqual(persisted.tickers.VOO.ath, 110);
+
+  // During the trading day, yesterday's completed close remains current. The
+  // browser may poll every five minutes, but that must not hit Yahoo again.
+  const duringSession = await requestTicker();
+  assert.strictEqual(duringSession.body.stale, false);
+  await nextTurn();
+  assert.strictEqual(fetchCalls, 1);
+
+  // Shortly after the 20:00 ET publication boundary, today's close becomes the
+  // target and a missing candle triggers a refresh.
+  currentNow = new Date('2026-08-06T00:05:00.000Z');
+  const afterClose = await requestTicker();
+  assert.strictEqual(afterClose.body.stale, true);
+  await nextTurn();
+  assert.strictEqual(fetchCalls, 2);
+
+  finishFetch({});
+  await nextTurn();
+  await nextTurn();
+
+  // A failed/empty refresh is rate-limited in the close publication window.
+  const immediateRetry = await requestTicker();
+  assert.strictEqual(immediateRetry.body.stale, false);
+  await nextTurn();
+  assert.strictEqual(fetchCalls, 2);
+
+  // The explicit panel action bypasses automatic freshness checks.
+  const manualRefresh = requestManualTickerRefresh();
+  await nextTurn();
+  assert.strictEqual(fetchCalls, 3);
+  finishFetch({
+    VOO: {
+      ...persisted.tickers.VOO,
+      regularCloseDate: '2026-08-05',
+      updatedAt: currentNow.toISOString()
+    }
+  });
+  const manualResult = await manualRefresh;
+  assert.strictEqual(manualResult.body.refreshSuccess, true);
+  assert.deepStrictEqual(manualResult.body.failedTickers, []);
 
   console.log('Ticker persistent stale-while-revalidate assertions passed.');
 })().catch(error => {

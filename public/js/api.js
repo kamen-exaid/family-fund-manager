@@ -60,6 +60,9 @@ const Api = {
   async getTickerAth() {
     return (await requestApi('/api/ticker-ath', { cache: 'no-store' })).data;
   },
+  async refreshTickerAth() {
+    return requestApi('/api/ticker-ath/refresh', { method: 'POST', cache: 'no-store' });
+  },
   async getTickers() { return (await requestApi('/api/settings/tickers')).data; },
   async saveTickers(tickers) { return jsonRequest('/api/settings/tickers', 'POST', { tickers }); }
 };
