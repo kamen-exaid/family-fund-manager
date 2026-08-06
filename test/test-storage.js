@@ -40,6 +40,14 @@ try {
   storage.writeSnapshot(snapshotDb, snapshotConfig);
   assert.deepStrictEqual(storage.readDb(), snapshotDb);
   assert.deepStrictEqual(storage.readConfig(), snapshotConfig);
+  assert.deepStrictEqual(storage.readSettlements(), { version: 1, records: [] });
+  const settlementLedger = {
+    version: 1,
+    records: [{ id: 's1', type: 'performance_settlement', date: '2026-01-01', createdAt: 1 }]
+  };
+  storage.writeSettlements(settlementLedger);
+  assert.deepStrictEqual(storage.readSettlements(), settlementLedger);
+  assert.notStrictEqual(storage.SETTLEMENTS_FILE, storage.DB_FILE);
 
   const backupsBeforeTickerWrite = fs.readdirSync(backupDir).length;
   const tickerCache = {

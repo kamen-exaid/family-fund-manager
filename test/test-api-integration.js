@@ -105,8 +105,10 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     const backupZip = new AdmZip(exported.body);
     const exportedDb = JSON.parse(backupZip.readAsText('data/db.json'));
     const exportedConfig = JSON.parse(backupZip.readAsText('data/config.json'));
+    const exportedSettlements = JSON.parse(backupZip.readAsText('data/settlements.json'));
     assert.strictEqual(exportedDb.events.length, 3);
     assert(Array.isArray(exportedConfig.tickers));
+    assert.deepStrictEqual(exportedSettlements, { version: 1, records: [] });
 
     response = await request(server, 'POST', '/api/settings/tickers', {
       tickers: [{ ticker: 'AAPL' }]

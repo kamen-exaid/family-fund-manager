@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let operationPanelResizeAnimation = null;
   let operationPanelResizeCleanupTimer = null;
   let benchmarkRefreshToken = 0;
+  let hasPromptedGpSetup = false;
 
   const modalTriggers = new WeakMap();
 
@@ -187,11 +188,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnTabTx = document.getElementById('tab-btn-tx');
   const btnTabVal = document.getElementById('tab-btn-val');
   const btnTabTf = document.getElementById('tab-btn-tf');
+  const btnTabSettle = document.getElementById('tab-btn-settle');
   const operationTabs = document.querySelector('.operation-tabs');
   const operationPanel = document.querySelector('.operations-panel');
   const formTransaction = document.getElementById('form-transaction');
   const formValuation = document.getElementById('form-valuation');
   const formTransfer = document.getElementById('form-transfer');
+  const formSettlement = document.getElementById('form-settlement');
 
   // Form elements
   const txAmount = document.getElementById('tx-amount');
@@ -209,6 +212,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const tfCnhDisplay = document.getElementById('tf-cnh-display');
   const tfDate = document.getElementById('tf-date');
   const tfRemark = document.getElementById('tf-remark');
+  const settleGp = document.getElementById('settle-gp');
+  const settleDate = document.getElementById('settle-date');
+  const settleRemark = document.getElementById('settle-remark');
+  const btnPreviewSettlement = document.getElementById('btn-preview-settlement');
+  const btnConfirmSettlement = document.getElementById('btn-confirm-settlement');
+  const btnReverseSettlement = document.getElementById('btn-reverse-settlement');
+  const settlementPreviewModal = document.getElementById('settlement-preview-modal');
+  const btnCloseSettlementPreview = document.getElementById('btn-close-settlement-preview');
+  const btnCancelSettlement = document.getElementById('btn-cancel-settlement');
+  const settlementPreviewSubtitle = document.getElementById('settlement-preview-subtitle');
+  const settlementPreviewSummary = document.getElementById('settlement-preview-summary');
+  const settlementPreviewBody = document.getElementById('settlement-preview-body');
+  let pendingSettlement = null;
+
+  // Fund Governance Principles Modal
+  const principlesModal = document.getElementById('principles-modal');
+  const btnClosePrinciplesModal = document.getElementById('btn-close-principles-modal');
 
   // Ledger Filter & Body
   const filterType = document.getElementById('filter-type');
@@ -249,6 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const formAddMember = document.getElementById('form-add-member');
   const newMemberName = document.getElementById('new-member-name');
   const elMembersEditList = document.getElementById('members-edit-list');
+  const gpSetupWarning = document.getElementById('gp-setup-warning');
 
   // Ticker Config Modal
   const btnConfigTickers = document.getElementById('btn-config-tickers');
@@ -319,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
     operationPanel.style.removeProperty('overflow');
 
     activateSegmentOption(operationTabs, activeButton);
-    [formTransaction, formValuation, formTransfer].forEach(form => {
+    [formTransaction, formValuation, formTransfer, formSettlement].forEach(form => {
       form.classList.toggle('active', form === activeForm);
     });
     onActivate?.();
@@ -414,6 +435,7 @@ document.addEventListener('DOMContentLoaded', () => {
     txDate.value = today;
     valDate.value = today;
     if (tfDate) tfDate.value = today;
+    if (settleDate) settleDate.value = today;
   }
 
   // --- 事件绑定模块 ---
@@ -425,9 +447,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const openBackupPanel = () => openModal(backupModal);
 
     bindAccessibleModal(backupModal, btnCloseModal);
+    bindAccessibleModal(principlesModal, btnClosePrinciplesModal);
     bindAccessibleModal(memberModal, btnCloseMemberModal);
     bindAccessibleModal(editEventModal, btnCloseEditModal);
     bindAccessibleModal(tickerConfigModal, btnCloseTickerConfigModal);
+    bindAccessibleModal(settlementPreviewModal, btnCloseSettlementPreview);
+    btnCancelSettlement?.addEventListener('click', () => closeModal(settlementPreviewModal));
     document.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
       const activeModals = [...document.querySelectorAll('.modal-overlay.active')];
@@ -440,6 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-sidebar-action]').forEach((button) => {
       button.addEventListener('click', () => {
         const action = button.dataset.sidebarAction;
+        if (action === 'principles') openModal(principlesModal, button);
         if (action === 'members') openMembersPanel();
         if (action === 'backup') openBackupPanel();
       });
@@ -637,6 +663,92 @@ document.addEventListener('DOMContentLoaded', () => {
         tfRate.value = rateVal.toFixed(4);
         updateTfCnhDisplay();
       });
+    });
+
+    btnTabSettle.addEventListener('click', () => switchOperationView(btnTabSettle, formSettlement));
+
+    btnReverseSettlement.addEventListener('click', async () => {
+      if (!confirm('确定撤销最近一次有效业绩结算吗？系统会保留原结算并追加冲销记录，相关账期将重新开放。')) return;
+      btnReverseSettlement.disabled = true;
+      try {
+        const result = await Api.reverseLatestSettlement('管理员撤销最近一次业绩结算');
+        showToast(result.message, 'success');
+        await loadAllData();
+      } catch (error) {
+        showToast(error.message, 'error');
+      } finally {
+        btnReverseSettlement.disabled = false;
+      }
+    });
+
+    const settlementPayload = () => ({ gpMember: settleGp.value, date: settleDate.value, remark: settleRemark.value.trim() });
+    const invalidateSettlementPreview = () => {
+      pendingSettlement = null;
+      closeModal(settlementPreviewModal);
+    };
+    [settleGp, settleDate, settleRemark].forEach(element => element.addEventListener('input', invalidateSettlementPreview));
+    btnPreviewSettlement.addEventListener('click', async () => {
+      try {
+        pendingSettlement = settlementPayload();
+        const preview = await Api.previewSettlement(pendingSettlement);
+        const rows = preview.breakdown.map(item => {
+          const name = membersList.find(member => member.id === item.member)?.name || item.member;
+          const lotRows = (item.lots || []).map((lot, index) => {
+            const sourceLabel = lot.sourceType === 'transfer_in'
+              ? '转让取得'
+              : lot.sourceType === 'settlement_reset'
+                ? '上次结算基准'
+                : '现金入金';
+            return `
+            <tr>
+              <td><span style="color:var(--color-text-muted)">↳ 批次 ${index + 1} · ${sourceLabel}</span></td>
+              <td>${escapeHtml(lot.startDate)}</td>
+              <td class="privacy-sensitive">$${formatMoney(lot.basis)}</td>
+              <td class="privacy-sensitive">${lot.entryNav.toFixed(4)}</td>
+              <td class="privacy-sensitive">${lot.shares.toFixed(6)}</td>
+              <td>${lot.holdingDays}天</td>
+              <td class="privacy-sensitive">$${formatMoney(lot.currentValue)}</td>
+              <td class="privacy-sensitive">$${formatMoney(lot.hurdle)}</td>
+              <td class="privacy-sensitive ${lot.aboveHurdle >= 0 ? 'text-green' : 'text-magenta'}">${lot.aboveHurdle >= 0 ? '+' : '-'}$${formatMoney(Math.abs(lot.aboveHurdle))}</td>
+            </tr>`;
+          }).join('');
+          return `
+            <tr style="background:rgba(80,130,255,.08)">
+              <td colspan="6"><strong>${escapeHtml(name)}</strong><span style="margin-left:10px;color:var(--color-text-muted)">${item.lots?.length || 0}笔资金批次 · 结算后 ${item.sharesAfter.toFixed(6)}份</span></td>
+              <td class="privacy-sensitive"><strong>$${formatMoney(item.valueBefore)}</strong></td>
+              <td class="privacy-sensitive"><strong>$${formatMoney(item.hurdle)}</strong></td>
+              <td class="privacy-sensitive"><strong class="${item.excess > 0 ? 'text-green' : ''}">$${formatMoney(item.excess)}</strong><div style="font-size:.68rem;color:var(--color-text-muted)">25%报酬 $${formatMoney(item.fee)} · ${item.feeShares.toFixed(6)}份</div></td>
+            </tr>${lotRows}`;
+        }).join('');
+        const gpName = membersList.find(member => member.id === pendingSettlement.gpMember)?.name || '主GP';
+        settlementPreviewSubtitle.textContent = `${pendingSettlement.date} · 采用 ${preview.valuationDate} 估值 · GP：${gpName}`;
+        settlementPreviewSummary.innerHTML = [
+          ['结算单位净值', preview.navPerShare.toFixed(4)],
+          ['参与LP', `${preview.breakdown.length} 人`],
+          ['合计业绩报酬', `$${formatMoney(preview.totalFee)}`]
+        ].map(([label, value]) => `<div class="info-alert" style="display:block;margin:0"><div style="font-size:.7rem;color:var(--color-text-muted)">${label}</div><strong class="privacy-sensitive" style="display:block;font-size:1.15rem;margin-top:4px">${value}</strong></div>`).join('');
+        settlementPreviewBody.innerHTML = rows || '<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--color-text-muted)">结算日没有持有LP份额的成员</td></tr>';
+        openModal(settlementPreviewModal, btnPreviewSettlement);
+      } catch (error) {
+        invalidateSettlementPreview();
+        showToast(error.message, 'error');
+      }
+    });
+    btnConfirmSettlement.addEventListener('click', async () => {
+      if (!pendingSettlement) return;
+      btnConfirmSettlement.disabled = true;
+      await submitOnce(formSettlement, async () => {
+        try {
+          await Api.confirmSettlement(pendingSettlement);
+          closeModal(settlementPreviewModal);
+          showSubmissionSuccess('业绩结算已确认并锁账');
+          invalidateSettlementPreview();
+          await loadAllData();
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      });
+      btnConfirmSettlement.disabled = false;
     });
 
     // 划转表单金额及汇率联动
@@ -1260,6 +1372,12 @@ document.addEventListener('DOMContentLoaded', () => {
       renderMembersGrid();
       renderLedger();
       renderCharts();
+      if (!hasPromptedGpSetup && membersList.length && !membersList.some(member => member.primaryGp)) {
+        hasPromptedGpSetup = true;
+        renderMembersEditorList();
+        openModal(memberModal);
+        showToast('请先在成员设置中指定主GP；同一成员可以同时选择LP和GP。', 'warning');
+      }
     } catch (err) {
       showToast('获取系统账务状态失败: ' + err.message, 'error');
     }
@@ -1269,7 +1387,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function populateDynamicSelectors() {
     // 1. 出入金登记选择框
     const savedTxVal = elTxMember.value;
-    elTxMember.innerHTML = membersList.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`).join('');
+    const lpMembers = membersList.filter(member => member.roles?.lp !== false);
+    elTxMember.innerHTML = lpMembers.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`).join('');
     if (savedTxVal && membersList.some(m => m.id === savedTxVal)) {
       elTxMember.value = savedTxVal;
     }
@@ -1280,6 +1399,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const membersOptionsHtml = membersList.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`).join('');
     tfFromMember.innerHTML = membersOptionsHtml;
     tfToMember.innerHTML = membersOptionsHtml;
+    const gpMembers = membersList.filter(member => member.roles?.gp === true);
+    const savedGp = settleGp.value;
+    const settlementGps = gpMembers.filter(member => member.primaryGp);
+    settleGp.innerHTML = settlementGps.map(member => `<option value="${escapeHtml(member.id)}">${escapeHtml(member.name)}（主GP）</option>`).join('');
+    const primaryGp = gpMembers.find(member => member.primaryGp);
+    if (primaryGp) settleGp.value = primaryGp.id;
+    else if (savedGp && gpMembers.some(member => member.id === savedGp)) settleGp.value = savedGp;
     if (savedTfFromVal && membersList.some(m => m.id === savedTfFromVal)) {
       tfFromMember.value = savedTfFromVal;
     } else if (membersList.length > 0) {
@@ -1363,6 +1489,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 3. 家庭成员管理模态框列表渲染 (带 inline 修改与安全删除)
   function renderMembersEditorList() {
+    if (gpSetupWarning) gpSetupWarning.hidden = membersList.some(member => member.primaryGp);
     if (membersList.length === 0) {
       elMembersEditList.innerHTML = `
         <div style="text-align: center; color: var(--color-text-muted); padding: 20px; font-size: 0.8rem;">
@@ -1389,6 +1516,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="member-edit-avatar" style="background: ${cardColor}; color: ${cardTextColor};">${shortName}</div>
             <span class="member-edit-name" id="member-name-span-${m.id}" title="双击或点击右侧笔头重命名">${escapeHtml(m.name)}</span>
             <input type="text" class="input-rename" id="member-name-input-${m.id}" value="${escapeHtml(m.name)}" style="display: none;">
+            <span style="font-size:.7rem;margin-left:10px">LP</span>
+            <label style="font-size:.7rem;margin-left:6px"><input type="radio" name="primary-gp" id="member-primary-gp-${m.id}" ${m.primaryGp ? 'checked' : ''}> 兼任唯一GP</label>
           </div>
           <div class="member-edit-actions">
             <button class="btn-rename-save" id="btn-rename-edit-${m.id}" title="重命名成员" style="color: var(--color-cyan);">
@@ -1419,6 +1548,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const btnEdit = document.getElementById(`btn-rename-edit-${m.id}`);
       const btnSave = document.getElementById(`btn-rename-save-${m.id}`);
       const btnDel = document.getElementById(`btn-member-del-${m.id}`);
+      const primaryGp = document.getElementById(`member-primary-gp-${m.id}`);
+
+      const saveRoles = async () => {
+        try {
+          await Api.updateMemberRoles(m.id, { gp: true, primaryGp: true });
+          await loadAllData();
+          renderMembersEditorList();
+        } catch (error) {
+          showToast(error.message, 'error');
+          renderMembersEditorList();
+        }
+      };
+      primaryGp.addEventListener('change', saveRoles);
 
       const startEdit = () => {
         span.style.display = 'none';

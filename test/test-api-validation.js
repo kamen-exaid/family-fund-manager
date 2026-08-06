@@ -15,15 +15,28 @@ function makeApi() {
   }
 
   let writes = 0;
+  let settlementLedger = { version: 1, records: [] };
   const db = {
     cnhRate: 7.2,
-    members: [{ id: 'a', name: 'Alice' }, { id: 'b', name: 'Bob' }],
+    members: [
+      { id: 'a', name: 'Alice', roles: { lp: true, gp: false } },
+      { id: 'b', name: 'Bob', roles: { lp: false, gp: true } }
+    ],
+    performanceFee: { gpMemberId: 'b', annualRate: 0.06, feeRate: 0.25 },
     events: [{ id: 'deposit', type: 'deposit', member: 'a', amount: 100, cnhAmount: 720, date: '2026-01-10', createdAt: 1 }],
     indexCache: {}
   };
   registerApiRoutes(app, {
     readDb: () => clone(db),
     writeDb: value => { writes++; Object.assign(db, clone(value)); },
+    readSettlements: () => clone(settlementLedger),
+    writeSettlements: value => {
+      writes++;
+      settlementLedger = clone(value);
+      const reversed = new Set(settlementLedger.records.filter(item => item.type === 'performance_settlement_reversal').map(item => item.settlementId));
+      db.events = db.events.filter(item => item.type !== 'performance_settlement' && item.type !== 'performance_settlement_reversal');
+      db.events.push(...settlementLedger.records.filter(item => item.type === 'performance_settlement' && !reversed.has(item.id)));
+    },
     getState: () => calculateStateFromDb(clone(db)),
     readConfig: () => ({ tickers: [] }),
     writeConfig: () => {},
@@ -56,6 +69,9 @@ async function request(handler, body) {
   const transfer = api.routes['post:/api/transfer'];
   const valuation = api.routes['post:/api/valuation'];
   const settings = api.routes['post:/api/settings'];
+  const previewSettlement = api.routes['post:/api/performance-settlement/preview'];
+  const confirmSettlement = api.routes['post:/api/performance-settlement'];
+  const reverseSettlement = api.routes['post:/api/performance-settlement/reverse-latest'];
 
   const zeroValuation = await request(valuation, {
     totalNAV: 0, date: '2026-01-11'
@@ -101,6 +117,38 @@ async function request(handler, body) {
   const validPolicy = await request(settings, { benchmarkClosePolicy: 'same_day' });
   assert.strictEqual(validPolicy.status, 200);
   assert.strictEqual(api.getWrites(), 1);
+
+  const settlementValuation = await request(valuation, { totalNAV: 120, date: '2026-01-11' });
+  assert.strictEqual(settlementValuation.status, 200);
+  const preview = await request(previewSettlement, { gpMember: 'b', date: '2026-01-11' });
+  assert.strictEqual(preview.status, 200);
+  assert(preview.body.data.totalFee > 0);
+  const confirmed = await request(confirmSettlement, { gpMember: 'b', date: '2026-01-11' });
+  assert.strictEqual(confirmed.status, 200);
+  const lockedMutation = await request(transaction, {
+    member: 'a', type: 'deposit', amount: 1, date: '2026-01-11'
+  });
+  assert.strictEqual(lockedMutation.status, 409);
+  const reversed = await request(reverseSettlement, { remark: 'test reversal' });
+  assert.strictEqual(reversed.status, 200);
+  const unlockedMutation = await request(transaction, {
+    member: 'a', type: 'deposit', amount: 1, date: '2026-01-11'
+  });
+  assert.strictEqual(unlockedMutation.status, 200);
+
+  // Later cash flows must not prevent a historical year-end settlement. The
+  // replay engine naturally excludes members whose first deposit is later.
+  const laterCashFlowApi = makeApi();
+  const laterValuation = laterCashFlowApi.routes['post:/api/valuation'];
+  const laterTransaction = laterCashFlowApi.routes['post:/api/transaction'];
+  const historicalPreview = laterCashFlowApi.routes['post:/api/performance-settlement/preview'];
+  assert.strictEqual((await request(laterValuation, { totalNAV: 120, date: '2026-01-10' })).status, 200);
+  assert.strictEqual((await request(laterTransaction, {
+    member: 'a', type: 'deposit', amount: 10, date: '2026-02-01'
+  })).status, 200);
+  assert.strictEqual((await request(historicalPreview, {
+    gpMember: 'b', date: '2026-01-15'
+  })).status, 200);
 
   console.log('API validation regression tests passed.');
 })().catch(error => {

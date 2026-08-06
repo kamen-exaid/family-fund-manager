@@ -14,7 +14,7 @@ controlClasses.forEach(className => {
   const tag = html.match(new RegExp(`<[^>]+class="[^"]*\\b${className}\\b[^"]*"[^>]*>`));
   assert(tag, `${className} control is missing`);
   assert(/\bsegmented-control\b/.test(tag[0]), `${className} must use the shared segmented control`);
-  assert(/\bsegmented-control--(?:2|3|6)\b/.test(tag[0]), `${className} must declare its segment count`);
+  assert(/\bsegmented-control--(?:2|3|4|6)\b/.test(tag[0]), `${className} must declare its segment count`);
 });
 
 buttonClasses.forEach(className => {

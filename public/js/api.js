@@ -54,9 +54,13 @@ const Api = {
   async getMembers() { return (await requestApi('/api/members')).data; },
   async addMember(name) { return (await jsonRequest('/api/members', 'POST', { name })).data; },
   async updateMember(id, name) { return jsonRequest(`/api/members/${id}`, 'PUT', { name }); },
+  async updateMemberRoles(id, roles) { return jsonRequest(`/api/members/${id}/roles`, 'PUT', roles); },
   async deleteMember(id) { return (await requestApi(`/api/members/${id}`, { method: 'DELETE' })).data; },
   async syncCnhRate() { return (await requestApi('/api/settings/sync-rate', { method: 'POST' })).cnhRate; },
   async addTransfer(data) { return jsonRequest('/api/transfer', 'POST', data); },
+  async previewSettlement(data) { return (await jsonRequest('/api/performance-settlement/preview', 'POST', data)).data; },
+  async confirmSettlement(data) { return jsonRequest('/api/performance-settlement', 'POST', data); },
+  async reverseLatestSettlement(remark) { return jsonRequest('/api/performance-settlement/reverse-latest', 'POST', { remark }); },
   async getTickerAth() {
     return (await requestApi('/api/ticker-ath', { cache: 'no-store' })).data;
   },

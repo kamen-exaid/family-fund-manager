@@ -40,12 +40,32 @@ let _stateCache = null;    // calculateState() 结果缓存
 let _stateDirty = true;    // 脏标记：数据变更后标记缓存失效
 
 function readDb() {
-  return storage.readDb();
+  const db = storage.readDb();
+  let settlementLedger = storage.readSettlements();
+  const legacy = db.events.filter(event => event.type === 'performance_settlement');
+  if (legacy.length && settlementLedger.records.length === 0) {
+    settlementLedger = { version: 1, records: legacy };
+    storage.writeSettlements(settlementLedger);
+    db.events = db.events.filter(event => event.type !== 'performance_settlement');
+    storage.writeDb(db);
+  }
+  const reversed = new Set(settlementLedger.records
+    .filter(record => record.type === 'performance_settlement_reversal')
+    .map(record => record.settlementId));
+  const settlementEvents = settlementLedger.records.filter(record =>
+    record.type === 'performance_settlement_reversal' ||
+    (record.type === 'performance_settlement' && !reversed.has(record.id))
+  );
+  return { ...db, events: [...db.events, ...settlementEvents] };
 }
 
 function writeDb(dbData) {
   try {
-    storage.writeDb(dbData);
+    storage.writeDb({
+      ...dbData,
+      events: dbData.events.filter(event =>
+        event.type !== 'performance_settlement' && event.type !== 'performance_settlement_reversal')
+    });
     _stateCache = null;
     _stateDirty = true;
   } catch (error) {
@@ -54,6 +74,16 @@ function writeDb(dbData) {
     _stateDirty = true;
     throw error;
   }
+}
+
+function readSettlements() {
+  return storage.readSettlements();
+}
+
+function writeSettlements(data) {
+  storage.writeSettlements(data);
+  _stateCache = null;
+  _stateDirty = true;
 }
 
 // 获取全局计算状态（优化：带缓存，仅在数据变更后重新计算）
@@ -182,6 +212,8 @@ const { registerApiRoutes } = require('./routes/api');
 registerApiRoutes(app, {
   readDb,
   writeDb,
+  readSettlements,
+  writeSettlements,
   getState,
   readConfig,
   writeConfig,

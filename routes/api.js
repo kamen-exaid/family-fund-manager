@@ -5,6 +5,8 @@ function registerApiRoutes(app, deps) {
   const {
     readDb,
     writeDb,
+    readSettlements = () => ({ version: 1, records: [] }),
+    writeSettlements = () => {},
     getState,
     readConfig,
     writeConfig,
@@ -44,8 +46,13 @@ function registerApiRoutes(app, deps) {
 
     const insufficientBalance = validationState.events.find(event =>
       (event.type === 'withdraw' || event.type === 'transfer') &&
-      event._actualAmount + BALANCE_TOLERANCE < event.amount
+      (event._grossAmount ?? event._actualAmount) + BALANCE_TOLERANCE < event.amount
     );
+    const unpaidFee = validationState.events.find(event =>
+      (event.type === 'withdraw' || event.type === 'transfer') &&
+      (event._unpaidPerformanceFeeShares || 0) > BALANCE_TOLERANCE
+    );
+    if (unpaidFee) return { type: 'performance_fee_balance', event: unpaidFee };
     return insufficientBalance ? { type: 'insufficient_balance', event: insufficientBalance } : null;
   }
 
@@ -57,10 +64,30 @@ function registerApiRoutes(app, deps) {
         message: `估值日期 ${event.date} 当时尚无基金份额，请先在该日期之前录入首次入金。`
       });
     }
+    if (issue.type === 'performance_fee_balance') {
+      return res.status(400).json({
+        success: false,
+        message: `${event.date} 的${event.type === 'withdraw' ? '出金' : '转让'}需要额外结算业绩报酬，但LP剩余份额不足。请降低金额后重试。`
+      });
+    }
     return res.status(400).json({
       success: false,
       message: `操作会导致历史${event.type === 'withdraw' ? '出金' : '转让'}余额不足：${event.date} 的记录要求 $${event.amount.toFixed(2)}，实际仅可结算 $${event._actualAmount.toFixed(2)}。`
     });
+  }
+  function latestSettlementDate(db) {
+    return db.events.filter(event => event.type === 'performance_settlement')
+      .map(event => event.date).sort().at(-1) || null;
+  }
+
+  function rejectLockedPeriod(res, db, date) {
+    const lockedThrough = latestSettlementDate(db);
+    if (!lockedThrough || date > lockedThrough) return false;
+    res.status(409).json({
+      success: false,
+      message: `账目已结算锁定至 ${lockedThrough}，不能变更该日期以前的记录。`
+    });
+    return true;
   }
 app.get('/api/state', (req, res) => {
   try {
@@ -243,10 +270,14 @@ app.post('/api/transaction', (req, res) => {
   try {
     const { member, type, amount, cnhAmount, date, remark } = req.body;
     const db = readDb();
+    if (date && rejectLockedPeriod(res, db, date)) return;
 
     const memberObj = db.members.find(m => m.id === member);
     if (!memberObj) {
       return res.status(400).json({ success: false, message: '无效的家庭成员' });
+    }
+    if (memberObj.roles?.lp === false) {
+      return res.status(400).json({ success: false, message: '只有具有LP身份的成员可以登记出入金。' });
     }
     if (!['deposit', 'withdraw'].includes(type)) {
       return res.status(400).json({ success: false, message: '交易类型必须为入金(deposit)或出金(withdraw)' });
@@ -273,6 +304,7 @@ app.post('/api/transaction', (req, res) => {
 
     // 如果是出金，先做一轮预演算，检查出金人当前份额换算成的资产是否足够
     // [Fix #5] 使用带缓存的 getState() 而非直接调用 calculateState()，避免不必要的重算
+    let fullExit = false;
     if (type === 'withdraw') {
       const state = getState();
       const memberState = state.members[member];
@@ -283,6 +315,7 @@ app.post('/api/transaction', (req, res) => {
           message: `余额不足！${memberObj.name}当前资产为 $${memberValue.toFixed(2)}，无法提取 $${parsedAmount.toFixed(2)}`
         });
       }
+      fullExit = Math.abs(parsedAmount - memberValue) <= Math.max(BALANCE_TOLERANCE, memberValue * 1e-10);
     }
 
     if (!isValidDate(date)) {
@@ -304,10 +337,20 @@ app.post('/api/transaction', (req, res) => {
       remark: normalizedRemark,
       createdAt: Date.now()
     };
+    if (fullExit) newEvent.fullExit = true;
+    if (type === 'withdraw' && db.performanceFee?.gpMemberId) {
+      newEvent.performanceFee = { gpMember: db.performanceFee.gpMemberId, annualRate: 0.06, feeRate: 0.25 };
+    }
 
     db.events.push(newEvent);
     const ledgerIssue = findLedgerIssue(db);
     if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
+    if (newEvent.fullExit) {
+      const computedEvent = calculateStateFromDb(JSON.parse(JSON.stringify(db))).events.find(event => event.id === newEvent.id);
+      newEvent.requestedGrossAmount = parsedAmount;
+      newEvent.amount = computedEvent._actualAmount;
+      newEvent.cnhAmount = computedEvent._cnhAmountComputed;
+    }
     writeDb(db);
 
     // 静默后台触发指数同步
@@ -337,6 +380,7 @@ app.post('/api/valuation', (req, res) => {
     if (!isValidDate(date)) {
       return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
     }
+    if (rejectLockedPeriod(res, db, date)) return;
     let normalizedRemark;
     try {
       normalizedRemark = normalizeRemark(remark, '定期净值估值更新');
@@ -371,6 +415,7 @@ app.post('/api/transfer', (req, res) => {
   try {
     const { fromMember, toMember, amount, cnhRate, date, remark } = req.body;
     const db = readDb();
+    if (date && rejectLockedPeriod(res, db, date)) return;
 
     if (fromMember === toMember) {
       return res.status(400).json({ success: false, message: '出让方与受让方不能为同一成员' });
@@ -380,6 +425,9 @@ app.post('/api/transfer', (req, res) => {
     const toObj = db.members.find(m => m.id === toMember);
     if (!fromObj || !toObj) {
       return res.status(400).json({ success: false, message: '无效的转让成员' });
+    }
+    if (fromObj.roles?.lp === false || toObj.roles?.lp === false) {
+      return res.status(400).json({ success: false, message: '普通投资份额只能在LP成员之间转让。' });
     }
 
     const parsedAmount = toFiniteNumber(amount);
@@ -407,6 +455,7 @@ app.post('/api/transfer', (req, res) => {
         message: `出让方余额不足！${fromObj.name}当前资产为 $${fromValue.toFixed(2)}，无法划转 $${parsedAmount.toFixed(2)}`
       });
     }
+    const fullExit = Math.abs(parsedAmount - fromValue) <= Math.max(BALANCE_TOLERANCE, fromValue * 1e-10);
 
     if (!isValidDate(date)) {
       return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
@@ -429,10 +478,20 @@ app.post('/api/transfer', (req, res) => {
       remark: normalizedRemark,
       createdAt: Date.now()
     };
+    if (fullExit) newEvent.fullExit = true;
+    if (db.performanceFee?.gpMemberId) {
+      newEvent.performanceFee = { gpMember: db.performanceFee.gpMemberId, annualRate: 0.06, feeRate: 0.25 };
+    }
 
     db.events.push(newEvent);
     const ledgerIssue = findLedgerIssue(db);
     if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
+    if (newEvent.fullExit) {
+      const computedEvent = calculateStateFromDb(JSON.parse(JSON.stringify(db))).events.find(event => event.id === newEvent.id);
+      newEvent.requestedGrossAmount = parsedAmount;
+      newEvent.amount = computedEvent._actualAmount;
+      newEvent.cnhAmount = computedEvent._cnhAmountComputed;
+    }
     writeDb(db);
 
     // 静默后台触发指数同步
@@ -441,6 +500,94 @@ app.post('/api/transfer', (req, res) => {
     res.json({ success: true, message: '内部份额转让登记成功', data: newEvent });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+function buildSettlementPreview(db, body) {
+  const gpMember = db.performanceFee?.gpMemberId;
+  const { date } = body;
+  if (!isValidDate(date)) throw new Error('结算日期必须是有效的 YYYY-MM-DD。');
+  const gp = db.members.find(member => member.id === gpMember);
+  if (!gp || gp.roles?.gp !== true) throw new Error('请先在成员设置中指定GP。');
+  if (db.events.some(event => event.type === 'performance_settlement' && event.date === date)) {
+    throw new Error('该日期已经完成过业绩结算。');
+  }
+  const valuationDate = db.events
+    .filter(event => event.type === 'valuation' && event.date <= date)
+    .map(event => event.date).sort().at(-1);
+  if (!valuationDate) throw new Error('结算日以前没有可用的基金估值。');
+  const previewDb = JSON.parse(JSON.stringify(db));
+  const event = {
+    id: 'preview_settlement', type: 'performance_settlement', date, gpMember,
+    lpMembers: db.members.map(member => member.id),
+    annualRate: 0.06, feeRate: 0.25, remark: body.remark || '年度业绩结算',
+    createdAt: Number.MAX_SAFE_INTEGER
+  };
+  previewDb.events.push(event);
+  const state = calculateStateFromDb(previewDb);
+  const computed = state.events.find(item => item.id === event.id);
+  return { event, breakdown: computed._breakdown, totalFee: computed._totalFee, feeShares: computed._feeShares, navPerShare: computed._navAtTx, valuationDate };
+}
+
+app.post('/api/performance-settlement/preview', (req, res) => {
+  try {
+    res.json({ success: true, data: buildSettlementPreview(readDb(), req.body || {}) });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/performance-settlement', (req, res) => {
+  try {
+    const db = readDb();
+    const preview = buildSettlementPreview(db, req.body || {});
+    const event = { ...preview.event, id: 'settle_' + randomUUID(), createdAt: Date.now() };
+    db.events.push(event);
+    const savedState = calculateStateFromDb(JSON.parse(JSON.stringify(db)));
+    const saved = savedState.events.find(item => item.id === event.id);
+    event.snapshot = { breakdown: saved._breakdown, totalFee: saved._totalFee, feeShares: saved._feeShares, navPerShare: saved._navAtTx };
+    const ledgerIssue = findLedgerIssue(db);
+    if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
+    const ledger = readSettlements();
+    ledger.records.push(event);
+    writeSettlements(ledger);
+    res.json({ success: true, message: '业绩结算已确认，历史账期已锁定。', data: event });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/performance-settlement/reverse-latest', (req, res) => {
+  try {
+    const ledger = readSettlements();
+    const reversedIds = new Set(ledger.records
+      .filter(record => record.type === 'performance_settlement_reversal')
+      .map(record => record.settlementId));
+    const latest = ledger.records
+      .filter(record => record.type === 'performance_settlement' && !reversedIds.has(record.id))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt)
+      .at(-1);
+    if (!latest) return res.status(404).json({ success: false, message: '当前没有可以撤销的有效结算。' });
+
+    const projectedDb = readDb();
+    projectedDb.events = projectedDb.events.filter(event => event.id !== latest.id);
+    const issue = findLedgerIssue(projectedDb);
+    if (issue) return rejectLedgerIssue(res, issue);
+
+    const reversal = {
+      id: 'settle_reversal_' + randomUUID(),
+      type: 'performance_settlement_reversal',
+      settlementId: latest.id,
+      settlementDate: latest.date,
+      date: getNow().toISOString().slice(0, 10),
+      remark: normalizeRemark(req.body?.remark, '撤销最近一次业绩结算'),
+      createdAt: Date.now()
+    };
+    ledger.records.push(reversal);
+    writeSettlements(ledger);
+    res.json({ success: true, message: `已冲销 ${latest.date} 的业绩结算并解除相应锁账。`, data: reversal });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
   }
 });
 
@@ -454,6 +601,10 @@ app.delete('/api/event/:id', (req, res) => {
     if (index === -1) {
       return res.status(404).json({ success: false, message: '未找到该条记录' });
     }
+    if (db.events[index].type === 'performance_settlement') {
+      return res.status(409).json({ success: false, message: '已确认的业绩结算不可直接删除。' });
+    }
+    if (rejectLockedPeriod(res, db, db.events[index].date)) return;
 
     const removedEvent = db.events.splice(index, 1)[0];
     const ledgerIssue = findLedgerIssue(db);
@@ -480,6 +631,10 @@ app.put('/api/event/:id', (req, res) => {
     if (!event) {
       return res.status(404).json({ success: false, message: '未找到该条记录' });
     }
+    if (event.type === 'performance_settlement') {
+      return res.status(409).json({ success: false, message: '已确认的业绩结算不可直接修改。' });
+    }
+    if (rejectLockedPeriod(res, db, event.date)) return;
 
     if (event.type === 'deposit' || event.type === 'withdraw') {
       const { member, amount, cnhAmount, date, remark } = req.body;
@@ -525,7 +680,7 @@ app.put('/api/event/:id', (req, res) => {
         const validationDb = JSON.parse(JSON.stringify(db));
         const validationState = calculateStateFromDb(validationDb);
         const validationEvent = validationState.events.find(e => e.id === eventId);
-        const actualAmount = validationEvent ? (validationEvent._actualAmount || 0) : 0;
+        const actualAmount = validationEvent ? (validationEvent._grossAmount ?? validationEvent._actualAmount ?? 0) : 0;
         if (actualAmount + 0.000001 < event.amount) {
           return res.status(400).json({
             success: false,
@@ -610,7 +765,7 @@ app.put('/api/event/:id', (req, res) => {
       const validationDb = JSON.parse(JSON.stringify(db));
       const validationState = calculateStateFromDb(validationDb);
       const validationEvent = validationState.events.find(e => e.id === eventId);
-      const actualAmount = validationEvent ? (validationEvent._actualAmount || 0) : 0;
+      const actualAmount = validationEvent ? (validationEvent._grossAmount ?? validationEvent._actualAmount ?? 0) : 0;
       if (actualAmount + 0.000001 < event.amount) {
         return res.status(400).json({
           success: false,
@@ -732,9 +887,16 @@ app.get('/api/backup/export', (req, res) => {
   try {
     const db = readDb();
     const config = readConfig();
+    const settlements = readSettlements();
     const zip = new AdmZip();
-    zip.addFile('data/db.json', Buffer.from(JSON.stringify(db, null, 2), 'utf8'));
+    const baseDb = {
+      ...db,
+      events: db.events.filter(event =>
+        event.type !== 'performance_settlement' && event.type !== 'performance_settlement_reversal')
+    };
+    zip.addFile('data/db.json', Buffer.from(JSON.stringify(baseDb, null, 2), 'utf8'));
     zip.addFile('data/config.json', Buffer.from(JSON.stringify(config, null, 2), 'utf8'));
+    zip.addFile('data/settlements.json', Buffer.from(JSON.stringify(settlements, null, 2), 'utf8'));
 
     const date = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'application/zip');
@@ -784,30 +946,43 @@ app.post('/api/backup/import', express.raw({
 
     const dbEntry = zip.getEntry('data/db.json') || zip.getEntry('db.json');
     const configEntry = zip.getEntry('data/config.json') || zip.getEntry('config.json');
+    const settlementsEntry = zip.getEntry('data/settlements.json') || zip.getEntry('settlements.json');
     if (!dbEntry || !configEntry || dbEntry.isDirectory || configEntry.isDirectory) {
       return res.status(400).json({ success: false, message: 'ZIP 中必须包含 data/db.json 和 data/config.json。' });
     }
-    const totalUncompressedSize = Number(dbEntry.header.size) + Number(configEntry.header.size);
+    const totalUncompressedSize = Number(dbEntry.header.size) + Number(configEntry.header.size) +
+      (settlementsEntry ? Number(settlementsEntry.header.size) : 0);
     if (!Number.isFinite(totalUncompressedSize) || totalUncompressedSize > 10 * 1024 * 1024) {
       return res.status(400).json({ success: false, message: 'ZIP 内的数据文件过大（最大 10MB）。' });
     }
 
     let backupDb;
     let backupConfig;
+    let backupSettlements = { version: 1, records: [] };
     try {
       backupDb = JSON.parse(dbEntry.getData().toString('utf8'));
       backupConfig = JSON.parse(configEntry.getData().toString('utf8'));
+      if (settlementsEntry && !settlementsEntry.isDirectory) {
+        backupSettlements = JSON.parse(settlementsEntry.getData().toString('utf8'));
+      }
     } catch (_) {
       return res.status(400).json({ success: false, message: 'ZIP 中的 JSON 数据损坏或无法解析。' });
     }
 
-    const { events, members, cnhRate, indexCache, benchmarkClosePolicy } = backupDb || {};
+    const { events, members, cnhRate, indexCache, benchmarkClosePolicy, performanceFee } = backupDb || {};
     if (!Array.isArray(events)) {
       return res.status(400).json({ success: false, message: '导入的数据格式不正确，缺少 events 数组' });
     }
+    if (!settlementsEntry) {
+      backupSettlements = {
+        version: 1,
+        records: events.filter(event =>
+          event.type === 'performance_settlement' || event.type === 'performance_settlement_reversal')
+      };
+    }
 
     // [Fix #2] 深度格式校验：类型白名单、数量上限、字段合法性
-    const VALID_EVENT_TYPES = ['deposit', 'withdraw', 'valuation', 'transfer'];
+    const VALID_EVENT_TYPES = ['deposit', 'withdraw', 'valuation', 'transfer', 'performance_settlement', 'performance_settlement_reversal'];
     const currentDb = readDb();
     const importedMembers = Array.isArray(members) ? members : currentDb.members;
     if (!Array.isArray(importedMembers) || importedMembers.length < 1 || importedMembers.length > 100) {
@@ -865,6 +1040,14 @@ app.post('/api/backup/import', express.raw({
            (e.cnhRate !== undefined && (typeof e.cnhRate !== 'number' || e.cnhRate <= 0 || !isFinite(e.cnhRate))))) {
         return res.status(400).json({ success: false, message: 'A transfer contains invalid member references or exchange rate.' });
       }
+      if ((e.type === 'withdraw' || e.type === 'transfer') && e.performanceFee &&
+          (!memberIds.has(e.performanceFee.gpMember) || e.performanceFee.annualRate !== 0.06 || e.performanceFee.feeRate !== 0.25)) {
+        return res.status(400).json({ success: false, message: '部分退出记录包含无效的业绩结算参数快照。' });
+      }
+      if (e.type === 'performance_settlement' &&
+          (!memberIds.has(e.gpMember) || e.annualRate !== 0.06 || e.feeRate !== 0.25)) {
+        return res.status(400).json({ success: false, message: '业绩结算记录包含无效的GP或费率参数。' });
+      }
     }
 
     let importedCnhRate = currentDb.cnhRate;
@@ -876,12 +1059,26 @@ app.post('/api/backup/import', express.raw({
     }
 
     const db = {
-      members: importedMembers.map(member => ({ id: member.id, name: member.name.trim() })),
-      events,
+      members: importedMembers.map(member => ({
+        id: member.id,
+        name: member.name.trim(),
+        roles: {
+          lp: true,
+          gp: member.id === performanceFee?.gpMemberId
+        }
+      })),
+      events: events.filter(event =>
+        event.type !== 'performance_settlement' && event.type !== 'performance_settlement_reversal'),
       cnhRate: importedCnhRate,
       benchmarkClosePolicy: ['previous', 'same_day'].includes(benchmarkClosePolicy)
         ? benchmarkClosePolicy
         : (currentDb.benchmarkClosePolicy || 'previous'),
+      performanceFee: {
+        gpMemberId: importedMembers.some(member => member.id === performanceFee?.gpMemberId && member.roles?.gp === true)
+          ? performanceFee.gpMemberId : null,
+        annualRate: 0.06,
+        feeRate: 0.25
+      },
       indexCache: (indexCache && typeof indexCache === 'object' && !Array.isArray(indexCache))
         ? indexCache
         : (currentDb.indexCache || {})
@@ -891,6 +1088,26 @@ app.post('/api/backup/import', express.raw({
 
     if (!backupConfig || !Array.isArray(backupConfig.tickers) || backupConfig.tickers.length < 1) {
       return res.status(400).json({ success: false, message: '备份中的标的配置无效（至少需要 1 个标的）。' });
+    }
+    if (backupSettlements?.version !== 1 || !Array.isArray(backupSettlements.records)) {
+      return res.status(400).json({ success: false, message: '备份中的独立结算账本格式无效。' });
+    }
+    const settlementIds = new Set();
+    for (const record of backupSettlements.records) {
+      if (!record || typeof record.id !== 'string' || settlementIds.has(record.id) ||
+          !['performance_settlement', 'performance_settlement_reversal'].includes(record.type) ||
+          !isValidDate(record.date) || !Number.isFinite(record.createdAt)) {
+        return res.status(400).json({ success: false, message: '独立结算账本包含无效或重复记录。' });
+      }
+      if (record.type === 'performance_settlement' &&
+          (!memberIds.has(record.gpMember) || record.annualRate !== 0.06 || record.feeRate !== 0.25)) {
+        return res.status(400).json({ success: false, message: '独立结算账本包含无效的结算参数。' });
+      }
+      if (record.type === 'performance_settlement_reversal' &&
+          (typeof record.settlementId !== 'string' || !backupSettlements.records.some(item => item.id === record.settlementId && item.type === 'performance_settlement'))) {
+        return res.status(400).json({ success: false, message: '独立结算账本包含无效的冲销引用。' });
+      }
+      settlementIds.add(record.id);
     }
     const importedTickers = [];
     for (const item of backupConfig.tickers) {
@@ -905,6 +1122,7 @@ app.post('/api/backup/import', express.raw({
     }
 
     writeSnapshot(db, { tickers: importedTickers });
+    writeSettlements(backupSettlements);
     void queueTickerRefresh({ tickers: importedTickers });
 
     // 批量导入触发指数同步
@@ -924,7 +1142,14 @@ app.post('/api/backup/import', express.raw({
 app.get('/api/members', (req, res) => {
   try {
     const db = readDb();
-    res.json({ success: true, data: db.members });
+    res.json({
+      success: true,
+      data: db.members.map(member => ({
+        ...member,
+        roles: member.roles || { lp: true, gp: false },
+        primaryGp: db.performanceFee?.gpMemberId === member.id
+      }))
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -948,7 +1173,8 @@ app.post('/api/members', (req, res) => {
 
     const newMember = {
       id: 'mem_' + randomUUID(),
-      name: trimmedName
+      name: trimmedName,
+      roles: { lp: true, gp: false }
     };
     db.members.push(newMember);
     writeDb(db);
@@ -990,6 +1216,26 @@ app.put('/api/members/:id', (req, res) => {
   }
 });
 
+app.put('/api/members/:id/roles', (req, res) => {
+  try {
+    const db = readDb();
+    const member = db.members.find(item => item.id === req.params.id);
+    if (!member) return res.status(404).json({ success: false, message: '未找到该家庭成员' });
+    db.performanceFee ||= { gpMemberId: null, annualRate: 0.06, feeRate: 0.25 };
+    if (req.body?.gp !== true && req.body?.primaryGp !== true) {
+      return res.status(400).json({ success: false, message: '系统必须指定且只能指定一位GP。' });
+    }
+    db.performanceFee.gpMemberId = member.id;
+    db.members.forEach(item => {
+      item.roles = { lp: true, gp: db.performanceFee.gpMemberId === item.id };
+    });
+    writeDb(db);
+    res.json({ success: true, message: '唯一GP已更新。' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // 删除成员（包含出资安全过滤）
 app.delete('/api/members/:id', (req, res) => {
   try {
@@ -1003,7 +1249,9 @@ app.delete('/api/members/:id', (req, res) => {
 
     // 安全检查：如果该成员已经录入过出入金或参与过转让，则绝对不允许删除
     const hasTransactions = db.events.some(e =>
-      e.member === memberId || e.fromMember === memberId || e.toMember === memberId
+      e.member === memberId || e.fromMember === memberId || e.toMember === memberId || e.gpMember === memberId
+    ) || readSettlements().records.some(record =>
+      record.gpMember === memberId || record.lpMembers?.includes(memberId)
     );
     if (hasTransactions) {
       return res.status(400).json({

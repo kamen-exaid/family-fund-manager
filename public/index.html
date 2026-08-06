@@ -35,7 +35,7 @@
       </svg>
       <span>
         <strong>家庭财富账本</strong>
-        <small>WEALTH LEDGER <b class="sidebar-version">v3.4.1</b></small>
+        <small>WEALTH LEDGER <b class="sidebar-version">v3.5.0</b></small>
       </span>
     </a>
 
@@ -59,6 +59,10 @@
     </nav>
 
     <div class="sidebar-footer">
+      <button class="sidebar-nav-item sidebar-action" type="button" data-sidebar-action="principles">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/><path d="M8 7h8M8 11h6"/></svg>
+        <span>基金管理准则</span>
+      </button>
       <button class="sidebar-nav-item sidebar-action" type="button" data-sidebar-action="members">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6h.09A1.65 1.65 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09A1.65 1.65 0 0 0 20.91 10H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg>
         <span>成员设置</span>
@@ -82,7 +86,7 @@
         </svg>
         <div class="logo-text">
           <h1>家庭基金账目管理系统</h1>
-          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.4.1</span></span>
+          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.5.0</span></span>
         </div>
       </div>
       <div class="header-actions">
@@ -347,10 +351,11 @@
             <span class="panel-badge badge-green">管理员模式</span>
           </div>
 
-          <div class="operation-tabs segmented-control segmented-control--3">
+          <div class="operation-tabs segmented-control segmented-control--4">
             <button class="op-tab-btn segmented-control__button active" type="button" id="tab-btn-tx">出入金登记</button>
             <button class="op-tab-btn segmented-control__button" type="button" id="tab-btn-val">估值调整</button>
             <button class="op-tab-btn segmented-control__button" type="button" id="tab-btn-tf">内部份额转让</button>
+            <button class="op-tab-btn segmented-control__button" type="button" id="tab-btn-settle">业绩结算</button>
           </div>
 
           <!-- Transaction Form -->
@@ -531,6 +536,28 @@
               提交保存内部转让
             </button>
           </form>
+
+          <form id="form-settlement" class="op-form">
+            <div class="info-alert">
+              <p>按每位LP汇总其结算周期内的全部入金批次计算6%复利门槛，批次间盈亏允许对冲，净超额部分的25%以份额划转给唯一GP。结算确认后将锁定此前账期。</p>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="settle-gp">GP成员</label>
+                <select id="settle-gp" class="select-input" required></select>
+              </div>
+              <div class="form-group">
+                <label for="settle-date">结算日期</label>
+                <input type="date" id="settle-date" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="settle-remark">结算备注</label>
+              <input type="text" id="settle-remark" value="年度业绩结算" maxlength="200">
+            </div>
+            <button type="button" id="btn-preview-settlement" class="btn btn-primary btn-block">预览结算明细</button>
+            <button type="button" id="btn-reverse-settlement" class="btn btn-secondary btn-block" style="margin-top:10px">撤销最近一次结算</button>
+          </form>
         </section>
       </div>
     </main>
@@ -559,6 +586,7 @@
             <option value="deposit">入金 (Deposit)</option>
             <option value="withdraw">出金 (Withdraw)</option>
             <option value="valuation">估值重估 (Valuation)</option>
+            <option value="performance_settlement">业绩结算</option>
           </select>
         </div>
       </div>
@@ -591,6 +619,37 @@
   </div>
 
   <!-- Backup & Restore Modal -->
+  <div class="modal-overlay" id="principles-modal" role="dialog" aria-modal="true" aria-labelledby="principles-modal-title" aria-hidden="true">
+    <div class="modal-content glass-panel premium-border principles-modal-content" tabindex="-1">
+      <div class="modal-header">
+        <div>
+          <h3 id="principles-modal-title">基金管理准则</h3>
+          <p class="principles-subtitle">Family Fund Governance Principles</p>
+        </div>
+        <button class="btn-close" id="btn-close-principles-modal" type="button" aria-label="关闭基金管理准则窗口">×</button>
+      </div>
+      <div class="modal-body principles-body">
+        <section class="principle-lead">
+          <div class="principle-lead-content">
+            <strong>“不收固定管理费，多赚才分成” —— 先保障出资人(LP) 6% 年化收益；超额部分管理人(GP) 提成 25%</strong>
+            <div class="principle-lead-motto">GP 自有资金同投，利益高度绑定</div>
+          </div>
+        </section>
+        <div class="principles-grid">
+          <section class="principle-card"><span class="principle-index">01</span><div><h4>出资人与管理人</h4><p>所有成员都是 LP，其中一人兼任 GP。GP 的个人 LP 资金与 GP 提成报酬分开独立记账。</p></div></section>
+          <section class="principle-card"><span class="principle-index">02</span><div><h4>先过6%收益线</h4><p>每笔入金从实际存入当天开始计算，年化收益达到 6% 以前，赚到的收益 100% 属于 LP，无任何费用扣减。</p></div></section>
+          <section class="principle-card"><span class="principle-index">03</span><div><h4>定期结算，多赚才分成</h4><p>每年最后一天或按需统一结算。收益超过 6% 以后，只对超出的部分收取 25% 业绩提成，其余仍归 LP。</p></div></section>
+          <section class="principle-card"><span class="principle-index">04</span><div><h4>跌了再涨回来，不收费</h4><p>例如上次已按 10 万元结算，后来跌到 8 万元，再涨回 10 万元，这只是回本，不算新利润。只有超过上次结算水平并越过 6% 收益线，超出的部分才收费。</p></div></section>
+          <section class="principle-card"><span class="principle-index">05</span><div><h4>同一人的钱合起来算</h4><p>同一 LP 在本期有多笔入金批次时，赚钱与亏钱的部分会先互相抵消，再计算是否产生业绩提成。</p></div></section>
+          <section class="principle-card"><span class="principle-index">06</span><div><h4>出金时立即结算</h4><p>LP 出金时，系统会按当天的账户价值，立即计算该出金部分是否产生业绩提成。</p></div></section>
+          <section class="principle-card"><span class="principle-index">07</span><div><h4>转让时重新开始算</h4><p>转出 LP 按当天结晶；受让 LP 视为当天新入金，不继承原 LP 的投入日期与历史成本。</p></div></section>
+          <section class="principle-card"><span class="principle-index">08</span><div><h4>结算后不能随便改</h4><p>正式结算后，之前的账目会锁定。只能撤销最近一次结算，而且原记录会保留，方便日后核对。</p></div></section>
+        </div>
+        <p class="principles-footnote">计算规则：收益门槛 = 基准金额 × (1 + 6%)<sup>实际持有天数 ÷ 365</sup> · 超出收益门槛的部分提取25%业绩提成（零固定管理费）<br><small style="opacity: 0.8; font-size: 0.85em; margin-top: 4px; display: inline-block;">* 注：基准金额为初始投入本金；若经历过业绩结算或转让，则为上次结算/转让时的账户价值。</small></p>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="backup-modal" role="dialog" aria-modal="true" aria-labelledby="backup-modal-title" aria-hidden="true">
     <div class="modal-content glass-panel premium-border" tabindex="-1">
       <div class="modal-header">
@@ -641,7 +700,8 @@
         <button class="btn-close" id="btn-close-member-modal" type="button" aria-label="关闭家庭成员管理窗口">×</button>
       </div>
       <div class="modal-body">
-        <p class="section-desc">在此可以添加新的出资人，或重命名已存在成员。为了数据完整性，已有出入金记录的成员将限制删除，仅支持重命名修改。</p>
+        <p class="section-desc">所有成员均为LP。请选择其中一人兼任全系统唯一GP；该成员的LP投资份额和GP业绩报酬份额将分别记账。</p>
+        <div id="gp-setup-warning" class="info-alert" hidden>尚未指定主GP。请为一位成员勾选GP，并选择“主GP”。</div>
 
         <!-- Add New Member Form -->
         <form id="form-add-member" class="member-add-form">
@@ -662,6 +722,33 @@
           <div class="members-edit-list" id="members-edit-list">
             <!-- 动态渲染成员项，含重命名和删除功能 -->
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 业绩结算预览模态框 -->
+  <div class="modal-overlay" id="settlement-preview-modal" role="dialog" aria-modal="true" aria-labelledby="settlement-preview-title" aria-hidden="true">
+    <div class="modal-content glass-panel premium-border" style="width:min(1120px, calc(100vw - 32px));" tabindex="-1">
+      <div class="modal-header">
+        <div>
+          <h3 id="settlement-preview-title">业绩结算预览</h3>
+          <p id="settlement-preview-subtitle" class="section-desc" style="margin:4px 0 0"></p>
+        </div>
+        <button class="btn-close" id="btn-close-settlement-preview" type="button" aria-label="关闭业绩结算预览">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="settlement-preview-summary" class="settlement-summary-grid"></div>
+        <div class="table-container">
+          <table class="ledger-table settlement-preview-table">
+            <thead><tr><th>LP / 资金批次</th><th>起始日</th><th>入金/基准金额</th><th>入金NAV</th><th>剩余份额</th><th>持有天数</th><th>当前价值</th><th>6%门槛</th><th>超门槛差额</th></tr></thead>
+            <tbody id="settlement-preview-body"></tbody>
+          </table>
+        </div>
+        <div class="info-alert" style="margin-top:16px">确认后将写入正式结算事件，并锁定结算日及以前的账目。请核对估值日期和每位LP数据。</div>
+        <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:18px">
+          <button type="button" id="btn-cancel-settlement" class="btn btn-secondary">返回修改</button>
+          <button type="button" id="btn-confirm-settlement" class="btn btn-magenta">确认结算并锁账</button>
         </div>
       </div>
     </div>

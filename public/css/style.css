@@ -482,6 +482,120 @@ html {
   outline-offset: 2px;
 }
 
+/* Fund governance principles */
+.modal-content.principles-modal-content {
+  width: min(1120px, calc(100vw - 48px));
+  max-width: none;
+  padding: 30px 32px 26px;
+}
+
+.principles-subtitle {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.principle-lead {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+  padding: 18px 24px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.2);
+  border-radius: 16px;
+  background: rgba(var(--color-primary-rgb), 0.07);
+  color: var(--color-text-main);
+  line-height: 1.6;
+  text-align: center;
+}
+
+.principle-lead-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.principle-lead-content strong {
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+.principle-lead-motto {
+  color: var(--color-primary);
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.principles-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.principle-card {
+  display: flex;
+  gap: 13px;
+  align-items: baseline;
+  min-height: 0;
+  padding: 19px 18px;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 15px;
+  background: rgba(var(--color-primary-rgb), 0.025);
+}
+
+.principle-index {
+  flex: 0 0 auto;
+  color: var(--color-primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.principle-card h4 {
+  margin: 0 0 7px;
+  color: var(--color-text-main);
+  font-size: 0.94rem;
+}
+
+.principle-card p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.7;
+}
+
+.principles-footnote {
+  margin: 16px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  text-align: center;
+}
+
+@media (min-width: 1080px) {
+  .principles-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .modal-content.principles-modal-content {
+    width: calc(100vw - 24px);
+    padding: 22px 20px 20px;
+  }
+
+  .principles-grid { grid-template-columns: 1fr; }
+
+  .principle-lead {
+    flex-direction: column;
+    gap: 8px;
+    padding: 17px 18px;
+  }
+}
+
 body.theme-dark .app-sidebar {
   border-color: rgba(255, 255, 255, 0.1);
   background:
@@ -1213,8 +1327,18 @@ body.theme-dark .app-sidebar {
 
 .member-views-stage {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   transition: height 0.26s ease;
+}
+
+/* 成员详情浮层需要越过 glass-panel 和视图舞台边界。 */
+#members-section {
+  overflow: visible;
+  z-index: 30;
+}
+
+#ledger-section {
+  z-index: 1;
 }
 
 #members-section .member-view:not(.active) {
@@ -1352,6 +1476,67 @@ body.theme-dark .app-sidebar {
   border-top: 1px dashed rgba(255, 255, 255, 0.05);
   padding-top: 4px;
   margin-top: 4px;
+}
+
+/* 新增的 LP/GP 台账不改变原卡片布局，仅在指针悬停或键盘聚焦时展示。 */
+.member-hover-details {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 8px);
+  left: 12px;
+  right: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 12px;
+  min-width: min(320px, calc(100vw - 48px));
+  background: rgba(250, 252, 255, 0.96);
+  box-shadow: 0 18px 40px -18px rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+
+body.theme-dark .member-hover-details,
+body:not(.theme-light) .member-hover-details {
+  background: rgba(20, 24, 38, 0.96);
+}
+
+.member-card:hover,
+.member-card:focus-visible,
+.member-card:focus-within {
+  z-index: 9;
+}
+
+.member-card:hover .member-hover-details,
+.member-card:focus-visible .member-hover-details,
+.member-card:focus-within .member-hover-details {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+
+.member-hover-details__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--color-text-main);
+}
+
+.member-hover-details__ledger {
+  max-height: 180px;
+  margin-top: 6px;
+  overflow: auto;
 }
 
 /* 图表区块 */
@@ -1920,6 +2105,136 @@ input:focus,
   letter-spacing: 0.01em;
   line-height: 1.35;
   white-space: nowrap;
+}
+
+/* 业绩结算是账期里程碑，与普通资金流水区别展示。 */
+.ledger-row--settlement td {
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.075), rgba(245, 158, 11, 0.055));
+  box-shadow: inset 0 1px rgba(124, 58, 237, 0.24), inset 0 -1px rgba(124, 58, 237, 0.24);
+}
+
+.ledger-row--settlement td:first-child {
+  border-left: 3px solid #7c3aed;
+}
+
+.ledger-row--settlement td:last-child {
+  border-right: 1px solid rgba(124, 58, 237, 0.24);
+}
+
+.ledger-row--settlement:hover td {
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.12), rgba(245, 158, 11, 0.09));
+}
+
+.badge-settlement {
+  border: 1px solid rgba(124, 58, 237, 0.24);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.13), rgba(245, 158, 11, 0.12));
+  color: #6d28d9;
+  white-space: nowrap;
+}
+
+.settlement-event-title {
+  color: var(--color-text-main);
+  font-size: 0.8rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.settlement-event-route {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+  line-height: 1.2;
+}
+
+.settlement-event-route strong {
+  color: var(--color-green);
+}
+
+.settlement-event-route i {
+  width: 3px;
+  height: 3px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+body.theme-dark .badge-settlement,
+body:not(.theme-light) .badge-settlement {
+  color: #c4b5fd;
+}
+
+.ledger-row--settlement-detail > td {
+  height: 0;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.settlement-breakdown-panel {
+  max-height: 0;
+  padding: 0 18px;
+  overflow: hidden;
+  border-right: 1px solid transparent;
+  border-left: 3px solid transparent;
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.065), rgba(245, 158, 11, 0.04));
+  opacity: 0;
+  transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.18s ease, border-color 0.2s ease;
+}
+
+.ledger-row--settlement:hover + .ledger-row--settlement-detail .settlement-breakdown-panel,
+.ledger-row--settlement-detail:hover .settlement-breakdown-panel {
+  max-height: 520px;
+  padding: 14px 18px 16px;
+  border-color: rgba(124, 58, 237, 0.24);
+  opacity: 1;
+}
+
+.settlement-breakdown-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: var(--color-text-main);
+  font-size: 0.72rem;
+}
+
+.settlement-breakdown-heading span {
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+  font-weight: 400;
+}
+
+.settlement-breakdown-item {
+  display: grid;
+  grid-template-columns: minmax(90px, 1.2fr) repeat(5, minmax(90px, 1fr));
+  gap: 12px;
+  align-items: center;
+  padding: 9px 0;
+  border-top: 1px dashed var(--color-card-divider);
+  color: var(--color-text-main);
+  font-size: 0.7rem;
+}
+
+.settlement-breakdown-item span,
+.settlement-breakdown-item small {
+  display: block;
+}
+
+.settlement-breakdown-item small {
+  margin-bottom: 2px;
+  color: var(--color-text-muted);
+  font-size: 0.58rem;
+  font-weight: 500;
+}
+
+.settlement-breakdown-empty {
+  padding: 8px 0;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
 }
 
 .ledger-table td {
@@ -2764,6 +3079,42 @@ body.theme-light .member-edit-item:hover {
 
 .segmented-control--3 {
   --segment-count: 3;
+}
+
+.segmented-control--4 {
+  --segment-count: 4;
+}
+
+.settlement-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.settlement-preview-table {
+  min-width: 1080px;
+  table-layout: auto;
+}
+
+.settlement-preview-table th,
+.settlement-preview-table td {
+  width: auto !important;
+  padding: 11px 12px !important;
+  text-align: right !important;
+}
+
+.settlement-preview-table th:first-child,
+.settlement-preview-table td:first-child,
+.settlement-preview-table th:nth-child(2),
+.settlement-preview-table td:nth-child(2) {
+  text-align: left !important;
+}
+
+@media (max-width: 640px) {
+  .settlement-summary-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .segmented-control--6 {

@@ -24,8 +24,18 @@ window.FundMemberRenderer = {
       const avatar = escapeHtml(getAvatarText(member.name));
       const avatarColor = getMemberAvatarColor(member.id || member.name, isDark, index);
       const dimmed = account.totalDeposit === 0 ? 'opacity:0.55;' : '';
+      const roleBadges = [member.roles?.lp !== false ? 'LP' : '', member.roles?.gp ? (member.primaryGp ? '主GP' : 'GP') : '']
+        .filter(Boolean).map(role => `<span class="tx-badge badge-transfer" style="font-size:.58rem;padding:2px 5px">${role}</span>`).join(' ');
+      const lpLedger = account.lpLedger || [];
+      const totalHurdle = lpLedger.reduce((sum, lot) => sum + lot.hurdle, 0);
+      const ledgerRows = lpLedger.map((lot, lotIndex) => `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;padding:5px 0;border-top:1px dashed var(--color-card-divider)">
+          <span>批次${lotIndex + 1} · ${escapeHtml(lot.startDate)}</span><span style="text-align:right">${lot.shares.toFixed(4)}份</span>
+          <span>基准 $${formatMoney(lot.basis)}</span><span style="text-align:right">门槛 $${formatMoney(lot.hurdle)}</span>
+          <span>当前 $${formatMoney(lot.currentValue)}</span><span></span>
+        </div>`).join('');
       return `
-        <div class="member-card" style="${dimmed}">
+        <div class="member-card" style="${dimmed}" tabindex="0">
           <div class="member-avatar" style="background:${avatarColor.background};color:${avatarColor.color};">${avatar}</div>
           <div class="member-details">
             <div class="member-header" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px;">
@@ -42,6 +52,13 @@ window.FundMemberRenderer = {
             <div class="member-shares privacy-sensitive" style="font-size:0.72rem;color:var(--color-text-muted);line-height:1.2;margin-bottom:4px;">${account.shares.toFixed(4)} 份</div>
             <div class="member-sub-info" style="display:flex;justify-content:space-between;font-size:0.68rem;padding-top:4px;border-top:1px dashed var(--color-card-divider);color:var(--color-text-muted);"><span>入金 <span class="privacy-sensitive">$${formatMoney(account.totalDeposit)}</span></span><span>出金 <span class="privacy-sensitive">$${formatMoney(account.totalWithdraw)}</span></span></div>
             <div class="member-sub-info" style="display:flex;justify-content:space-between;font-size:0.65rem;padding-top:2px;color:var(--color-text-muted);opacity:0.85;"><span>CNH入金 <span class="privacy-sensitive">¥${formatMoney(account.cnhDeposit)}</span></span></div>
+          </div>
+          <div class="member-hover-details privacy-sensitive" aria-hidden="true">
+            <div class="member-hover-details__header"><strong>${displayName}</strong><span>${roleBadges}</span></div>
+            <div>LP：${(account.lpShares || 0).toFixed(4)}份 / $${formatMoney(account.lpCurrentValue || 0)}</div>
+            <div>GP报酬：${(account.gpCarryShares || 0).toFixed(4)}份 / $${formatMoney(account.gpCarryValue || 0)}</div>
+            ${member.roles?.lp !== false ? `<div>门槛台账：${lpLedger.length}批 / $${formatMoney(totalHurdle)}</div>` : ''}
+            ${lpLedger.length ? `<div class="member-hover-details__ledger">${ledgerRows}</div>` : ''}
           </div>
         </div>`;
     }).join('');
