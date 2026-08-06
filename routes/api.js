@@ -33,6 +33,37 @@ function registerApiRoutes(app, deps) {
     return Number.isFinite(parsed) ? parsed : NaN;
   }
 
+  function isSundayDate(date) {
+    if (!isValidDate(date)) return false;
+    const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+    return day === 0;
+  }
+
+  function latestValuationDate(now = getNow()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(now);
+    const values = {};
+    parts.forEach(part => { values[part.type] = part.value; });
+    const cursor = new Date(`${values.year}-${values.month}-${values.day}T00:00:00Z`);
+    const minutes = Number(values.hour) * 60 + Number(values.minute);
+    if (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6 || minutes < 16 * 60 + 5) {
+      do {
+        cursor.setUTCDate(cursor.getUTCDate() - 1);
+      } while (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6);
+    }
+    return cursor.toISOString().slice(0, 10);
+  }
+
+  function validateValuationDate(date) {
+    const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+    if (day === 0 || day === 6) return '估值日期必须为周一至周五的交易日。';
+    const latest = latestValuationDate();
+    return date <= latest ? null : `北京时间16:05后才开放当日估值；当前最晚可选择 ${latest}。`;
+  }
+
   // The calculator caps underfunded replay events for display safety. Before
   // persisting a mutation, reject any ledger where requested and settled amounts
   // would differ instead.
@@ -321,6 +352,9 @@ app.post('/api/transaction', (req, res) => {
     if (!isValidDate(date)) {
       return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
     }
+    if (!isSundayDate(date)) {
+      return res.status(400).json({ success: false, message: '出入金仅在周日办理，交易日期必须为周日。' });
+    }
     let normalizedRemark;
     try {
       normalizedRemark = normalizeRemark(remark);
@@ -380,6 +414,8 @@ app.post('/api/valuation', (req, res) => {
     if (!isValidDate(date)) {
       return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
     }
+    const valuationDateError = validateValuationDate(date);
+    if (valuationDateError) return res.status(400).json({ success: false, message: valuationDateError });
     if (rejectLockedPeriod(res, db, date)) return;
     let normalizedRemark;
     try {
@@ -460,6 +496,9 @@ app.post('/api/transfer', (req, res) => {
     if (!isValidDate(date)) {
       return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
     }
+    if (!isSundayDate(date)) {
+      return res.status(400).json({ success: false, message: '内部份额转让仅在周日办理，划转日期必须为周日。' });
+    }
     let normalizedRemark;
     try {
       normalizedRemark = normalizeRemark(remark);
@@ -507,6 +546,10 @@ function buildSettlementPreview(db, body) {
   const gpMember = db.performanceFee?.gpMemberId;
   const { date } = body;
   if (!isValidDate(date)) throw new Error('结算日期必须是有效的 YYYY-MM-DD。');
+  const settledThrough = latestSettlementDate(db);
+  if (settledThrough && date <= settledThrough) {
+    throw new Error(`业绩结算已完成至 ${settledThrough}，新结算日期必须晚于该日期。`);
+  }
   const gp = db.members.find(member => member.id === gpMember);
   if (!gp || gp.roles?.gp !== true) throw new Error('请先在成员设置中指定GP。');
   if (db.events.some(event => event.type === 'performance_settlement' && event.date === date)) {
@@ -635,6 +678,13 @@ app.put('/api/event/:id', (req, res) => {
       return res.status(409).json({ success: false, message: '已确认的业绩结算不可直接修改。' });
     }
     if (rejectLockedPeriod(res, db, event.date)) return;
+    const requestedDate = req.body?.date;
+    if (requestedDate !== undefined) {
+      if (!isValidDate(requestedDate)) {
+        return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
+      }
+      if (rejectLockedPeriod(res, db, requestedDate)) return;
+    }
 
     if (event.type === 'deposit' || event.type === 'withdraw') {
       const { member, amount, cnhAmount, date, remark } = req.body;
@@ -665,6 +715,7 @@ app.put('/api/event/:id', (req, res) => {
 
       if (date !== undefined) {
         if (!isValidDate(date)) return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
+        if (!isSundayDate(date)) return res.status(400).json({ success: false, message: '出入金仅在周日办理，交易日期必须为周日。' });
         event.date = date;
       }
 
@@ -701,6 +752,8 @@ app.put('/api/event/:id', (req, res) => {
 
       if (date !== undefined) {
         if (!isValidDate(date)) return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
+        const valuationDateError = validateValuationDate(date);
+        if (valuationDateError) return res.status(400).json({ success: false, message: valuationDateError });
         event.date = date;
       }
 
@@ -751,6 +804,7 @@ app.put('/api/event/:id', (req, res) => {
 
       if (date !== undefined) {
         if (!isValidDate(date)) return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
+        if (!isSundayDate(date)) return res.status(400).json({ success: false, message: '内部份额转让仅在周日办理，划转日期必须为周日。' });
         event.date = date;
       }
 

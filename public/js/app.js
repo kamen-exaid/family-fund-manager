@@ -266,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnMemberPanel = document.getElementById('btn-member-panel');
   const memberModal = document.getElementById('member-modal');
   const btnCloseMemberModal = document.getElementById('btn-close-member-modal');
+  const btnSaveMemberSettings = document.getElementById('btn-save-member-settings');
   const formAddMember = document.getElementById('form-add-member');
   const newMemberName = document.getElementById('new-member-name');
   const elMembersEditList = document.getElementById('members-edit-list');
@@ -430,16 +431,87 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(updateTime, 1000);
   }
 
+  function getLatestValuationDate(now = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23'
+    }).formatToParts(now);
+    const values = {};
+    parts.forEach(part => { values[part.type] = part.value; });
+    const cursor = new Date(`${values.year}-${values.month}-${values.day}T00:00:00Z`);
+    const minutes = Number(values.hour) * 60 + Number(values.minute);
+    if (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6 || minutes < 16 * 60 + 5) {
+      do {
+        cursor.setUTCDate(cursor.getUTCDate() - 1);
+      } while (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6);
+    }
+    return cursor.toISOString().split('T')[0];
+  }
+
   function setDefaultDates() {
-    const today = new Date().toISOString().split('T')[0];
-    txDate.value = today;
-    valDate.value = today;
-    if (tfDate) tfDate.value = today;
+    const shanghaiParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date());
+    const dateParts = {};
+    shanghaiParts.forEach(part => { dateParts[part.type] = part.value; });
+    const today = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+    const latestSunday = new Date(`${today}T00:00:00Z`);
+    latestSunday.setUTCDate(latestSunday.getUTCDate() - latestSunday.getUTCDay());
+    txDate.value = latestSunday.toISOString().split('T')[0];
+    const latestValuation = getLatestValuationDate();
+    valDate.max = latestValuation;
+    valDate.value = latestValuation;
+    if (tfDate) tfDate.value = latestSunday.toISOString().split('T')[0];
     if (settleDate) settleDate.value = today;
   }
 
   // --- 事件绑定模块 ---
   function bindEvents() {
+    const validateSundayDateInput = input => {
+      if (!input.value) {
+        input.setCustomValidity('');
+        return false;
+      }
+      const day = new Date(`${input.value}T00:00:00Z`).getUTCDay();
+      const isSunday = day === 0;
+      input.setCustomValidity(isSunday ? '' : '出入金和内部转让仅在周日办理，请选择周日。');
+      return isSunday;
+    };
+
+    const validateValuationDateInput = input => {
+      const latest = getLatestValuationDate();
+      input.max = latest;
+      if (!input.value) {
+        input.setCustomValidity('');
+        return false;
+      }
+      const day = new Date(`${input.value}T00:00:00Z`).getUTCDay();
+      let message = '';
+      if (day === 0 || day === 6) message = '估值日期请选择周一至周五的交易日。';
+      else if (input.value > latest) message = `北京时间16:05后才开放当日估值，当前最晚可选择 ${latest}。`;
+      input.setCustomValidity(message);
+      return !message;
+    };
+
+    txDate.addEventListener('input', () => validateSundayDateInput(txDate));
+    txDate.addEventListener('change', () => {
+      if (!validateSundayDateInput(txDate)) txDate.reportValidity();
+    });
+    tfDate.addEventListener('input', () => validateSundayDateInput(tfDate));
+    tfDate.addEventListener('change', () => {
+      if (!validateSundayDateInput(tfDate)) tfDate.reportValidity();
+    });
+    valDate.addEventListener('input', () => validateValuationDateInput(valDate));
+    valDate.addEventListener('change', () => {
+      if (!validateValuationDateInput(valDate)) valDate.reportValidity();
+    });
+    editDate.addEventListener('input', () => {
+      if (['deposit', 'withdraw', 'transfer'].includes(editEventType.value)) validateSundayDateInput(editDate);
+      else if (editEventType.value === 'valuation') validateValuationDateInput(editDate);
+      else editDate.setCustomValidity('');
+    });
+
     const openMembersPanel = () => {
       renderMembersEditorList();
       openModal(memberModal);
@@ -449,6 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bindAccessibleModal(backupModal, btnCloseModal);
     bindAccessibleModal(principlesModal, btnClosePrinciplesModal);
     bindAccessibleModal(memberModal, btnCloseMemberModal);
+    btnSaveMemberSettings?.addEventListener('click', () => closeModal(memberModal));
     bindAccessibleModal(editEventModal, btnCloseEditModal);
     bindAccessibleModal(tickerConfigModal, btnCloseTickerConfigModal);
     bindAccessibleModal(settlementPreviewModal, btnCloseSettlementPreview);
@@ -767,6 +840,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 内部转让划转录入提交
     formTransfer.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!validateSundayDateInput(tfDate)) {
+        tfDate.reportValidity();
+        return;
+      }
       await submitOnce(formTransfer, async () => {
 
       const fromMember = tfFromMember.value;
@@ -909,6 +986,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 监听编辑账目表单提交
     formEditEvent.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (['deposit', 'withdraw', 'transfer'].includes(editEventType.value) && !validateSundayDateInput(editDate)) {
+        editDate.reportValidity();
+        return;
+      }
+      if (editEventType.value === 'valuation' && !validateValuationDateInput(editDate)) {
+        editDate.reportValidity();
+        return;
+      }
       await submitOnce(formEditEvent, async () => {
       const id = editEventId.value;
       const type = editEventType.value;
@@ -945,6 +1030,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 出入金录入提交
     formTransaction.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!validateSundayDateInput(txDate)) {
+        txDate.reportValidity();
+        return;
+      }
       await submitOnce(formTransaction, async () => {
 
       const member = elTxMember.value;
@@ -974,6 +1063,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 估值更新提交
     formValuation.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!validateValuationDateInput(valDate)) {
+        valDate.reportValidity();
+        return;
+      }
       await submitOnce(formValuation, async () => {
 
       const totalNAV = parseFloat(valTotalNav.value);
@@ -1467,13 +1560,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Three-card overview: assets, NAV and return rate.
     elFundTotalNav.innerHTML = `<span>$${formatMoney(s.totalNAV)}</span><span class="metric-inline metric-profit-inline ${s.profit >= 0 ? 'text-green' : 'text-magenta'}">${s.profit >= 0 ? '+' : ''}$${formatMoney(s.profit)}</span>`;
-    elFundTotalShares.innerHTML = `<span class="metric-sub-primary">≈ ¥${formatCnhWan(s.cnhTotalNAV)}</span><span class="metric-inline ${s.cnhProfit >= 0 ? 'text-green' : 'text-magenta'}">CNH收益 ${s.cnhProfit >= 0 ? '+' : ''}¥${formatCnhWan(s.cnhProfit)}</span>`;
+    elFundTotalShares.innerHTML = `<span class="metric-sub-primary">≈ ¥${formatCnhWan(s.cnhTotalNAV)}</span><span class="metric-inline ${s.cnhProfit >= 0 ? 'text-green' : 'text-magenta'}" title="包含汇率变动影响">CNH收益（含汇率） ${s.cnhProfit >= 0 ? '+' : ''}¥${formatCnhWan(s.cnhProfit)}</span>`;
     elFundTotalShares.classList.add('privacy-sensitive');
 
     elFundProfitRate.innerHTML = `<span>${s.profitRate > 0 ? '+' : ''}${s.profitRate.toFixed(2)}%</span>`;
     const profitRateTone = s.profitRate > 0 ? ' text-green' : s.profitRate < 0 ? ' text-magenta' : '';
     elFundProfitRate.className = `metric-value font-outfit privacy-sensitive${profitRateTone}`;
-    elFundProfitRateSub.innerHTML = `<span class="metric-inline"><span>CNH收益率</span><strong class="${s.cnhProfitRate >= 0 ? 'text-green' : 'text-magenta'}">${s.cnhProfitRate >= 0 ? '+' : ''}${s.cnhProfitRate.toFixed(2)}%</strong></span>`;
+    elFundProfitRateSub.innerHTML = `<span class="metric-inline" title="包含汇率变动影响"><span>CNH收益率（含汇率）</span><strong class="${s.cnhProfitRate >= 0 ? 'text-green' : 'text-magenta'}">${s.cnhProfitRate >= 0 ? '+' : ''}${s.cnhProfitRate.toFixed(2)}%</strong></span>`;
   }
 
   // 2. 动态家庭成员资产网格渲染
@@ -1511,13 +1604,19 @@ document.addEventListener('DOMContentLoaded', () => {
       );
 
       return `
-        <div class="member-edit-item" id="member-edit-item-${m.id}">
+        <div class="member-edit-item${m.primaryGp ? ' is-primary-gp' : ''}" id="member-edit-item-${m.id}">
           <div class="member-edit-left">
             <div class="member-edit-avatar" style="background: ${cardColor}; color: ${cardTextColor};">${shortName}</div>
-            <span class="member-edit-name" id="member-name-span-${m.id}" title="双击或点击右侧笔头重命名">${escapeHtml(m.name)}</span>
-            <input type="text" class="input-rename" id="member-name-input-${m.id}" value="${escapeHtml(m.name)}" style="display: none;">
-            <span style="font-size:.7rem;margin-left:10px">LP</span>
-            <label style="font-size:.7rem;margin-left:6px"><input type="radio" name="primary-gp" id="member-primary-gp-${m.id}" ${m.primaryGp ? 'checked' : ''}> 兼任唯一GP</label>
+            <div class="member-edit-identity">
+              <span class="member-edit-name" id="member-name-span-${m.id}" title="双击或点击右侧笔头重命名">${escapeHtml(m.name)}</span>
+              <input type="text" class="input-rename" id="member-name-input-${m.id}" value="${escapeHtml(m.name)}" style="display: none;">
+              <span class="member-role-badge">LP</span>
+            </div>
+            <label class="primary-gp-choice" title="设为全系统唯一的主 GP">
+              <input type="radio" name="primary-gp" id="member-primary-gp-${m.id}" ${m.primaryGp ? 'checked' : ''}>
+              <span class="primary-gp-radio"></span>
+              <span>主 GP</span>
+            </label>
           </div>
           <div class="member-edit-actions">
             <button class="btn-rename-save" id="btn-rename-edit-${m.id}" title="重命名成员" style="color: var(--color-cyan);">
@@ -1740,6 +1839,9 @@ document.addEventListener('DOMContentLoaded', () => {
     editEventId.value = e.id;
     editEventType.value = e.type;
     editDate.value = e.date;
+    if (e.type === 'valuation') editDate.max = getLatestValuationDate();
+    else editDate.removeAttribute('max');
+    editDate.setCustomValidity('');
     editRemark.value = e.remark || '';
 
     // 重置特有选项组显示状态

@@ -35,7 +35,7 @@
       </svg>
       <span>
         <strong>家庭财富账本</strong>
-        <small>WEALTH LEDGER <b class="sidebar-version">v3.5.0</b></small>
+        <small>WEALTH LEDGER <b class="sidebar-version">v3.6.0</b></small>
       </span>
     </a>
 
@@ -86,7 +86,7 @@
         </svg>
         <div class="logo-text">
           <h1>家庭基金账目管理系统</h1>
-          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.5.0</span></span>
+          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.6.0</span></span>
         </div>
       </div>
       <div class="header-actions">
@@ -352,14 +352,22 @@
           </div>
 
           <div class="operation-tabs segmented-control segmented-control--4">
-            <button class="op-tab-btn segmented-control__button active" type="button" id="tab-btn-tx">出入金登记</button>
-            <button class="op-tab-btn segmented-control__button" type="button" id="tab-btn-val">估值调整</button>
+            <button class="op-tab-btn segmented-control__button active" type="button" id="tab-btn-val">估值调整</button>
+            <button class="op-tab-btn segmented-control__button" type="button" id="tab-btn-tx">出入金登记</button>
             <button class="op-tab-btn segmented-control__button" type="button" id="tab-btn-tf">内部份额转让</button>
             <button class="op-tab-btn segmented-control__button" type="button" id="tab-btn-settle">业绩结算</button>
           </div>
 
           <!-- Transaction Form -->
-          <form id="form-transaction" class="op-form active">
+          <form id="form-transaction" class="op-form">
+            <div class="info-alert" role="note" aria-label="出入金规则说明">
+              <svg class="info-alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <p>入金按当次净值新增份额；出金按当次净值赎回，并结晶该部分应计业绩报酬。出入金仅在周日办理。</p>
+            </div>
             <div class="form-group">
               <label for="tx-member">选择家庭成员</label>
               <select id="tx-member" class="select-input" required>
@@ -410,7 +418,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label for="tx-date">交易日期</label>
-                <input type="date" id="tx-date" required>
+                <input type="date" id="tx-date" title="出入金交易日期仅限周日" required>
               </div>
               <div class="form-group">
                 <label for="tx-remark">备注说明</label>
@@ -430,14 +438,14 @@
           </form>
 
           <!-- Valuation Update Form -->
-          <form id="form-valuation" class="op-form">
+          <form id="form-valuation" class="op-form active">
             <div class="info-alert">
               <svg class="info-alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="16" x2="12" y2="12" />
                 <line x1="12" y1="8" x2="12.01" y2="8" />
               </svg>
-              <p>市值估值更新是根据投资账户最新总资产（如现金+股票持仓市值）进行重估，以此生成新的基金单位净值。</p>
+              <p>根据投资账户最新总资产生成基金单位净值。北京时间16:05前仅可更新上一交易日；16:05起刷新页面后可更新当日数据，周末自动回退至周五。</p>
             </div>
 
             <div class="form-row">
@@ -450,7 +458,7 @@
               </div>
               <div class="form-group">
                 <label for="val-date">估值重估日期</label>
-                <input type="date" id="val-date" required>
+              <input type="date" id="val-date" title="北京时间16:05后开放当日估值" required>
               </div>
             </div>
 
@@ -470,15 +478,13 @@
 
           <!-- Transfer Form -->
           <form id="form-transfer" class="op-form">
-            <div class="info-alert"
-              style="background: rgba(0, 153, 255, 0.08); border-color: rgba(0, 153, 255, 0.15); color: var(--color-primary);">
-              <svg class="info-alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="color: var(--color-primary);">
+            <div class="info-alert">
+              <svg class="info-alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="16" x2="12" y2="12" />
                 <line x1="12" y1="8" x2="12.01" y2="8" />
               </svg>
-              <p>内部份额转让支持将一名家庭出资人的部分或全部基金份额，以特定的成交汇率，无缝转移给另一名出资人，基金总额保持守恒。</p>
+              <p>内部份额转让可按约定汇率将部分或全部份额转给另一名出资人。转出份额按划转日净值结晶并结算应计业绩报酬；受让方按当日净值形成新批次，持有期与业绩门槛重新起算。内部转让仅在周日办理。</p>
             </div>
 
             <div class="form-row transfer-members-row">
@@ -519,7 +525,7 @@
             <div class="form-row transfer-detail-row">
               <div class="form-group">
                 <label for="tf-date">划转日期</label>
-                <input type="date" id="tf-date" required>
+                <input type="date" id="tf-date" title="内部份额转让日期仅限周日" required>
               </div>
               <div class="form-group">
                 <label for="tf-remark">转让原因说明 (Remark)</label>
@@ -539,6 +545,11 @@
 
           <form id="form-settlement" class="op-form">
             <div class="info-alert">
+              <svg class="info-alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
               <p>按每位LP汇总其结算周期内的全部入金批次计算6%复利门槛，批次间盈亏允许对冲，净超额部分的25%以份额划转给唯一GP。结算确认后将锁定此前账期。</p>
             </div>
             <div class="form-row">
@@ -694,22 +705,25 @@
 
   <!-- 家庭成员管理模态框 (Member Editor Modal) -->
   <div class="modal-overlay" id="member-modal" role="dialog" aria-modal="true" aria-labelledby="member-modal-title" aria-hidden="true">
-    <div class="modal-content glass-panel premium-border" tabindex="-1">
+    <div class="modal-content glass-panel premium-border member-modal-content" tabindex="-1">
       <div class="modal-header">
         <h3 id="member-modal-title">家庭成员管理</h3>
         <button class="btn-close" id="btn-close-member-modal" type="button" aria-label="关闭家庭成员管理窗口">×</button>
       </div>
       <div class="modal-body">
-        <p class="section-desc">所有成员均为LP。请选择其中一人兼任全系统唯一GP；该成员的LP投资份额和GP业绩报酬份额将分别记账。</p>
-        <div id="gp-setup-warning" class="info-alert" hidden>尚未指定主GP。请为一位成员勾选GP，并选择“主GP”。</div>
+        <p class="section-desc member-modal-desc">管理参与基金的家庭成员，并指定一位主 GP。</p>
+        <div id="gp-setup-warning" class="info-alert member-gp-alert" hidden>
+          <span class="member-gp-alert-icon" aria-hidden="true">!</span>
+          <div><strong>还差一步</strong><span>请选择一位成员担任主 GP</span></div>
+        </div>
 
         <!-- Add New Member Form -->
         <form id="form-add-member" class="member-add-form">
           <div class="form-group">
-            <label for="new-member-name">添加家庭成员</label>
+            <label for="new-member-name" class="member-section-label">添加成员</label>
             <div class="input-inline-btn">
-              <input type="text" id="new-member-name" placeholder="输入成员姓名 (如: 叔叔、表哥等)" required>
-              <button type="submit" class="btn btn-primary">添加</button>
+              <input type="text" id="new-member-name" placeholder="输入成员姓名" autocomplete="off" required>
+              <button type="submit" class="btn btn-primary">添加成员</button>
             </div>
           </div>
         </form>
@@ -718,10 +732,23 @@
 
         <!-- Members List -->
         <div class="members-edit-section">
-          <label style="margin-bottom: 8px; display: block;">当前成员列表</label>
+          <div class="member-list-heading">
+            <label class="member-section-label">当前成员</label>
+            <span class="member-list-hint">所有成员默认均为 LP</span>
+          </div>
           <div class="members-edit-list" id="members-edit-list">
             <!-- 动态渲染成员项，含重命名和删除功能 -->
           </div>
+        </div>
+        <div class="member-modal-footer">
+          <button type="button" class="btn btn-primary btn-block" id="btn-save-member-settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            保存成员设置
+          </button>
         </div>
       </div>
     </div>

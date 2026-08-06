@@ -81,12 +81,12 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     const valuationId = response.body.data.id;
 
     response = await request(server, 'POST', '/api/transaction', {
-      member: 'me', type: 'withdraw', amount: 200, date: '2026-03-03'
+      member: 'me', type: 'withdraw', amount: 200, date: '2026-03-08'
     });
     assert.strictEqual(response.status, 400);
 
     response = await request(server, 'POST', '/api/transaction', {
-      member: 'me', type: 'withdraw', amount: 120, date: '2026-03-03'
+      member: 'me', type: 'withdraw', amount: 120, date: '2026-03-08'
     });
     assert.strictEqual(response.status, 200);
 
@@ -160,6 +160,30 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     response = await request(server, 'GET', '/api/state');
     assert.strictEqual(response.body.data.summary.totalNAV, 0.12);
     assert.strictEqual(response.body.data.members.me.currentValue, 0.12);
+
+    // Exercise the production settlement ledger merge: a reversed settlement
+    // must disappear from the active event stream so the same date can be used
+    // again.
+    response = await request(server, 'PUT', '/api/members/father/roles', {
+      gp: true, primaryGp: true
+    });
+    assert.strictEqual(response.status, 200);
+    response = await request(server, 'POST', '/api/valuation', {
+      totalNAV: 1.2, date: '2026-03-09', remark: 'settlement regression valuation'
+    });
+    assert.strictEqual(response.status, 200);
+    response = await request(server, 'POST', '/api/performance-settlement', {
+      date: '2026-03-09'
+    });
+    assert.strictEqual(response.status, 200);
+    response = await request(server, 'POST', '/api/performance-settlement/reverse-latest', {
+      remark: 'same-day settlement regression'
+    });
+    assert.strictEqual(response.status, 200);
+    response = await request(server, 'POST', '/api/performance-settlement', {
+      date: '2026-03-09'
+    });
+    assert.strictEqual(response.status, 200);
   } finally {
     await new Promise(resolve => server.close(resolve));
     fs.rmSync(dataDir, { recursive: true, force: true });

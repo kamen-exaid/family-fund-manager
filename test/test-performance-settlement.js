@@ -145,6 +145,11 @@ assert.strictEqual(fullExit._performanceFee, 3.5);
 assert.strictEqual(fullExit._actualAmount, 116.5);
 assert.strictEqual(fullExit._unpaidPerformanceFeeShares, 0);
 assert.strictEqual(fullExitState.members.lp.currentValue, 0);
+assert.strictEqual(fullExitState.members.lp.lpShares, 0);
+assert.strictEqual(fullExitState.members.lp.lpCurrentValue, 0);
+assert(fullExitState.members.lp.lpLedger.every(lot =>
+  lot.shares === 0 && lot.basis === 0 && lot.currentValue === 0
+), 'full exit must leave no residual LP lot values');
 assert.strictEqual(fullExitState.members.gp.gpCarryValue, 3.5);
 assert.strictEqual(fullExitState.summary.totalNAV, 3.5);
 
