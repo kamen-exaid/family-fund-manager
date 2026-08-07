@@ -3,7 +3,8 @@ const {
   findCloseForPolicy,
   findPreviousClose,
   getTickerHistoryStartSec,
-  mergeTickerAthRecord
+  mergeTickerAthRecord,
+  fetchCnhRateFromApi
 } = require('../lib/yahoo');
 
 const prices = {
@@ -70,4 +71,11 @@ assert.strictEqual(merged.regularClose, 119);
 assert.strictEqual(merged.historyThrough, '2026-08-03');
 assert.strictEqual(merged.ytdChange, 19);
 
-console.log('Yahoo previous-close assertions passed.');
+(async () => {
+  const rate = await fetchCnhRateFromApi();
+  assert(rate === null || (typeof rate === 'number' && rate > 0), 'fetchCnhRateFromApi must return a positive number or null');
+  console.log('Yahoo previous-close & CNH rate fetch assertions passed.');
+})().catch(err => {
+  console.error(err);
+  process.exitCode = 1;
+});
