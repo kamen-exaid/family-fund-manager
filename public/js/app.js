@@ -45,19 +45,12 @@ document.addEventListener('DOMContentLoaded', () => {
     getSeriesColors,
     hexToRgba
   } = window.FundUiUtils;
-  const { open: openModal, close: closeModal, bindAccessible: bindAccessibleModal } = window.FundModal;
-  const { runOnce: submitOnce } = window.FundSubmission;
-  const {
-    setIndicator: setSegmentIndicator,
-    activate: activateSegmentOption,
-    syncAll: syncSegmentIndicators
-  } = window.FundSegmentedControl;
+  const { open: openModal, close: closeModal } = window.FundModal;
   const { getLatestValuationDate } = window.FundDateTime;
 
   // --- 全局状态 ---
   let appState = null;
   let membersList = [];
-  let activeMemberView = 'assets';
   let activeTimeSlice = 'YTD';
   let activeScaleType = 'linear'; // 'linear' or 'logarithmic'
   let navTrendChart = null;
@@ -66,9 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTrendStatSeries = [];
   let renderTrendStats = null;
   let isTrendStatsHovering = false;
-  let isPrivacyMode = true; // 默认开启隐私遮罩，用户可按需查看数据
-  let tickerSortable = null;
-  let benchmarkRefreshToken = 0;
   let hasPromptedGpSetup = false;
 
   // --- DOM 元素定义 ---
@@ -147,7 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const settlementPreviewSubtitle = document.getElementById('settlement-preview-subtitle');
   const settlementPreviewSummary = document.getElementById('settlement-preview-summary');
   const settlementPreviewBody = document.getElementById('settlement-preview-body');
-  let pendingSettlement = null;
 
   // Fund Governance Principles Modal
   const principlesModal = document.getElementById('principles-modal');
@@ -158,7 +147,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const ledgerTbody = document.getElementById('ledger-tbody');
 
   // Backup Modal
-  const btnBackupPanel = document.getElementById('btn-backup-panel');
   const backupModal = document.getElementById('backup-modal');
   const btnCloseModal = document.getElementById('btn-close-modal');
   const btnTriggerUpload = document.getElementById('btn-trigger-upload');
@@ -186,7 +174,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const editCnhRate = document.getElementById('edit-cnh-rate');
 
   // Member Management Modal
-  const btnMemberPanel = document.getElementById('btn-member-panel');
   const memberModal = document.getElementById('member-modal');
   const btnCloseMemberModal = document.getElementById('btn-close-member-modal');
   const btnSaveMemberSettings = document.getElementById('btn-save-member-settings');
@@ -203,31 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const tickerConfigList = document.getElementById('ticker-config-list');
   const btnAddTickerRow = document.getElementById('btn-add-ticker-row');
   const btnSaveTickerConfig = document.getElementById('btn-save-ticker-config');
-
-  function syncBenchmarkPolicyControl(policy = 'previous') {
-    const activeButton = benchmarkPolicyButtons.find(button => button.dataset.benchmarkPolicy === policy)
-      || benchmarkPolicyButtons[0];
-    activateSegmentOption(benchmarkPolicyGroup, activeButton);
-  }
-
-  async function waitForBenchmarkRefresh(policy, token) {
-    for (let attempt = 0; attempt < 15; attempt++) {
-      await new Promise(resolve => window.setTimeout(resolve, 1000));
-      if (token !== benchmarkRefreshToken) return false;
-      let nextState;
-      try {
-        nextState = await Api.getState();
-      } catch (_error) {
-        continue;
-      }
-      if (nextState.settings?.benchmarkClosePolicy !== policy) continue;
-      if (!nextState.settings?.benchmarkCacheReady) continue;
-      appState = nextState;
-      renderCharts();
-      return true;
-    }
-    return false;
-  }
 
   const { switchTo: switchOperationView } = window.FundOperationPanel.create({
     panel: operationPanel,
@@ -249,781 +211,132 @@ document.addEventListener('DOMContentLoaded', () => {
     onSelect: (_theme, button) => showToast(`已切换至 ${button.textContent.trim()} 模式`, 'success')
   });
   const checkIfDark = () => themeController.isDark();
+  const settingsController = window.FundSettingsController.create({
+    elements: {
+      benchmarkPolicyGroup,
+      benchmarkPolicyButtons,
+      privacyButtons: [btnPrivacyToggle, btnSettlementPrivacyToggle]
+    },
+    api: Api,
+    segmentedControl: window.FundSegmentedControl,
+    getState: () => appState,
+    setState: state => { appState = state; },
+    renderCharts,
+    showToast
+  });
 
   // --- 初始化运行 ---
   window.FundDateTime.startClock(elSystemTime);
   themeController.init();
-  initPrivacy();
-  window.FundDateTime.setDefaultDates({
+  settingsController.init();
+  const resetDefaultDates = () => window.FundDateTime.setDefaultDates({
     transactionDate: txDate,
     valuationDate: valDate,
     transferDate: tfDate,
     settlementDate: settleDate
   });
+  resetDefaultDates();
   window.FundCustomSelect?.init();
-  bindEvents();
+  initControllers();
   loadAllData();
   loadTickerAthData();
   setInterval(loadTickerAthData, 5 * 60 * 1000);
 
-  // --- 隐私模式模块 ---
-  function initPrivacy() {
-    if (isPrivacyMode) {
-      document.body.classList.add('privacy-mode-active');
-    }
-  }
-
-  // --- 事件绑定模块 ---
-  function bindEvents() {
-    const validateSundayDateInput = input => {
-      if (!input.value) {
-        input.setCustomValidity('');
-        return false;
-      }
-      const day = new Date(`${input.value}T00:00:00Z`).getUTCDay();
-      const isSunday = day === 0;
-      input.setCustomValidity(isSunday ? '' : '出入金和内部转让仅在周日办理，请选择周日。');
-      return isSunday;
-    };
-
-    const validateValuationDateInput = input => {
-      const latest = getLatestValuationDate();
-      input.max = latest;
-      if (!input.value) {
-        input.setCustomValidity('');
-        return false;
-      }
-      const day = new Date(`${input.value}T00:00:00Z`).getUTCDay();
-      let message = '';
-      if (day === 0 || day === 6) message = '估值日期请选择周一至周五的交易日。';
-      else if (input.value > latest) message = `美东时间04:05后才开放当日估值，当前最晚可选择 ${latest}。`;
-      input.setCustomValidity(message);
-      return !message;
-    };
-
-    txDate.addEventListener('input', () => validateSundayDateInput(txDate));
-    txDate.addEventListener('change', () => {
-      if (!validateSundayDateInput(txDate)) txDate.reportValidity();
-    });
-    tfDate.addEventListener('input', () => validateSundayDateInput(tfDate));
-    tfDate.addEventListener('change', () => {
-      if (!validateSundayDateInput(tfDate)) tfDate.reportValidity();
-    });
-    valDate.addEventListener('input', () => validateValuationDateInput(valDate));
-    valDate.addEventListener('change', () => {
-      if (!validateValuationDateInput(valDate)) valDate.reportValidity();
-    });
-    editDate.addEventListener('input', () => {
-      if (['deposit', 'withdraw', 'transfer'].includes(editEventType.value)) validateSundayDateInput(editDate);
-      else if (editEventType.value === 'valuation') validateValuationDateInput(editDate);
-      else editDate.setCustomValidity('');
+  // --- 业务控制器初始化 ---
+  function initControllers() {
+    const formController = window.FundTransactionController.init({
+      elements: {
+        txDate, tfDate, valDate, editDate, editEventType,
+        tfAmount, tfRate, tfCnhDisplay, inputCnhRate,
+        formTransfer, tfFromMember, tfToMember, tfRemark,
+        editAmount, editCnhAmount, formEditEvent, editEventId,
+        editRemark, editMember, editFromMember, editToMember,
+        editCnhRate, editEventModal, formTransaction, elTxMember,
+        txAmount, txCnhAmount, txRemark, formValuation, valTotalNav, valRemark
+      },
+      api: Api,
+      submission: window.FundSubmission,
+      resetDefaultDates,
+      loadAllData,
+      showToast,
+      showSubmissionSuccess,
+      closeModal,
+      getLatestValuationDate,
+      formatMoney
     });
 
-    const openMembersPanel = () => {
-      renderMembersEditorList();
-      openModal(memberModal);
-    };
-    const openBackupPanel = () => openModal(backupModal);
+    const managementController = window.FundManagementController.init({
+      elements: {
+        memberModal, backupModal, formAddMember, newMemberName,
+        btnTriggerUpload, fileImport, fileNameLabel, btnConfirmImport
+      },
+      api: Api,
+      modal: window.FundModal,
+      loadAllData,
+      renderMembersEditorList,
+      showToast
+    });
+    const { openMembersPanel, openBackupPanel } = managementController;
 
-    bindAccessibleModal(backupModal, btnCloseModal);
-    bindAccessibleModal(principlesModal, btnClosePrinciplesModal);
-    bindAccessibleModal(memberModal, btnCloseMemberModal);
-    btnSaveMemberSettings?.addEventListener('click', () => closeModal(memberModal));
-    bindAccessibleModal(editEventModal, btnCloseEditModal);
-    bindAccessibleModal(tickerConfigModal, btnCloseTickerConfigModal);
-    bindAccessibleModal(settlementPreviewModal, btnCloseSettlementPreview);
-    btnCancelSettlement?.addEventListener('click', () => closeModal(settlementPreviewModal));
-    document.addEventListener('keydown', event => {
-      if (event.key !== 'Escape') return;
-      const activeModals = [...document.querySelectorAll('.modal-overlay.active')];
-      const topmostModal = activeModals.at(-1);
-      if (!topmostModal) return;
-      event.preventDefault();
-      closeModal(topmostModal);
+    window.FundAppShell.init({
+      elements: {
+        backupModal, btnCloseModal, principlesModal, btnClosePrinciplesModal,
+        memberModal, btnCloseMemberModal, btnSaveMemberSettings,
+        editEventModal, btnCloseEditModal, tickerConfigModal, btnCloseTickerConfigModal,
+        settlementPreviewModal, btnCloseSettlementPreview, btnCancelSettlement,
+        memberViewTabs, membersGridContainer: elMembersGridContainer,
+        btnTabTx, btnTabVal, btnTabTf, btnTabSettle,
+        formTransaction, formValuation, formTransfer, formSettlement,
+        inputCnhRate, tfRate
+      },
+      modal: window.FundModal,
+      segmentedControl: window.FundSegmentedControl,
+      navigation: window.FundNavigation,
+      switchOperationView,
+      formController,
+      management: managementController,
+      getAllocationChart: () => memberAllocationChart
     });
 
-    document.querySelectorAll('[data-sidebar-action]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const action = button.dataset.sidebarAction;
-        if (action === 'principles') openModal(principlesModal, button);
-        if (action === 'members') openMembersPanel();
-        if (action === 'backup') openBackupPanel();
-      });
+    window.FundSettlementController.init({
+      elements: {
+        btnReverseSettlement, settleGp, settleDate, settleRemark,
+        settlementPreviewModal, btnPreviewSettlement, settlementPreviewSubtitle,
+        settlementPreviewSummary, settlementPreviewBody, btnConfirmSettlement,
+        formSettlement
+      },
+      api: Api,
+      modal: window.FundModal,
+      submission: window.FundSubmission,
+      getMembers: () => membersList,
+      loadAllData,
+      showToast,
+      showSubmissionSuccess,
+      escapeHtml,
+      formatMoney
+    });
+    window.FundChartControls.init({
+      elements: { filterMember, filterType, chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx },
+      chartRenderer: window.FundChartRenderer,
+      segmentedControl: window.FundSegmentedControl,
+      renderLedger,
+      renderCharts,
+      getNavTrendChart: () => navTrendChart,
+      getRenderTrendStats: () => renderTrendStats,
+      setActiveTimeSlice: value => { activeTimeSlice = value; }
     });
 
-    // 家庭成员面板内切换资产卡片与资产占比图。
-    const memberViewsStage = document.querySelector('.member-views-stage');
-    const memberAllocationSummary = document.querySelector('.member-allocation-summary');
-    document.querySelectorAll('[data-member-view]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const nextMemberView = e.currentTarget.dataset.memberView;
-        if (nextMemberView === activeMemberView) return;
-
-        // 先锁定当前高度，再将高度补间到目标视图，避免面板瞬间跳动。
-        const currentHeight = memberViewsStage?.offsetHeight || 0;
-        if (memberViewsStage) memberViewsStage.style.height = `${currentHeight}px`;
-        activeMemberView = nextMemberView;
-        activateSegmentOption(memberViewTabs, e.currentTarget);
-        elMembersGridContainer.classList.toggle('active', activeMemberView === 'assets');
-        memberAllocationSummary?.classList.toggle('active', activeMemberView === 'allocation');
-
-        const targetHeight = memberViewsStage?.scrollHeight || currentHeight;
-        requestAnimationFrame(() => {
-          if (memberViewsStage) memberViewsStage.style.height = `${targetHeight}px`;
-          if (activeMemberView === 'allocation') memberAllocationChart?.resize();
-        });
-        setTimeout(() => {
-          if (memberViewsStage) memberViewsStage.style.height = '';
-        }, 280);
-      });
+    window.FundTickerConfig.init({
+      elements: {
+        btnRefreshTickers, btnConfigTickers, tickerConfigModal,
+        tickerConfigList, btnAddTickerRow, btnSaveTickerConfig
+      },
+      api: Api,
+      modal: window.FundModal,
+      escapeHtml,
+      showToast,
+      loadTickerAthData
     });
-
-    window.FundNavigation.init();
-    requestAnimationFrame(syncSegmentIndicators);
-    window.addEventListener('resize', syncSegmentIndicators);
-
-    benchmarkPolicyButtons.forEach(button => {
-      button.addEventListener('click', async event => {
-        const selectedButton = event.currentTarget;
-        const nextPolicy = selectedButton.dataset.benchmarkPolicy;
-        const previousPolicy = appState?.settings?.benchmarkClosePolicy || 'previous';
-        if (nextPolicy === previousPolicy) return;
-
-        const token = ++benchmarkRefreshToken;
-        benchmarkPolicyGroup?.setAttribute('aria-busy', 'true');
-        benchmarkPolicyButtons.forEach(option => { option.disabled = true; });
-        activateSegmentOption(benchmarkPolicyGroup, selectedButton);
-
-        try {
-          await Api.updateSettings({ benchmarkClosePolicy: nextPolicy });
-          if (appState?.settings) {
-            appState.settings.benchmarkClosePolicy = nextPolicy;
-            appState.settings.benchmarkCacheReady = false;
-          }
-          const refreshed = await waitForBenchmarkRefresh(nextPolicy, token);
-          showToast(
-            refreshed ? '指数收盘口径已更新' : '口径已保存，指数数据仍在后台刷新',
-            refreshed ? 'success' : 'warning'
-          );
-        } catch (error) {
-          syncBenchmarkPolicyControl(previousPolicy);
-          showToast('指数口径更新失败：' + error.message, 'error');
-        } finally {
-          if (token === benchmarkRefreshToken) {
-            benchmarkPolicyGroup?.removeAttribute('aria-busy');
-            benchmarkPolicyButtons.forEach(option => { option.disabled = false; });
-          }
-        }
-      });
-    });
-
-    // 顶部与结算预览按钮共享同一隐私状态。
-    const togglePrivacyMode = () => {
-      isPrivacyMode = !isPrivacyMode;
-      document.body.classList.toggle('privacy-mode-active', isPrivacyMode);
-      [btnPrivacyToggle, btnSettlementPrivacyToggle].forEach(button => {
-        if (button) button.setAttribute('aria-pressed', String(isPrivacyMode));
-      });
-      showToast(isPrivacyMode ? '隐私模式已开启，敏感财务数据已模糊隐藏' : '隐私模式已关闭', isPrivacyMode ? 'success' : 'warning');
-    };
-    [btnPrivacyToggle, btnSettlementPrivacyToggle].forEach(button => {
-      if (!button) return;
-      button.setAttribute('aria-pressed', String(isPrivacyMode));
-      button.addEventListener('click', togglePrivacyMode);
-    });
-
-    // 切换录入表单面板
-    btnTabTx.addEventListener('click', () => {
-      switchOperationView(btnTabTx, formTransaction);
-    });
-
-    btnTabVal.addEventListener('click', () => {
-      switchOperationView(btnTabVal, formValuation);
-    });
-
-    btnTabTf.addEventListener('click', () => {
-      switchOperationView(btnTabTf, formTransfer, () => {
-        // Auto prefill current global CNH Rate in the transfer rate input when opened
-        const rateVal = parseFloat(inputCnhRate.value) || 7.2;
-        tfRate.value = rateVal.toFixed(4);
-        updateTfCnhDisplay();
-      });
-    });
-
-    btnTabSettle.addEventListener('click', () => switchOperationView(btnTabSettle, formSettlement));
-
-    btnReverseSettlement.addEventListener('click', async () => {
-      if (!confirm('确定撤销最近一次有效业绩结算吗？系统会保留原结算并追加冲销记录，相关账期将重新开放。')) return;
-      btnReverseSettlement.disabled = true;
-      try {
-        const result = await Api.reverseLatestSettlement('管理员撤销最近一次业绩结算');
-        showToast(result.message, 'success');
-        await loadAllData();
-      } catch (error) {
-        showToast(error.message, 'error');
-      } finally {
-        btnReverseSettlement.disabled = false;
-      }
-    });
-
-    const settlementPayload = () => ({ gpMember: settleGp.value, date: settleDate.value, remark: settleRemark.value.trim() });
-    const invalidateSettlementPreview = () => {
-      pendingSettlement = null;
-      closeModal(settlementPreviewModal);
-    };
-    [settleGp, settleDate, settleRemark].forEach(element => element.addEventListener('input', invalidateSettlementPreview));
-    btnPreviewSettlement.addEventListener('click', async () => {
-      try {
-        pendingSettlement = settlementPayload();
-        const preview = await Api.previewSettlement(pendingSettlement);
-        const rows = preview.breakdown.map(item => {
-          const name = membersList.find(member => member.id === item.member)?.name || item.member;
-          const lotRows = (item.lots || []).map((lot, index) => {
-            const sourceLabel = lot.sourceType === 'transfer_in'
-              ? '转让取得'
-              : lot.sourceType === 'settlement_reset'
-                ? '上次结算基准'
-                : '现金入金';
-            return `
-            <tr>
-              <td><span style="color:var(--color-text-muted)">↳ 批次 ${index + 1} · ${sourceLabel}</span></td>
-              <td>${escapeHtml(lot.startDate)}</td>
-              <td class="privacy-sensitive">$${formatMoney(lot.basis)}</td>
-              <td class="privacy-sensitive">${lot.entryNav.toFixed(4)}</td>
-              <td class="privacy-sensitive">${lot.shares.toFixed(6)}</td>
-              <td>${lot.holdingDays}天</td>
-              <td class="privacy-sensitive">$${formatMoney(lot.currentValue)}</td>
-              <td class="privacy-sensitive">$${formatMoney(lot.hurdle)}</td>
-              <td class="privacy-sensitive ${lot.aboveHurdle >= 0 ? 'text-green' : 'text-magenta'}">${lot.aboveHurdle >= 0 ? '+' : '-'}$${formatMoney(Math.abs(lot.aboveHurdle))}</td>
-            </tr>`;
-          }).join('');
-          return `
-            <tr style="background:rgba(80,130,255,.08)">
-              <td colspan="6"><strong>${escapeHtml(name)}</strong><span style="margin-left:10px;color:var(--color-text-muted)">${item.lots?.length || 0}笔资金批次 · 结算后 ${item.sharesAfter.toFixed(6)}份</span></td>
-              <td class="privacy-sensitive"><strong>$${formatMoney(item.valueBefore)}</strong></td>
-              <td class="privacy-sensitive"><strong>$${formatMoney(item.hurdle)}</strong></td>
-              <td class="privacy-sensitive"><strong class="${item.excess > 0 ? 'text-green' : ''}">$${formatMoney(item.excess)}</strong><div class="settlement-fee-detail">25%报酬 $${formatMoney(item.fee)} · ${item.feeShares.toFixed(6)}份</div></td>
-            </tr>${lotRows}`;
-        }).join('');
-        const gpName = membersList.find(member => member.id === pendingSettlement.gpMember)?.name || '主GP';
-        settlementPreviewSubtitle.textContent = `${pendingSettlement.date} · 采用 ${preview.valuationDate} 估值 · GP：${gpName}`;
-        settlementPreviewSummary.innerHTML = [
-          ['结算单位净值', preview.navPerShare.toFixed(4)],
-          ['参与LP', `${preview.breakdown.length} 人`],
-          ['合计业绩报酬', `$${formatMoney(preview.totalFee)}`]
-        ].map(([label, value]) => `<div class="info-alert" style="display:block;margin:0"><div style="font-size:.7rem;color:var(--color-text-muted)">${label}</div><strong class="privacy-sensitive" style="display:block;font-size:1.15rem;margin-top:4px">${value}</strong></div>`).join('');
-        settlementPreviewBody.innerHTML = rows || '<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--color-text-muted)">结算日没有持有LP份额的成员</td></tr>';
-        openModal(settlementPreviewModal, btnPreviewSettlement);
-      } catch (error) {
-        invalidateSettlementPreview();
-        showToast(error.message, 'error');
-      }
-    });
-    btnConfirmSettlement.addEventListener('click', async () => {
-      if (!pendingSettlement) return;
-      btnConfirmSettlement.disabled = true;
-      await submitOnce(formSettlement, async () => {
-        try {
-          await Api.confirmSettlement(pendingSettlement);
-          closeModal(settlementPreviewModal);
-          showSubmissionSuccess('业绩结算已确认并锁账');
-          invalidateSettlementPreview();
-          await loadAllData();
-        } catch (error) {
-          showToast(error.message, 'error');
-        }
-      });
-      btnConfirmSettlement.disabled = false;
-    });
-
-    // 划转表单金额及汇率联动
-    const updateTfCnhDisplay = () => {
-      const usdVal = parseFloat(tfAmount.value);
-      const rateVal = parseFloat(tfRate.value);
-      if (!isNaN(usdVal) && !isNaN(rateVal)) {
-        tfCnhDisplay.textContent = `折合 CNH: ≈ ¥${formatMoney(usdVal * rateVal)}`;
-      } else {
-        tfCnhDisplay.textContent = `折合 CNH: ≈ ¥0.00`;
-      }
-    };
-    tfAmount.addEventListener('input', updateTfCnhDisplay);
-    tfRate.addEventListener('input', updateTfCnhDisplay);
-
-    // 内部转让划转录入提交
-    formTransfer.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!validateSundayDateInput(tfDate)) {
-        tfDate.reportValidity();
-        return;
-      }
-      await submitOnce(formTransfer, async () => {
-
-      const fromMember = tfFromMember.value;
-      const toMember = tfToMember.value;
-      const amount = parseFloat(tfAmount.value);
-      const cnhRate = parseFloat(tfRate.value);
-      const date = tfDate.value;
-      const remark = tfRemark.value.trim();
-
-      if (!fromMember || !toMember) {
-        showToast('请先选择有效的出让方与受让方', 'error');
-        return;
-      }
-      if (fromMember === toMember) {
-        showToast('出让方与受让方不能为同一成员', 'error');
-        return;
-      }
-
-      try {
-        await Api.addTransfer({ fromMember, toMember, amount, cnhRate, date, remark });
-        showSubmissionSuccess('内部份额转让已提交并保存');
-        formTransfer.reset();
-        setDefaultDates();
-        await loadAllData();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-      });
-    });
-
-    // 流水筛选
-    filterMember.addEventListener('change', renderLedger);
-    filterType.addEventListener('change', renderLedger);
-
-    // 对标指数复选框切换监听
-    const comparisonDatasetIndexes = new Map([
-      [chkCompAssets, 0],
-      [chkCompNav, 1],
-      [chkCompSp500, 2],
-      [chkCompNdx, 3]
-    ]);
-
-    const updateCompVisibility = event => {
-      if (!navTrendChart) return;
-
-      const checkbox = event.currentTarget;
-      const datasetIndex = comparisonDatasetIndexes.get(checkbox);
-      const visible = checkbox.checked;
-      const isAssets = datasetIndex === 0;
-
-      // The asset axis changes the chart layout. Settle that layout without
-      // animation first, then fade the dataset so it never flies in.
-      if (isAssets && visible) {
-        navTrendChart.options.scales['y-assets'].display = true;
-        navTrendChart.update('none');
-      }
-      navTrendChart.$glassTooltipBackdrop = null;
-      window.FundChartRenderer.animateDatasetVisibility(navTrendChart, datasetIndex, visible, {
-        duration: visible ? 320 : 240,
-        onComplete: () => {
-          if (isAssets && !visible) {
-            navTrendChart.options.scales['y-assets'].display = false;
-            navTrendChart.update('none');
-          }
-        }
-      });
-      renderTrendStats?.();
-    };
-
-    chkCompNav.addEventListener('change', updateCompVisibility);
-    chkCompAssets.addEventListener('change', updateCompVisibility);
-    chkCompSp500.addEventListener('change', updateCompVisibility);
-    chkCompNdx.addEventListener('change', updateCompVisibility);
-
-    // 时间区间选择按钮绑定
-    const timeSlicerGroup = document.getElementById('time-slicer-group');
-    document.querySelectorAll('.time-slice-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        activateSegmentOption(timeSlicerGroup, e.currentTarget);
-        activeTimeSlice = e.currentTarget.getAttribute('data-time-slice');
-        renderCharts();
-      });
-    });
-
-    // 对数坐标切换功能已移除
-
-    // 联动逻辑：在录入交易输入 USD 时，基于全局汇率自动估算并预填 CNH
-    txAmount.addEventListener('input', () => {
-      const usdVal = parseFloat(txAmount.value);
-      const rateVal = parseFloat(inputCnhRate.value) || 7.2;
-      if (!isNaN(usdVal)) {
-        txCnhAmount.value = (usdVal * rateVal).toFixed(2);
-      } else {
-        txCnhAmount.value = '';
-      }
-    });
-
-    editAmount.addEventListener('input', () => {
-      const usdVal = parseFloat(editAmount.value);
-      const rateVal = parseFloat(inputCnhRate.value) || 7.2;
-      if (!isNaN(usdVal) && editEventType.value !== 'valuation') {
-        editCnhAmount.value = (usdVal * rateVal).toFixed(2);
-      }
-    });
-
-    // 监听全局汇率变化
-    inputCnhRate.addEventListener('change', async () => {
-      const parsedRate = parseFloat(inputCnhRate.value);
-      if (isNaN(parsedRate) || parsedRate <= 0) {
-        showToast('汇率必须大于 0', 'error');
-        return;
-      }
-      try {
-        await Api.updateSettings({ cnhRate: parsedRate });
-        showToast('全局 USD/CNH 汇率更新成功，账目已同步！', 'success');
-        await loadAllData();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-
-    // 自动同步外部汇率按钮
-    const btnSyncRate = document.getElementById('btn-sync-rate');
-    if (btnSyncRate) {
-      btnSyncRate.addEventListener('click', async () => {
-        btnSyncRate.classList.add('spinning');
-        try {
-          const rate = await Api.syncCnhRate();
-          showToast(`成功同步全球最新汇率：${rate.toFixed(4)}`, 'success');
-          inputCnhRate.value = rate.toFixed(4);
-          await loadAllData();
-        } catch (err) {
-          showToast(err.message, 'error');
-        } finally {
-          btnSyncRate.classList.remove('spinning');
-        }
-      });
-    }
-
-    // 监听编辑账目表单提交
-    formEditEvent.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (['deposit', 'withdraw', 'transfer'].includes(editEventType.value) && !validateSundayDateInput(editDate)) {
-        editDate.reportValidity();
-        return;
-      }
-      if (editEventType.value === 'valuation' && !validateValuationDateInput(editDate)) {
-        editDate.reportValidity();
-        return;
-      }
-      await submitOnce(formEditEvent, async () => {
-      const id = editEventId.value;
-      const type = editEventType.value;
-      const date = editDate.value;
-      const remark = editRemark.value.trim();
-
-      const payload = { date, remark };
-      if (type === 'deposit' || type === 'withdraw') {
-        payload.member = editMember.value;
-        payload.amount = parseFloat(editAmount.value);
-        payload.cnhAmount = parseFloat(editCnhAmount.value);
-      } else if (type === 'valuation') {
-        payload.totalNAV = parseFloat(editAmount.value);
-      } else if (type === 'transfer') {
-        payload.fromMember = editFromMember.value;
-        payload.toMember = editToMember.value;
-        payload.amount = parseFloat(editAmount.value);
-        payload.cnhRate = parseFloat(editCnhRate.value);
-      }
-
-      try {
-        await Api.updateEvent(id, payload);
-        showToast('账目修改成功，全局数据已级联重算！', 'success');
-        closeModal(editEventModal);
-        await loadAllData();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-      });
-    });
-
-    // 关闭修改模态框
-
-    // 出入金录入提交
-    formTransaction.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!validateSundayDateInput(txDate)) {
-        txDate.reportValidity();
-        return;
-      }
-      await submitOnce(formTransaction, async () => {
-
-      const member = elTxMember.value;
-      const type = document.querySelector('input[name="txType"]:checked').value;
-      const amount = parseFloat(txAmount.value);
-      const cnhAmount = parseFloat(txCnhAmount.value);
-      const date = txDate.value;
-      const remark = txRemark.value.trim();
-
-      if (!member) {
-        showToast('请先创建家庭成员再进行交易登记', 'error');
-        return;
-      }
-
-      try {
-        await Api.addTransaction({ member, type, amount, cnhAmount, date, remark });
-        showSubmissionSuccess('交易记录已提交并保存');
-        formTransaction.reset();
-        setDefaultDates();
-        await loadAllData();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-      });
-    });
-
-    // 估值更新提交
-    formValuation.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!validateValuationDateInput(valDate)) {
-        valDate.reportValidity();
-        return;
-      }
-      await submitOnce(formValuation, async () => {
-
-      const totalNAV = parseFloat(valTotalNav.value);
-      const date = valDate.value;
-      const remark = valRemark.value.trim();
-
-      try {
-        await Api.updateValuation({ totalNAV, date, remark });
-        showSubmissionSuccess('基金估值已提交并完成重估');
-        formValuation.reset();
-        setDefaultDates();
-        await loadAllData();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-      });
-    });
-
-    // 数据备份模态框打开与关闭
-    if (btnBackupPanel) btnBackupPanel.addEventListener('click', openBackupPanel);
-
-    // 成员管理模态框打开与关闭
-    if (btnMemberPanel) btnMemberPanel.addEventListener('click', openMembersPanel);
-
-    // 新增成员表单提交
-    formAddMember.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const name = newMemberName.value.trim();
-      if (!name) return;
-
-      try {
-        await Api.addMember(name);
-        showToast(`家庭成员【${name}】添加成功`, 'success');
-        newMemberName.value = '';
-        await loadAllData();
-        renderMembersEditorList();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-
-    // 备份导入文件上传选择
-    btnTriggerUpload.addEventListener('click', () => fileImport.click());
-    fileImport.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        fileNameLabel.textContent = file.name;
-        btnConfirmImport.removeAttribute('disabled');
-      } else {
-        fileNameLabel.textContent = '未选择任何文件';
-        btnConfirmImport.setAttribute('disabled', 'true');
-      }
-    });
-
-    // 确认导入备份
-    btnConfirmImport.addEventListener('click', async () => {
-      const file = fileImport.files[0];
-      if (!file) return;
-
-      try {
-        btnConfirmImport.setAttribute('disabled', 'true');
-        await Api.importBackup(file);
-        showToast('ZIP 快照恢复成功！账目和系统配置均已覆盖。', 'success');
-        closeModal(backupModal);
-        fileImport.value = '';
-        fileNameLabel.textContent = '未选择任何文件';
-        await loadAllData();
-      } catch (err) {
-        btnConfirmImport.removeAttribute('disabled');
-        showToast('恢复失败，请确认上传了本系统导出的 ZIP 备份：' + err.message, 'error');
-      }
-    });
-
-    // 打开标的配置弹窗
-    if (btnRefreshTickers) {
-      btnRefreshTickers.addEventListener('click', async () => {
-        btnRefreshTickers.disabled = true;
-        btnRefreshTickers.classList.add('spinning');
-        try {
-          const result = await Api.refreshTickerAth();
-          await loadTickerAthData();
-          if (result.refreshSuccess) {
-            showToast('标的数据已从 Yahoo Finance 刷新', 'success');
-          } else {
-            showToast(`刷新失败，继续显示本地缓存数据：${result.failedTickers.join('、')}`, 'warning');
-          }
-        } catch (err) {
-          showToast('刷新失败，继续显示本地缓存数据：' + err.message, 'error');
-        } finally {
-          btnRefreshTickers.disabled = false;
-          btnRefreshTickers.classList.remove('spinning');
-        }
-      });
-    }
-
-    if (btnConfigTickers) {
-      btnConfigTickers.addEventListener('click', () => {
-        renderTickerConfigList();
-        openModal(tickerConfigModal);
-      });
-    }
-
-    // 渲染标的配置列表
-    async function renderTickerConfigList() {
-      try {
-        const tickers = await Api.getTickers();
-        tickerConfigList.replaceChildren();
-        tickers.forEach(ticker => {
-          addTickerRow(ticker.ticker);
-        });
-        initTickerSortable();
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    }
-
-    function initTickerSortable() {
-      tickerSortable?.destroy();
-      tickerSortable = new Sortable(tickerConfigList, {
-        animation: 180,
-        easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
-        handle: '.ticker-drag-handle',
-        draggable: '.ticker-config-row',
-        ghostClass: 'ticker-sort-ghost',
-        chosenClass: 'ticker-sort-chosen',
-        forceFallback: false,
-        fallbackOnBody: true,
-        fallbackClass: 'ticker-sort-fallback',
-        fallbackTolerance: 4,
-        swapThreshold: 0.65,
-        invertSwap: true,
-        scroll: true,
-        bubbleScroll: true,
-        scrollSensitivity: 60,
-        scrollSpeed: 12
-      });
-    }
-
-    function moveTickerRow(row, direction) {
-      const sibling = direction === 'up' ? row.previousElementSibling : row.nextElementSibling;
-      if (!sibling) return;
-      if (direction === 'up') tickerConfigList.insertBefore(row, sibling);
-      else tickerConfigList.insertBefore(sibling, row);
-    }
-
-    // 动态添加一个配置行
-    function addTickerRow(ticker = '') {
-      const row = document.createElement('div');
-      row.className = 'ticker-config-row member-edit-item';
-      row.style.display = 'flex';
-      row.style.gap = '10px';
-      row.style.width = '100%';
-      row.style.alignItems = 'center';
-      row.innerHTML = `
-        <div class="ticker-sort-controls" aria-label="调整展示顺序">
-          <button class="ticker-drag-handle" type="button" title="拖动排序（也可用上下方向键）" aria-label="拖动此标的调整顺序">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14"/></svg>
-          </button>
-        </div>
-        <div style="flex: 1; min-width: 0;">
-          <input type="text" class="ticker-symbol-input" value="${escapeHtml(ticker)}" placeholder="代码（如：AAPL）" style="width: 100%; font-weight: 700; text-transform: uppercase;" required>
-        </div>
-        <button class="btn-delete btn-remove-ticker-row" type="button" title="移除此标的" style="flex-shrink: 0; padding: 6px;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-          </svg>
-        </button>
-      `;
-
-      // 绑定删除按钮点击事件
-      row.querySelector('.btn-remove-ticker-row').addEventListener('click', () => {
-        row.remove();
-      });
-      const dragHandle = row.querySelector('.ticker-drag-handle');
-      dragHandle.addEventListener('keydown', event => {
-        if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
-        event.preventDefault();
-        moveTickerRow(row, event.key === 'ArrowUp' ? 'up' : 'down');
-      });
-
-      tickerConfigList.appendChild(row);
-    }
-
-    // 添加配置行事件
-    if (btnAddTickerRow) {
-      btnAddTickerRow.addEventListener('click', () => {
-        addTickerRow();
-        tickerConfigList.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      });
-    }
-
-    // 保存配置事件
-    if (btnSaveTickerConfig) {
-      btnSaveTickerConfig.addEventListener('click', async () => {
-        const rows = tickerConfigList.querySelectorAll('.ticker-config-row');
-        const tickers = [];
-        let valid = true;
-
-        rows.forEach(row => {
-          const tickerInput = row.querySelector('.ticker-symbol-input');
-          const ticker = tickerInput.value.trim();
-
-          if (!ticker) {
-            tickerInput.focus();
-            valid = false;
-            return;
-          }
-          tickers.push({ ticker });
-        });
-
-        if (!valid) {
-          showToast('请填写标的代码', 'error');
-          return;
-        }
-
-        if (tickers.length === 0) {
-          showToast('最少需要追踪 1 个标的', 'error');
-          return;
-        }
-
-        btnSaveTickerConfig.setAttribute('disabled', 'true');
-        btnSaveTickerConfig.textContent = '正在保存并拉取数据...';
-
-        try {
-          await Api.saveTickers(tickers);
-          showToast('标的配置保存成功！正在为您自动刷新页面。', 'success');
-          closeModal(tickerConfigModal);
-          // 重新抓取并更新顶部卡片
-          await loadTickerAthData();
-        } catch (err) {
-          showToast(err.message, 'error');
-        } finally {
-          btnSaveTickerConfig.removeAttribute('disabled');
-          btnSaveTickerConfig.innerHTML = `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px; height: 18px;">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-              <polyline points="17 21 17 13 7 13 7 21" />
-              <polyline points="7 3 7 8 15 8" />
-            </svg>
-            保存标的配置并刷新
-          `;
-        }
-      });
-    }
   }
 
   function updateChartsColors(theme) {
@@ -1043,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // 同时获取成员列表与基金状态
       membersList = await Api.getMembers();
       appState = await Api.getState();
-      syncBenchmarkPolicyControl(appState.settings?.benchmarkClosePolicy || 'previous');
+      settingsController.syncBenchmarkPolicy(appState.settings?.benchmarkClosePolicy || 'previous');
 
       // 更新动态下拉选项（出入金下拉 + 流水筛选下拉）
       populateDynamicSelectors();
@@ -1338,7 +651,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn._deleteEventId === id) targetRow = row;
       });
     });
-
     if (targetRow) {
       targetRow.style.transition = 'opacity 0.3s, transform 0.3s';
       targetRow.style.opacity = '0.2';

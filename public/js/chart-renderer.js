@@ -344,7 +344,7 @@ window.FundChartRenderer = {
     const dark = isDarkTheme(settings.theme);
     const navCanvas = document.getElementById('navTrendChart');
     const navCtx = navCanvas.getContext('2d');
-    
+
     // 动态生成高通透度 Apple 风格多阶渐变
     const navGradient = createChartGradient(navCtx, hexToRgba(seriesColors.nav, dark ? 0.36 : 0.30), hexToRgba(seriesColors.nav, 0));
 
