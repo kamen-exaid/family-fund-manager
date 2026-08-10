@@ -141,12 +141,13 @@ app.get('/api/ticker-ath', async (req, res) => {
     const stale = isTickerCacheStale(cache, config);
 
     if (hasEveryTicker) {
+      const refreshing = Boolean(tickerRefreshPromise) || stale;
       res.json({
         success: true,
         data: selectTickerData(cache, config),
         cached: true,
         stale,
-        refreshing: stale,
+        refreshing,
         updatedAt: cache.updatedAt
       });
       if (stale) setImmediate(() => { void queueTickerRefresh(config); });

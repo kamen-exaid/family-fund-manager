@@ -1,13 +1,23 @@
 /**
  * Ticker 市场数据面板：独立于账本状态，便于单独维护和测试。
  */
+const TICKER_REFRESH_POLL_INTERVAL = 1000;
+const TICKER_REFRESH_MAX_POLLS = 30;
+let tickerRefreshPollTimer = null;
+
 window.FundTickerPanel = {
-  async load({ container, api, ui }) {
+  async load({ container, api, ui, pollAttempt = 0 }) {
     if (!container) return;
     const { escapeHtml, formatMonthDay } = ui;
 
+    if (tickerRefreshPollTimer) {
+      clearTimeout(tickerRefreshPollTimer);
+      tickerRefreshPollTimer = null;
+    }
+
     try {
-      const data = await api.getTickerAth();
+      const result = await api.getTickerAth();
+      const data = result.data;
       const rows = Object.keys(data).map(ticker => {
         const item = data[ticker];
         const safeTicker = escapeHtml(ticker);
@@ -55,6 +65,21 @@ window.FundTickerPanel = {
           <tbody>${rows}</tbody>
         </table>`;
       bindTickerTooltips(container, data, formatMonthDay);
+
+      // The first request deliberately returns disk cache immediately while the
+      // server refreshes Yahoo in the background. Follow that worker briefly so
+      // the panel replaces the stale snapshot as soon as it is ready.
+      if (result.refreshing && pollAttempt < TICKER_REFRESH_MAX_POLLS) {
+        tickerRefreshPollTimer = setTimeout(() => {
+          tickerRefreshPollTimer = null;
+          void window.FundTickerPanel.load({
+            container,
+            api,
+            ui,
+            pollAttempt: pollAttempt + 1
+          });
+        }, TICKER_REFRESH_POLL_INTERVAL);
+      }
     } catch (error) {
       // textContent keeps unexpected network error text out of HTML parsing.
       container.replaceChildren();

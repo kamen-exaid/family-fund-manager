@@ -62,7 +62,7 @@ const Api = {
   async confirmSettlement(data) { return jsonRequest('/api/performance-settlement', 'POST', data); },
   async reverseLatestSettlement(remark) { return jsonRequest('/api/performance-settlement/reverse-latest', 'POST', { remark }); },
   async getTickerAth() {
-    return (await requestApi('/api/ticker-ath', { cache: 'no-store' })).data;
+    return requestApi('/api/ticker-ath', { cache: 'no-store' });
   },
   async refreshTickerAth() {
     return requestApi('/api/ticker-ath/refresh', { method: 'POST', cache: 'no-store' });

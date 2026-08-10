@@ -83,6 +83,7 @@ const nextTurn = () => new Promise(resolve => setImmediate(resolve));
 
   const second = await requestTicker();
   assert.strictEqual(second.body.data.VOO.ath, 100);
+  assert.strictEqual(second.body.refreshing, true, 'clients must keep polling while the shared worker is active');
   await nextTurn();
   assert.strictEqual(fetchCalls, 1, 'concurrent stale requests must share one refresh');
 
