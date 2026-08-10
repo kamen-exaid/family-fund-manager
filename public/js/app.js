@@ -45,6 +45,14 @@ document.addEventListener('DOMContentLoaded', () => {
     getSeriesColors,
     hexToRgba
   } = window.FundUiUtils;
+  const { open: openModal, close: closeModal, bindAccessible: bindAccessibleModal } = window.FundModal;
+  const { runOnce: submitOnce } = window.FundSubmission;
+  const {
+    setIndicator: setSegmentIndicator,
+    activate: activateSegmentOption,
+    syncAll: syncSegmentIndicators
+  } = window.FundSegmentedControl;
+  const { getLatestValuationDate } = window.FundDateTime;
 
   // --- 全局状态 ---
   let appState = null;
@@ -54,100 +62,14 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeScaleType = 'linear'; // 'linear' or 'logarithmic'
   let navTrendChart = null;
   let memberAllocationChart = null;
-  let currentTheme = 'system';
   let currentFilteredHistory = [];
   let currentTrendStatSeries = [];
   let renderTrendStats = null;
   let isTrendStatsHovering = false;
   let isPrivacyMode = true; // 默认开启隐私遮罩，用户可按需查看数据
   let tickerSortable = null;
-  let operationPanelResizeAnimation = null;
-  let operationPanelResizeCleanupTimer = null;
   let benchmarkRefreshToken = 0;
   let hasPromptedGpSetup = false;
-
-  const modalTriggers = new WeakMap();
-
-  function getModalFocusableElements(modal) {
-    return [...modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]):not(.custom-select__native), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
-      .filter(element => element.offsetParent !== null);
-  }
-
-  function openModal(modal, trigger = document.activeElement) {
-    if (!modal) return;
-    modalTriggers.set(modal, trigger);
-    modal.classList.add('active');
-    modal.setAttribute('aria-hidden', 'false');
-    document.documentElement.classList.add('modal-open');
-    document.body.classList.add('modal-open');
-    requestAnimationFrame(() => (getModalFocusableElements(modal)[0] || modal.querySelector('.modal-content'))?.focus());
-  }
-
-  function closeModal(modal) {
-    if (!modal || !modal.classList.contains('active')) return;
-    modal.classList.remove('active');
-    modal.setAttribute('aria-hidden', 'true');
-    if (!document.querySelector('.modal-overlay.active')) {
-      document.documentElement.classList.remove('modal-open');
-      document.body.classList.remove('modal-open');
-    }
-    modalTriggers.get(modal)?.focus?.();
-  }
-
-  function bindAccessibleModal(modal, closeButton) {
-    if (!modal) return;
-    closeButton?.addEventListener('click', () => closeModal(modal));
-    modal.addEventListener('click', event => {
-      if (event.target === modal) closeModal(modal);
-    });
-    modal.addEventListener('keydown', event => {
-      if (!modal.classList.contains('active')) return;
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closeModal(modal);
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const focusable = getModalFocusableElements(modal);
-      if (!focusable.length) {
-        event.preventDefault();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    });
-  }
-
-  function beginSubmission(form) {
-    if (form.dataset.submitting === 'true') return null;
-    form.dataset.submitting = 'true';
-    form.setAttribute('aria-busy', 'true');
-    const buttons = [...form.querySelectorAll('button[type="submit"]')]
-      .map(button => ({ button, disabled: button.disabled }));
-    buttons.forEach(({ button }) => { button.disabled = true; });
-    return () => {
-      delete form.dataset.submitting;
-      form.removeAttribute('aria-busy');
-      buttons.forEach(({ button, disabled }) => { button.disabled = disabled; });
-    };
-  }
-
-  async function submitOnce(form, task) {
-    const finishSubmission = beginSubmission(form);
-    if (!finishSubmission) return;
-    try {
-      await task();
-    } finally {
-      finishSubmission();
-    }
-  }
 
   // --- DOM 元素定义 ---
   const elSystemTime = document.getElementById('system-time');
@@ -282,21 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAddTickerRow = document.getElementById('btn-add-ticker-row');
   const btnSaveTickerConfig = document.getElementById('btn-save-ticker-config');
 
-  function setSegmentIndicator(group, button) {
-    if (!group || !button) return;
-    group.style.setProperty('--active-left', `${button.offsetLeft}px`);
-    group.style.setProperty('--active-width', `${button.offsetWidth}px`);
-  }
-
-  function activateSegmentOption(group, button) {
-    if (!group || !button) return;
-    group.querySelectorAll('.segmented-control__button').forEach(option => {
-      option.classList.toggle('active', option === button);
-      option.setAttribute('aria-pressed', option === button ? 'true' : 'false');
-    });
-    setSegmentIndicator(group, button);
-  }
-
   function syncBenchmarkPolicyControl(policy = 'previous') {
     const activeButton = benchmarkPolicyButtons.find(button => button.dataset.benchmarkPolicy === policy)
       || benchmarkPolicyButtons[0];
@@ -322,91 +229,37 @@ document.addEventListener('DOMContentLoaded', () => {
     return false;
   }
 
-  function syncSegmentIndicators() {
-    document.querySelectorAll('.segmented-control').forEach(group => {
-      setSegmentIndicator(group, group.querySelector('.segmented-control__button.active'));
-    });
-  }
-
-  function switchOperationView(activeButton, activeForm, onActivate) {
-    if (!operationPanel || !activeButton || !activeForm) return;
-    if (activeButton.classList.contains('active') && activeForm.classList.contains('active')) return;
-
-    const currentHeight = operationPanel.getBoundingClientRect().height;
-    const interruptedAnimation = operationPanelResizeAnimation;
-    operationPanelResizeAnimation = null;
-    interruptedAnimation?.cancel();
-    window.clearTimeout(operationPanelResizeCleanupTimer);
-    operationPanelResizeCleanupTimer = null;
-    operationPanel.style.removeProperty('height');
-    operationPanel.style.removeProperty('overflow');
-
-    activateSegmentOption(operationTabs, activeButton);
-    [formTransaction, formValuation, formTransfer, formSettlement].forEach(form => {
-      form.classList.toggle('active', form === activeForm);
-    });
-    onActivate?.();
-
-    const targetHeight = operationPanel.getBoundingClientRect().height;
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) return;
-
-    activeForm.animate(
-      [
-        { opacity: 0, transform: 'translateY(8px) scale(0.985)' },
-        { opacity: 1, transform: 'translateY(0) scale(1)' }
-      ],
-      {
-        duration: 340,
-        easing: 'cubic-bezier(0.32, 0.72, 0, 1)'
-      }
-    );
-
-    if (Math.abs(targetHeight - currentHeight) < 1) return;
-
-    operationPanel.style.height = `${targetHeight}px`;
-    operationPanel.style.overflow = 'clip';
-    operationPanelResizeAnimation = operationPanel.animate(
-      [
-        { height: `${currentHeight}px` },
-        { height: `${targetHeight}px` }
-      ],
-      {
-        duration: 420,
-        easing: 'cubic-bezier(0.32, 0.72, 0, 1)'
-      }
-    );
-
-    const runningAnimation = operationPanelResizeAnimation;
-    const releaseOperationPanelSize = () => {
-      if (operationPanelResizeAnimation !== runningAnimation) return;
-      operationPanelResizeAnimation = null;
-      window.clearTimeout(operationPanelResizeCleanupTimer);
-      operationPanelResizeCleanupTimer = null;
-      operationPanel.style.removeProperty('height');
-      operationPanel.style.removeProperty('overflow');
-    };
-
-    runningAnimation.finished.then(releaseOperationPanelSize).catch(() => {});
-    operationPanelResizeCleanupTimer = window.setTimeout(releaseOperationPanelSize, 520);
-
-  }
+  const { switchTo: switchOperationView } = window.FundOperationPanel.create({
+    panel: operationPanel,
+    tabs: operationTabs,
+    forms: [formTransaction, formValuation, formTransfer, formSettlement],
+    segmentedControl: window.FundSegmentedControl
+  });
 
   // Keep operations and market tracking in one right-side flex column so their gap is structural.
   const rightColumn = document.querySelector('.layout-right');
   const tickerAthPanel = document.getElementById('ticker-ath-container');
   if (rightColumn && tickerAthPanel) rightColumn.appendChild(tickerAthPanel);
 
-  // 辅助函数判断是否是暗黑模式（兼容 system）
-  function checkIfDark() {
-    return isDarkTheme(currentTheme);
-  }
+  const themeController = window.FundTheme.create({
+    buttons: themeBtns,
+    group: themeSelectorGroup,
+    segmentedControl: window.FundSegmentedControl,
+    onApply: updateChartsColors,
+    onSelect: (_theme, button) => showToast(`已切换至 ${button.textContent.trim()} 模式`, 'success')
+  });
+  const checkIfDark = () => themeController.isDark();
 
   // --- 初始化运行 ---
-  initTime();
-  initTheme();
+  window.FundDateTime.startClock(elSystemTime);
+  themeController.init();
   initPrivacy();
-  setDefaultDates();
+  window.FundDateTime.setDefaultDates({
+    transactionDate: txDate,
+    valuationDate: valDate,
+    transferDate: tfDate,
+    settlementDate: settleDate
+  });
   window.FundCustomSelect?.init();
   bindEvents();
   loadAllData();
@@ -418,62 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isPrivacyMode) {
       document.body.classList.add('privacy-mode-active');
     }
-  }
-
-  // --- 时间 and 日期模块 ---
-  function getEasternDateParts(now = new Date(), includeTime = false) {
-    const options = {
-      timeZone: 'America/New_York',
-      year: 'numeric', month: '2-digit', day: '2-digit'
-    };
-    if (includeTime) Object.assign(options, {
-      hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23'
-    });
-    const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
-    const values = {};
-    parts.forEach(part => { values[part.type] = part.value; });
-    return values;
-  }
-
-  function initTime() {
-    const updateTime = () => {
-      const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hour12: false, hourCycle: 'h23', timeZoneName: 'short'
-      }).formatToParts(new Date());
-      const values = {};
-      parts.forEach(part => { values[part.type] = part.value; });
-      elSystemTime.textContent = `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second} ${values.timeZoneName}`;
-    };
-    updateTime();
-    setInterval(updateTime, 1000);
-  }
-
-  function getLatestValuationDate(now = new Date()) {
-    const values = getEasternDateParts(now, true);
-    const cursor = new Date(`${values.year}-${values.month}-${values.day}T00:00:00Z`);
-    const minutes = Number(values.hour) * 60 + Number(values.minute);
-    if (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6 || minutes < 4 * 60 + 5) {
-      do {
-        cursor.setUTCDate(cursor.getUTCDate() - 1);
-      } while (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6);
-    }
-    return cursor.toISOString().split('T')[0];
-  }
-
-  function setDefaultDates() {
-    const dateParts = getEasternDateParts();
-    const today = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
-    const latestSunday = new Date(`${today}T00:00:00Z`);
-    latestSunday.setUTCDate(latestSunday.getUTCDate() - latestSunday.getUTCDay());
-    txDate.value = latestSunday.toISOString().split('T')[0];
-    const latestValuation = getLatestValuationDate();
-    valDate.max = latestValuation;
-    valDate.value = latestValuation;
-    if (tfDate) tfDate.value = latestSunday.toISOString().split('T')[0];
-    if (settleDate) settleDate.value = today;
   }
 
   // --- 事件绑定模块 ---
@@ -581,85 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    const navigationLinks = [...document.querySelectorAll('.sidebar-nav a[href^="#"]')];
-    const navigationSections = navigationLinks
-      .map(link => ({ link, section: document.querySelector(link.hash) }))
-      .filter(({ section }) => section);
-    let navigationFrame = null;
-    let navigationTargetId = null;
-    let navigationSettleTimer = null;
-
-    const setActiveNavigation = (sectionId) => {
-      navigationLinks.forEach(link => {
-        const isActive = link.hash === `#${sectionId}`;
-        link.classList.toggle('active', isActive);
-        if (isActive) link.setAttribute('aria-current', 'page');
-        else link.removeAttribute('aria-current');
-      });
-      const activeLink = navigationLinks.find(link => link.hash === `#${sectionId}`);
-      const navigation = activeLink?.closest('.sidebar-nav');
-      if (navigation && activeLink) {
-        navigation.style.setProperty('--active-top', `${activeLink.offsetTop}px`);
-        navigation.style.setProperty('--active-height', `${activeLink.offsetHeight}px`);
-      }
-    };
-
-    const syncNavigationWithScroll = () => {
-      navigationFrame = null;
-      if (navigationTargetId) {
-        setActiveNavigation(navigationTargetId);
-        return;
-      }
-      if (window.scrollY <= 8) {
-        setActiveNavigation('dashboard-home');
-        return;
-      }
-
-      const activationLine = Math.min(140, Math.max(80, window.innerHeight * 0.16));
-      const sectionsByPosition = navigationSections
-        .map(item => ({ ...item, rect: item.section.getBoundingClientRect() }))
-        .sort((a, b) => a.rect.top - b.rect.top);
-      let active = sectionsByPosition[0];
-
-      sectionsByPosition.forEach(item => {
-        if (item.rect.top <= activationLine) active = item;
-      });
-
-      if (active) setActiveNavigation(active.section.id);
-    };
-
-    navigationLinks.forEach(link => {
-      link.addEventListener('click', event => {
-        event.preventDefault();
-        navigationTargetId = link.hash.slice(1);
-        setActiveNavigation(navigationTargetId);
-        const targetSection = document.getElementById(navigationTargetId);
-        if (targetSection) {
-          const sidebarTop = document.querySelector('.app-sidebar')?.getBoundingClientRect().top ?? 20;
-          const targetTop = window.scrollY + targetSection.getBoundingClientRect().top - sidebarTop;
-          const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-          window.scrollTo({ top: Math.max(0, targetTop), behavior: reduceMotion ? 'auto' : 'smooth' });
-          history.replaceState(null, '', link.hash);
-        }
-        window.clearTimeout(navigationSettleTimer);
-        navigationSettleTimer = window.setTimeout(() => {
-          navigationTargetId = null;
-          syncNavigationWithScroll();
-        }, 800);
-      });
-    });
-    window.addEventListener('scroll', () => {
-      if (!navigationFrame) navigationFrame = requestAnimationFrame(syncNavigationWithScroll);
-      if (navigationTargetId) {
-        window.clearTimeout(navigationSettleTimer);
-        navigationSettleTimer = window.setTimeout(() => {
-          navigationTargetId = null;
-          syncNavigationWithScroll();
-        }, 160);
-      }
-    }, { passive: true });
-    window.addEventListener('resize', syncNavigationWithScroll);
-    syncNavigationWithScroll();
+    window.FundNavigation.init();
     requestAnimationFrame(syncSegmentIndicators);
     window.addEventListener('resize', syncSegmentIndicators);
 
@@ -698,17 +417,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // 绑定三个主题选择按钮的点击事件
-    themeBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const theme = btn.getAttribute('data-theme-btn');
-        currentTheme = theme;
-        localStorage.setItem('family_fund_theme', theme);
-        applyTheme(theme);
-        showToast(`已切换至 ${btn.textContent.trim()} 模式`, 'success');
-      });
-    });
-
     // 顶部与结算预览按钮共享同一隐私状态。
     const togglePrivacyMode = () => {
       isPrivacyMode = !isPrivacyMode;
@@ -722,13 +430,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!button) return;
       button.setAttribute('aria-pressed', String(isPrivacyMode));
       button.addEventListener('click', togglePrivacyMode);
-    });
-
-    // 监听系统主题变化，如果当前是“系统模式”，则自动触发图表配色重绘
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      if (currentTheme === 'system') {
-        applyTheme('system');
-      }
     });
 
     // 切换录入表单面板
@@ -1325,139 +1026,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- 主题配置管理 ---
-  function initTheme() {
-    currentTheme = localStorage.getItem('family_fund_theme') || 'system';
-    applyTheme(currentTheme);
-  }
-
-  function applyTheme(theme) {
-    const body = document.body;
-    body.classList.remove('theme-light', 'theme-dark');
-
-    if (theme === 'light') {
-      body.classList.add('theme-light');
-    } else if (theme === 'dark') {
-      body.classList.add('theme-dark');
-    } else {
-      // system 模式：自适应检测系统深色/浅色偏好并为 body 加上对应的类名，使 modal 等主题选择器生效
-      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      body.classList.add(isDark ? 'theme-dark' : 'theme-light');
-    }
-
-    // 更新主题选择器按钮的 active 状态
-    const activeThemeButton = [...themeBtns].find(btn => btn.getAttribute('data-theme-btn') === theme);
-    activateSegmentOption(themeSelectorGroup, activeThemeButton);
-    requestAnimationFrame(() => {
-      setSegmentIndicator(themeSelectorGroup, activeThemeButton);
-    });
-
-    // 动态调整图表的边框、文字、网格线颜色
-    updateChartsColors(theme);
-  }
-
   function updateChartsColors(theme) {
-    let isDarkTheme = false;
-    if (theme === 'dark') {
-      isDarkTheme = true;
-    } else if (theme === 'light') {
-      isDarkTheme = false;
-    } else {
-      // system
-      isDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-
-    // 设置在不同主题下图表的文字与线条颜色
-    const labelColor = isDarkTheme ? 'rgba(255, 255, 255, 0.7)' : 'rgba(31, 41, 55, 0.7)';
-    const axisColor = isDarkTheme ? 'rgba(255, 255, 255, 0.4)' : 'rgba(31, 41, 55, 0.6)';
-    const gridColor = isDarkTheme ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)';
-    const chartBgColor = isDarkTheme ? '#0f111a' : '#ffffff';
-
-    if (navTrendChart) {
-      navTrendChart.options.plugins.legend.labels.color = labelColor;
-      navTrendChart.options.scales.x.grid.color = gridColor;
-      navTrendChart.options.scales.x.ticks.color = axisColor;
-      navTrendChart.options.scales['y-nav'].grid.color = gridColor;
-    const seriesColors = getSeriesColors();
-    navTrendChart.options.scales['y-nav'].ticks.color = hexToRgba(seriesColors.nav, 0.7);
-    navTrendChart.options.scales['y-nav'].title.color = hexToRgba(seriesColors.nav, 0.7);
-    navTrendChart.options.scales['y-assets'].ticks.color = hexToRgba(seriesColors.assets, 0.7);
-    navTrendChart.options.scales['y-assets'].title.color = hexToRgba(seriesColors.assets, 0.7);
-
-      // 动态调整明暗主题下四条曲线的色值，彻底解决浅色模式下的低对比度问题
-      const semanticStyles = getComputedStyle(document.body);
-      const colors = {
-        ...seriesColors,
-        deposit: semanticStyles.getPropertyValue('--color-positive').trim(),
-        withdraw: semanticStyles.getPropertyValue('--color-negative').trim(),
-        transfer: seriesColors.nav
-      };
-
-      const getPointColorsList = (historyList, defaultColor) => {
-        if (!historyList || historyList.length === 0) {
-          return [defaultColor];
-        }
-        return historyList.map(h => {
-          if (h.type === 'deposit') return colors.deposit;
-          if (h.type === 'withdraw') return colors.withdraw;
-          if (h.type === 'transfer') return colors.transfer;
-          return defaultColor;
-        });
-      };
-
-      if (navTrendChart.data.datasets[0]) {
-        navTrendChart.data.datasets[0].borderColor = colors.assets;
-        const ptColors = getPointColorsList(currentFilteredHistory, colors.assets);
-        navTrendChart.data.datasets[0].pointBackgroundColor = ptColors;
-        navTrendChart.data.datasets[0].pointBorderColor = ptColors;
-        navTrendChart.data.datasets[0].pointHoverBackgroundColor = ptColors;
-        navTrendChart.data.datasets[0].pointHoverBorderColor = ptColors;
-      }
-      if (navTrendChart.data.datasets[1]) {
-        navTrendChart.data.datasets[1].borderColor = colors.nav;
-        navTrendChart.data.datasets[1].pointBackgroundColor = colors.nav;
-        navTrendChart.data.datasets[1].pointBorderColor = 'transparent';
-        navTrendChart.data.datasets[1].pointHoverBackgroundColor = colors.nav;
-        navTrendChart.data.datasets[1].pointHoverBorderColor = 'transparent';
-        const ctxNav = document.getElementById('navTrendChart').getContext('2d');
-        navTrendChart.data.datasets[1].backgroundColor = createChartGradient(ctxNav, hexToRgba(colors.nav, isDarkTheme ? 0.30 : 0.25), hexToRgba(colors.nav, 0));
-      }
-      if (navTrendChart.data.datasets[2]) {
-        navTrendChart.data.datasets[2].borderColor = colors.sp500;
-        navTrendChart.data.datasets[2].pointBackgroundColor = colors.sp500;
-        navTrendChart.data.datasets[2].pointBorderColor = colors.sp500;
-        navTrendChart.data.datasets[2].pointHoverBackgroundColor = colors.sp500;
-        navTrendChart.data.datasets[2].pointHoverBorderColor = colors.sp500;
-      }
-      if (navTrendChart.data.datasets[3]) {
-        navTrendChart.data.datasets[3].borderColor = colors.ndx;
-        navTrendChart.data.datasets[3].pointBackgroundColor = colors.ndx;
-        navTrendChart.data.datasets[3].pointBorderColor = colors.ndx;
-        navTrendChart.data.datasets[3].pointHoverBackgroundColor = colors.ndx;
-        navTrendChart.data.datasets[3].pointHoverBorderColor = colors.ndx;
-      }
-
-      navTrendChart.update();
-    }
-
-    if (memberAllocationChart) {
-      memberAllocationChart.options.plugins.legend.labels.color = labelColor;
-      memberAllocationChart.data.datasets[0].borderColor = chartBgColor;
-
-      // 扇区颜色始终与对应成员头像的底色一致。
-      if (memberAllocationChart.data.datasets[0].backgroundColor && memberAllocationChart.data.datasets[0].backgroundColor.length > 0) {
-        const firstColor = memberAllocationChart.data.datasets[0].backgroundColor[0];
-        if (firstColor && !firstColor.startsWith('rgba(')) {
-          const newColors = membersList.map((member, idx) => getMemberAvatarColor(member.id || member.name, isDarkTheme, idx).background);
-          memberAllocationChart.data.datasets[0].backgroundColor = newColors;
-        } else {
-          const zeroColor = isDarkTheme ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
-          memberAllocationChart.data.datasets[0].backgroundColor = memberAllocationChart.data.labels.map(() => zeroColor);
-        }
-      }
-
-      memberAllocationChart.update();
-    }
+    window.FundChartRenderer.updateTheme({
+      theme,
+      navTrendChart,
+      memberAllocationChart,
+      currentFilteredHistory,
+      membersList,
+      ui: { getMemberAvatarColor, createChartGradient, getSeriesColors, hexToRgba }
+    });
   }
 
   // --- 数据拉取与主渲染控制 ---
@@ -1906,7 +1483,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rendered = window.FundChartRenderer.render({
       state: appState,
       members: membersList,
-      settings: { activeTimeSlice, theme: currentTheme },
+      settings: { activeTimeSlice, theme: themeController.get() },
       charts: { navTrendChart, memberAllocationChart },
       elements: { chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx, trendStatsGrid: elTrendStatsGrid },
       ui: { formatMoney, getThemeColors, isDarkTheme, createChartGradient, getSeriesColors, hexToRgba, getMemberAvatarColor }
@@ -1916,7 +1493,7 @@ document.addEventListener('DOMContentLoaded', () => {
     currentFilteredHistory = rendered.filteredHistory;
     currentTrendStatSeries = rendered.trendSeries;
     renderTrendStats = rendered.renderTrendStats;
-    updateChartsColors(currentTheme);
+    updateChartsColors(themeController.get());
   }
 
   // 加载并渲染美股标的 ATH 历史及收盘价格回调数据

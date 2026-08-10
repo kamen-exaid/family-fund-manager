@@ -5,7 +5,7 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'public', 'css', 'style.css'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'public', 'js', 'app.js'), 'utf8');
+const segmentedControl = fs.readFileSync(path.join(root, 'public', 'js', 'segmented-control.js'), 'utf8');
 
 const controlClasses = ['theme-selector-group', 'tab-buttons', 'time-slicer-group', 'operation-tabs'];
 const buttonClasses = ['theme-btn', 'tab-btn', 'time-slice-btn', 'op-tab-btn'];
@@ -36,8 +36,8 @@ assert(
   /--segment-active-color:\s*var\(--color-primary\)/.test(css),
   'shared selected colour must inherit the application theme colour'
 );
-assert(app.includes("document.querySelectorAll('.segmented-control')"), 'indicator sync must discover controls generically');
-assert(app.includes('function activateSegmentOption'), 'active option switching must use the shared helper');
+assert(segmentedControl.includes("document.querySelectorAll('.segmented-control')"), 'indicator sync must discover controls generically');
+assert(segmentedControl.includes('function activate'), 'active option switching must use the shared helper');
 assert(
   html.includes('class="glass-tooltip benchmark-policy-tooltip"') &&
     html.includes('<strong>指数口径说明</strong>') &&

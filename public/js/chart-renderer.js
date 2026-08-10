@@ -149,6 +149,111 @@ window.FundChartRenderer = {
     return offsets[activeTimeSlice]?.().toISOString().slice(0, 10);
   },
 
+  updateTheme({ theme, navTrendChart, memberAllocationChart, currentFilteredHistory, membersList, ui }) {
+    const { getMemberAvatarColor, createChartGradient, getSeriesColors, hexToRgba } = ui;
+    let isDarkTheme = false;
+    if (theme === 'dark') {
+      isDarkTheme = true;
+    } else if (theme === 'light') {
+      isDarkTheme = false;
+    } else {
+      // system
+      isDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
+    // 设置在不同主题下图表的文字与线条颜色
+    const labelColor = isDarkTheme ? 'rgba(255, 255, 255, 0.7)' : 'rgba(31, 41, 55, 0.7)';
+    const axisColor = isDarkTheme ? 'rgba(255, 255, 255, 0.4)' : 'rgba(31, 41, 55, 0.6)';
+    const gridColor = isDarkTheme ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)';
+    const chartBgColor = isDarkTheme ? '#0f111a' : '#ffffff';
+
+    if (navTrendChart) {
+      navTrendChart.options.plugins.legend.labels.color = labelColor;
+      navTrendChart.options.scales.x.grid.color = gridColor;
+      navTrendChart.options.scales.x.ticks.color = axisColor;
+      navTrendChart.options.scales['y-nav'].grid.color = gridColor;
+    const seriesColors = getSeriesColors();
+    navTrendChart.options.scales['y-nav'].ticks.color = hexToRgba(seriesColors.nav, 0.7);
+    navTrendChart.options.scales['y-nav'].title.color = hexToRgba(seriesColors.nav, 0.7);
+    navTrendChart.options.scales['y-assets'].ticks.color = hexToRgba(seriesColors.assets, 0.7);
+    navTrendChart.options.scales['y-assets'].title.color = hexToRgba(seriesColors.assets, 0.7);
+
+      // 动态调整明暗主题下四条曲线的色值，彻底解决浅色模式下的低对比度问题
+      const semanticStyles = getComputedStyle(document.body);
+      const colors = {
+        ...seriesColors,
+        deposit: semanticStyles.getPropertyValue('--color-positive').trim(),
+        withdraw: semanticStyles.getPropertyValue('--color-negative').trim(),
+        transfer: seriesColors.nav
+      };
+
+      const getPointColorsList = (historyList, defaultColor) => {
+        if (!historyList || historyList.length === 0) {
+          return [defaultColor];
+        }
+        return historyList.map(h => {
+          if (h.type === 'deposit') return colors.deposit;
+          if (h.type === 'withdraw') return colors.withdraw;
+          if (h.type === 'transfer') return colors.transfer;
+          return defaultColor;
+        });
+      };
+
+      if (navTrendChart.data.datasets[0]) {
+        navTrendChart.data.datasets[0].borderColor = colors.assets;
+        const ptColors = getPointColorsList(currentFilteredHistory, colors.assets);
+        navTrendChart.data.datasets[0].pointBackgroundColor = ptColors;
+        navTrendChart.data.datasets[0].pointBorderColor = ptColors;
+        navTrendChart.data.datasets[0].pointHoverBackgroundColor = ptColors;
+        navTrendChart.data.datasets[0].pointHoverBorderColor = ptColors;
+      }
+      if (navTrendChart.data.datasets[1]) {
+        navTrendChart.data.datasets[1].borderColor = colors.nav;
+        navTrendChart.data.datasets[1].pointBackgroundColor = colors.nav;
+        navTrendChart.data.datasets[1].pointBorderColor = 'transparent';
+        navTrendChart.data.datasets[1].pointHoverBackgroundColor = colors.nav;
+        navTrendChart.data.datasets[1].pointHoverBorderColor = 'transparent';
+        const ctxNav = document.getElementById('navTrendChart').getContext('2d');
+        navTrendChart.data.datasets[1].backgroundColor = createChartGradient(ctxNav, hexToRgba(colors.nav, isDarkTheme ? 0.30 : 0.25), hexToRgba(colors.nav, 0));
+      }
+      if (navTrendChart.data.datasets[2]) {
+        navTrendChart.data.datasets[2].borderColor = colors.sp500;
+        navTrendChart.data.datasets[2].pointBackgroundColor = colors.sp500;
+        navTrendChart.data.datasets[2].pointBorderColor = colors.sp500;
+        navTrendChart.data.datasets[2].pointHoverBackgroundColor = colors.sp500;
+        navTrendChart.data.datasets[2].pointHoverBorderColor = colors.sp500;
+      }
+      if (navTrendChart.data.datasets[3]) {
+        navTrendChart.data.datasets[3].borderColor = colors.ndx;
+        navTrendChart.data.datasets[3].pointBackgroundColor = colors.ndx;
+        navTrendChart.data.datasets[3].pointBorderColor = colors.ndx;
+        navTrendChart.data.datasets[3].pointHoverBackgroundColor = colors.ndx;
+        navTrendChart.data.datasets[3].pointHoverBorderColor = colors.ndx;
+      }
+
+      navTrendChart.update();
+    }
+
+    if (memberAllocationChart) {
+      memberAllocationChart.options.plugins.legend.labels.color = labelColor;
+      memberAllocationChart.data.datasets[0].borderColor = chartBgColor;
+
+      // 扇区颜色始终与对应成员头像的底色一致。
+      if (memberAllocationChart.data.datasets[0].backgroundColor && memberAllocationChart.data.datasets[0].backgroundColor.length > 0) {
+        const firstColor = memberAllocationChart.data.datasets[0].backgroundColor[0];
+        if (firstColor && !firstColor.startsWith('rgba(')) {
+          const newColors = membersList.map((member, idx) => getMemberAvatarColor(member.id || member.name, isDarkTheme, idx).background);
+          memberAllocationChart.data.datasets[0].backgroundColor = newColors;
+        } else {
+          const zeroColor = isDarkTheme ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+          memberAllocationChart.data.datasets[0].backgroundColor = memberAllocationChart.data.labels.map(() => zeroColor);
+        }
+      }
+
+      memberAllocationChart.update();
+    }
+  },
+
   render({ state, members, settings, charts, elements, ui }) {
     const { activeTimeSlice } = settings;
     const { navTrendChart, memberAllocationChart } = charts;
