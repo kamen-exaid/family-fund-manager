@@ -31,7 +31,7 @@ window.FundMemberRenderer = {
       const ledgerRows = lpLedger.map((lot, lotIndex) => `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;padding:5px 0;border-top:1px dashed var(--color-card-divider)">
           <span>批次${lotIndex + 1} · ${escapeHtml(lot.startDate)}</span><span style="text-align:right">${lot.shares.toFixed(4)}份</span>
-          <span>基准 $${formatMoney(lot.basis)}</span><span style="text-align:right">门槛 $${formatMoney(lot.hurdle)}</span>
+          <span>高水位NAV ${formatMoney(lot.highWaterNav)}</span><span style="text-align:right">门槛 $${formatMoney(lot.hurdle)}</span>
           <span>当前 $${formatMoney(lot.currentValue)}</span><span></span>
         </div>`).join('');
       return `

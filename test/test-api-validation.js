@@ -182,6 +182,7 @@ async function request(handler, body, params = {}) {
   assert(preview.body.data.totalFee > 0);
   const confirmed = await request(confirmSettlement, { gpMember: 'b', date: '2026-01-12' });
   assert.strictEqual(confirmed.status, 200);
+  assert.strictEqual(confirmed.body.data.algorithmVersion, 3);
   const historicalSettlement = await request(previewSettlement, { gpMember: 'b', date: '2026-01-10' });
   assert.strictEqual(historicalSettlement.status, 400);
   assert.match(historicalSettlement.body.message, /必须晚于/);

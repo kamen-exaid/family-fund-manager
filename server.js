@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const { randomUUID } = require('crypto');
 const storage = require('./lib/storage');
+const { mergeSettlementLedger, migrateSettlementLedger } = require('./lib/settlement-ledger');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,25 +39,34 @@ function normalizeMemberName(name) {
 // --- 性能优化：内存缓存层 ---
 let _stateCache = null;    // calculateState() 结果缓存
 let _stateDirty = true;    // 脏标记：数据变更后标记缓存失效
+let _settlementLedgerValidated = false;
 
 function readDb() {
-  const db = storage.readDb();
+  let db = storage.readDb();
   let settlementLedger = storage.readSettlements();
-  const legacy = db.events.filter(event => event.type === 'performance_settlement');
-  if (legacy.length && settlementLedger.records.length === 0) {
-    settlementLedger = { version: 1, records: legacy };
-    storage.writeSettlements(settlementLedger);
-    db.events = db.events.filter(event => event.type !== 'performance_settlement');
-    storage.writeDb(db);
+  if (!_settlementLedgerValidated) {
+    const legacy = db.events.filter(event =>
+      event.type === 'performance_settlement' || event.type === 'performance_settlement_reversal'
+    );
+    let movedLegacyRecords = false;
+    if (legacy.length && settlementLedger.records.length === 0) {
+      settlementLedger = { version: 1, records: legacy };
+      db = {
+        ...db,
+        events: db.events.filter(event =>
+          event.type !== 'performance_settlement' && event.type !== 'performance_settlement_reversal'
+        )
+      };
+      movedLegacyRecords = true;
+    }
+    const migration = migrateSettlementLedger(db, settlementLedger);
+    settlementLedger = migration.ledger;
+    if (movedLegacyRecords || migration.migrated) {
+      storage.writeSnapshot(db, storage.readConfig(), settlementLedger);
+    }
+    _settlementLedgerValidated = true;
   }
-  const reversed = new Set(settlementLedger.records
-    .filter(record => record.type === 'performance_settlement_reversal')
-    .map(record => record.settlementId));
-  const settlementEvents = settlementLedger.records.filter(record =>
-    record.type === 'performance_settlement_reversal' ||
-    (record.type === 'performance_settlement' && !reversed.has(record.id))
-  );
-  return { ...db, events: [...db.events, ...settlementEvents] };
+  return mergeSettlementLedger(db, settlementLedger);
 }
 
 function writeDb(dbData) {
@@ -70,6 +80,7 @@ function writeDb(dbData) {
     _stateDirty = true;
   } catch (error) {
     storage.clearDbCache();
+    _settlementLedgerValidated = false;
     _stateCache = null;
     _stateDirty = true;
     throw error;
@@ -81,9 +92,17 @@ function readSettlements() {
 }
 
 function writeSettlements(data) {
-  storage.writeSettlements(data);
-  _stateCache = null;
-  _stateDirty = true;
+  try {
+    storage.writeSettlements(data);
+    _stateCache = null;
+    _stateDirty = true;
+  } catch (error) {
+    storage.clearDbCache();
+    _settlementLedgerValidated = false;
+    _stateCache = null;
+    _stateDirty = true;
+    throw error;
+  }
 }
 
 // 获取全局计算状态（优化：带缓存，仅在数据变更后重新计算）
@@ -102,13 +121,14 @@ function writeConfig(configData) {
   storage.writeConfig(configData);
 }
 
-function writeSnapshot(dbData, configData) {
+function writeSnapshot(dbData, configData, settlementsData) {
   try {
-    storage.writeSnapshot(dbData, configData);
+    storage.writeSnapshot(dbData, configData, settlementsData);
     _stateCache = null;
     _stateDirty = true;
   } catch (error) {
     storage.clearDbCache();
+    _settlementLedgerValidated = false;
     _stateCache = null;
     _stateDirty = true;
     throw error;

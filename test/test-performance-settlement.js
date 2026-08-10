@@ -1,8 +1,13 @@
 const assert = require('assert');
 const { calculateStateFromDb } = require('../server');
+const { CURRENT_SETTLEMENT_VERSION } = require('../lib/performance-settlement');
 
 function event(id, type, date, createdAt, extra = {}) {
-  return { id, type, date, createdAt, ...extra };
+  return {
+    id, type, date, createdAt,
+    ...(type === 'performance_settlement' ? { algorithmVersion: 2 } : {}),
+    ...extra
+  };
 }
 
 function approximately(actual, expected, tolerance = 1e-9) {
@@ -33,6 +38,13 @@ assert.strictEqual(settlement._breakdown[0].lots[0].basis, 100);
 assert.strictEqual(settlement._breakdown[0].lots[0].entryNav, 1);
 assert.strictEqual(settlement._breakdown[0].lots[0].holdingDays, 365);
 assert.strictEqual(settlement._breakdown[0].lots[0].currentValue, 120);
+
+const unversionedBase = JSON.parse(JSON.stringify(base));
+delete unversionedBase.events.find(item => item.type === 'performance_settlement').algorithmVersion;
+assert.throws(
+  () => calculateStateFromDb(unversionedBase),
+  /缺少算法版本/
+);
 assert.strictEqual(settlement._breakdown[0].lots[0].hurdle, 106);
 assert.strictEqual(state.summary.totalNAV, 120, 'share fee must not remove fund assets');
 assert.strictEqual(state.members.lp.currentValue, 116.5);
@@ -82,6 +94,98 @@ const multiYearHurdleState = calculateStateFromDb({
 assert.strictEqual(multiYearHurdleState.events.find(item => item.id === 'multi-s2')._totalFee, 0);
 assert.strictEqual(multiYearHurdleState.events.find(item => item.id === 'multi-s3')._totalFee, 0);
 assert.strictEqual(multiYearHurdleState.members.lp.lpLedger[0].startDate, '2024-01-02', 'no-fee years must not reset the original hurdle date');
+
+// Current settlements close the measurement period even when no fee is due.
+// A 3% first period therefore pays no fee, then a 24% second-period return is
+// compared only with that second period's 6% hurdle.
+const periodResetState = calculateStateFromDb({
+  ...base,
+  events: [
+    event('period-d', 'deposit', '2025-01-01', 1, { member: 'lp', amount: 100, cnhAmount: 720 }),
+    event('period-v1', 'valuation', '2026-01-01', 2, { totalNAV: 103 }),
+    event('period-s1', 'performance_settlement', '2026-01-01', 3, {
+      algorithmVersion: CURRENT_SETTLEMENT_VERSION,
+      gpMember: 'gp', annualRate: 0.06, feeRate: 0.25
+    }),
+    event('period-v2', 'valuation', '2027-01-01', 4, { totalNAV: 127.72 }),
+    event('period-s2', 'performance_settlement', '2027-01-01', 5, {
+      algorithmVersion: CURRENT_SETTLEMENT_VERSION,
+      gpMember: 'gp', annualRate: 0.06, feeRate: 0.25
+    })
+  ]
+});
+const firstPeriod = periodResetState.events.find(item => item.id === 'period-s1');
+const secondPeriod = periodResetState.events.find(item => item.id === 'period-s2');
+assert.strictEqual(firstPeriod._totalFee, 0);
+assert.strictEqual(secondPeriod._breakdown[0].lots[0].startDate, '2026-01-01');
+assert.strictEqual(secondPeriod._breakdown[0].lots[0].basis, 103);
+assert.strictEqual(secondPeriod._breakdown[0].hurdle, 109.18);
+assert.strictEqual(secondPeriod._breakdown[0].excess, 18.54);
+assert.strictEqual(secondPeriod._totalFee, 4.64);
+assert.strictEqual(periodResetState.members.lp.lpLedger[0].startDate, '2027-01-01');
+
+// Restarting the annual clock must never lower the high-water basis. After a
+// 10% loss and a 3% recovery, the third year's 40% gain is still charged only
+// above the original 1.00 high-water mark grown by that year's 6% hurdle.
+const highWaterState = calculateStateFromDb({
+  ...base,
+  events: [
+    event('hwm-d', 'deposit', '2025-01-01', 1, { member: 'lp', amount: 100, cnhAmount: 720 }),
+    event('hwm-v1', 'valuation', '2026-01-01', 2, { totalNAV: 90 }),
+    event('hwm-s1', 'performance_settlement', '2026-01-01', 3, {
+      algorithmVersion: CURRENT_SETTLEMENT_VERSION,
+      gpMember: 'gp', annualRate: 0.06, feeRate: 0.25
+    }),
+    event('hwm-v2', 'valuation', '2027-01-01', 4, { totalNAV: 92.7 }),
+    event('hwm-s2', 'performance_settlement', '2027-01-01', 5, {
+      algorithmVersion: CURRENT_SETTLEMENT_VERSION,
+      gpMember: 'gp', annualRate: 0.06, feeRate: 0.25
+    }),
+    event('hwm-v3', 'valuation', '2028-01-01', 6, { totalNAV: 129.78 }),
+    event('hwm-s3', 'performance_settlement', '2028-01-01', 7, {
+      algorithmVersion: CURRENT_SETTLEMENT_VERSION,
+      gpMember: 'gp', annualRate: 0.06, feeRate: 0.25
+    })
+  ]
+});
+const highWaterYearOne = highWaterState.events.find(item => item.id === 'hwm-s1');
+const highWaterYearTwo = highWaterState.events.find(item => item.id === 'hwm-s2');
+const highWaterYearThree = highWaterState.events.find(item => item.id === 'hwm-s3');
+assert.strictEqual(highWaterYearOne._totalFee, 0);
+assert.strictEqual(highWaterYearTwo._totalFee, 0);
+assert.strictEqual(highWaterYearTwo._breakdown[0].lots[0].startDate, '2026-01-01');
+assert.strictEqual(highWaterYearTwo._breakdown[0].lots[0].basis, 100);
+assert.strictEqual(highWaterYearThree._breakdown[0].lots[0].startDate, '2027-01-01');
+assert.strictEqual(highWaterYearThree._breakdown[0].lots[0].basis, 100);
+assert.strictEqual(highWaterYearThree._breakdown[0].hurdle, 106);
+assert.strictEqual(highWaterYearThree._breakdown[0].excess, 23.78);
+assert.strictEqual(highWaterYearThree._totalFee, 5.95);
+assert.strictEqual(highWaterState.members.lp.lpLedger[0].basis, 123.84);
+assert.strictEqual(highWaterState.members.lp.lpLedger[0].highWaterNav, 1.2978,
+  'carry transfers shares without changing the settlement-date NAV used as the new high-water mark');
+
+// Lots can merge after settlement when every lot closes at the current
+// high-water NAV, even when only some earned a fee in the closing period.
+const periodMergeState = calculateStateFromDb({
+  cnhRate: 7.2,
+  members: [{ id: 'lp', name: 'LP' }, { id: 'gp', name: 'GP' }],
+  indexCache: {},
+  events: [
+    event('period-merge-d1', 'deposit', '2025-01-01', 1, { member: 'lp', amount: 100, cnhAmount: 720 }),
+    event('period-merge-v1', 'valuation', '2025-07-01', 2, { totalNAV: 120 }),
+    event('period-merge-d2', 'deposit', '2025-07-01', 3, { member: 'lp', amount: 100, cnhAmount: 720 }),
+    event('period-merge-v2', 'valuation', '2026-01-01', 4, { totalNAV: 220 }),
+    event('period-merge-s', 'performance_settlement', '2026-01-01', 5, {
+      algorithmVersion: CURRENT_SETTLEMENT_VERSION,
+      gpMember: 'gp', annualRate: 0.06, feeRate: 0.25
+    })
+  ]
+});
+const periodMergeSettlement = periodMergeState.events.find(item => item.id === 'period-merge-s');
+assert.strictEqual(periodMergeSettlement._breakdown[0].lots[0].fee, 3.5);
+assert.strictEqual(periodMergeSettlement._breakdown[0].lots[1].fee, 0);
+assert.strictEqual(periodMergeState.members.lp.lpLedger.length, 1);
+assert.strictEqual(periodMergeState.members.lp.lpLedger[0].startDate, '2026-01-01');
 
 // A transfer is a new LP acquisition for the recipient at transfer-date NAV;
 // the sender's old lots are reduced but never copied into the recipient ledger.

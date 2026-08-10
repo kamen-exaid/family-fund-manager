@@ -4,9 +4,11 @@ const http = require('http');
 const os = require('os');
 const path = require('path');
 const AdmZip = require('adm-zip');
+const { calculateStateFromDb } = require('../lib/calculator');
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'family-fund-api-'));
 process.env.FUND_DATA_DIR = dataDir;
+process.env.FUND_BACKUP_DIR = path.join(dataDir, 'backups');
 process.env.FUND_EXTERNAL_SYNC = '0';
 
 const { startServer } = require('../server');
@@ -203,6 +205,73 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
       date: '2026-03-09'
     });
     assert.strictEqual(response.status, 200);
+
+    // Full cross-version lifecycle: import an active v1 settlement, reverse
+    // it, confirm v2 on the same date, then export/import without state drift.
+    const crossVersionDb = {
+      cnhRate: 7.2,
+      benchmarkClosePolicy: 'previous',
+      performanceFee: { gpMemberId: 'father', annualRate: 0.06, feeRate: 0.25 },
+      members: [
+        { id: 'me', name: 'LP', roles: { lp: true, gp: false } },
+        { id: 'father', name: 'GP', roles: { lp: true, gp: true } }
+      ],
+      indexCache: {},
+      events: [
+        { id: 'cross_d', type: 'deposit', member: 'me', amount: 100, cnhAmount: 720, date: '2025-01-01', createdAt: 1 },
+        { id: 'cross_v', type: 'valuation', totalNAV: 120, date: '2026-01-01', createdAt: 2 }
+      ]
+    };
+    const legacySettlement = {
+      id: 'cross_s_v1', type: 'performance_settlement', algorithmVersion: 1,
+      date: '2026-01-01', createdAt: 3, gpMember: 'father', lpMembers: ['me', 'father'],
+      annualRate: 0.06, feeRate: 0.25, remark: 'legacy v1 fixture'
+    };
+    const legacyState = calculateStateFromDb({
+      ...crossVersionDb,
+      events: [...crossVersionDb.events, legacySettlement]
+    });
+    const computedLegacy = legacyState.events.find(item => item.id === legacySettlement.id);
+    legacySettlement.snapshot = {
+      breakdown: computedLegacy._breakdown,
+      totalFee: computedLegacy._totalFee,
+      feeShares: computedLegacy._feeShares,
+      navPerShare: computedLegacy._navAtTx
+    };
+    const crossVersionZip = new AdmZip();
+    crossVersionZip.addFile('data/db.json', Buffer.from(JSON.stringify(crossVersionDb)));
+    crossVersionZip.addFile('data/config.json', Buffer.from(JSON.stringify(exportedConfig)));
+    crossVersionZip.addFile('data/settlements.json', Buffer.from(JSON.stringify({
+      version: 1,
+      records: [legacySettlement]
+    })));
+    let crossResponse = await requestBuffer(
+      server, 'POST', '/api/backup/import', crossVersionZip.toBuffer()
+    );
+    assert.strictEqual(crossResponse.status, 200);
+    response = await request(server, 'POST', '/api/performance-settlement/reverse-latest', {
+      remark: 'cross-version reversal'
+    });
+    assert.strictEqual(response.status, 200);
+    response = await request(server, 'POST', '/api/performance-settlement', {
+      date: '2026-01-01', remark: 'replacement v3 settlement'
+    });
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.data.algorithmVersion, 3);
+    const beforeRoundTrip = await request(server, 'GET', '/api/state');
+    const crossExport = await requestBuffer(server, 'GET', '/api/backup/export');
+    assert.strictEqual(crossExport.status, 200);
+    const crossExportZip = new AdmZip(crossExport.body);
+    const crossLedger = JSON.parse(crossExportZip.readAsText('data/settlements.json'));
+    assert.deepStrictEqual(
+      crossLedger.records.filter(item => item.type === 'performance_settlement').map(item => item.algorithmVersion),
+      [1, 3]
+    );
+    crossResponse = await requestBuffer(server, 'POST', '/api/backup/import', crossExport.body);
+    assert.strictEqual(crossResponse.status, 200);
+    const afterRoundTrip = await request(server, 'GET', '/api/state');
+    assert.deepStrictEqual(afterRoundTrip.body.data.summary, beforeRoundTrip.body.data.summary);
+    assert.deepStrictEqual(afterRoundTrip.body.data.members, beforeRoundTrip.body.data.members);
   } finally {
     await new Promise(resolve => server.close(resolve));
     fs.rmSync(dataDir, { recursive: true, force: true });

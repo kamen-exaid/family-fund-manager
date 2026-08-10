@@ -1,8 +1,9 @@
 const express = require('express');
 const AdmZip = require('adm-zip');
+const { mergeSettlementLedger, migrateSettlementLedger } = require('../lib/settlement-ledger');
 
 function registerBackupRoutes(app, deps, utils, tickerUtils) {
-  const { readDb, readSettlements, writeSettlements, readConfig, writeSnapshot,
+  const { readDb, readSettlements, readConfig, writeSnapshot,
     ensureIndexCache, isValidDate } = deps;
   const { toFiniteNumber, findLedgerIssue, rejectLedgerIssue } = utils;
   const { queueTickerRefresh } = tickerUtils;
@@ -190,9 +191,6 @@ app.post('/api/backup/import', express.raw({
         ? indexCache
         : (currentDb.indexCache || {})
     };
-    const ledgerIssue = findLedgerIssue(db);
-    if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
-
     if (!backupConfig || !Array.isArray(backupConfig.tickers) || backupConfig.tickers.length < 1) {
       return res.status(400).json({ success: false, message: '备份中的标的配置无效（至少需要 1 个标的）。' });
     }
@@ -216,6 +214,16 @@ app.post('/api/backup/import', express.raw({
       }
       settlementIds.add(record.id);
     }
+    let settlementMigration;
+    try {
+      settlementMigration = migrateSettlementLedger(db, backupSettlements);
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    const projectedDb = mergeSettlementLedger(db, settlementMigration.ledger);
+    const ledgerIssue = findLedgerIssue(projectedDb);
+    if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
+
     const importedTickers = [];
     for (const item of backupConfig.tickers) {
       const ticker = typeof item?.ticker === 'string' ? item.ticker.trim().toUpperCase() : '';
@@ -228,16 +236,18 @@ app.post('/api/backup/import', express.raw({
       return res.status(400).json({ success: false, message: '备份中的标的代码不能重复。' });
     }
 
-    writeSnapshot(db, { tickers: importedTickers });
-    writeSettlements(backupSettlements);
+    writeSnapshot(db, { tickers: importedTickers }, settlementMigration.ledger);
     void queueTickerRefresh({ tickers: importedTickers });
 
     // 批量导入触发指数同步
     if (events && events.length > 0) {
-      ensureIndexCache(events.map(e => e.date));
+      ensureIndexCache(projectedDb.events.map(e => e.date));
     }
 
-    res.json({ success: true, message: 'ZIP 快照已恢复，账目与系统配置均已覆盖并重新计算。' });
+    const migrationNotice = settlementMigration.migrated
+      ? `，并已为 ${settlementMigration.migratedCount} 笔历史结算补充算法版本`
+      : '';
+    res.json({ success: true, message: `ZIP 快照已恢复，账目、结算与系统配置均已原子覆盖并重新计算${migrationNotice}。` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

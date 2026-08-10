@@ -2,6 +2,8 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
+const AdmZip = require('adm-zip');
 
 const storagePath = require.resolve('../lib/storage');
 const originalDataDir = process.env.FUND_DATA_DIR;
@@ -17,8 +19,8 @@ function loadStorage(dataDir, backupDir) {
 const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'family-fund-storage-'));
 
 try {
-  // A successful write must back up the previously committed ledger, not the
-  // new value that can already be read from db.json.
+  // Every durable mutation archives the complete intended state in the same
+  // ZIP structure accepted by the manual restore endpoint.
   const dataDir = path.join(testRoot, 'data-ok');
   const backupDir = path.join(testRoot, 'backups-ok');
   const storage = loadStorage(dataDir, backupDir);
@@ -27,12 +29,12 @@ try {
   storage.writeDb(nextDb);
 
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(storage.DB_FILE, 'utf8')), nextDb);
-  const backupFiles = fs.readdirSync(backupDir).filter(name => name.endsWith('.json'));
+  const backupFiles = fs.readdirSync(backupDir).filter(name => name.startsWith('snapshot_backup_') && name.endsWith('.zip'));
   assert.strictEqual(backupFiles.length, 1);
-  assert.deepStrictEqual(
-    JSON.parse(fs.readFileSync(path.join(backupDir, backupFiles[0]), 'utf8')),
-    originalDb
-  );
+  const firstBackup = new AdmZip(path.join(backupDir, backupFiles[0]));
+  assert.deepStrictEqual(JSON.parse(firstBackup.readAsText('data/db.json')), nextDb);
+  assert.deepStrictEqual(JSON.parse(firstBackup.readAsText('data/config.json')), storage.readConfig());
+  assert.deepStrictEqual(JSON.parse(firstBackup.readAsText('data/settlements.json')), { version: 1, records: [] });
 
   const originalConfig = storage.readConfig();
   const snapshotDb = { ...nextDb, cnhRate: 7.35, indexCache: nextDb.indexCache || {} };
@@ -86,6 +88,105 @@ try {
   assert.strictEqual(fs.readFileSync(configFile, 'utf8'), configBeforeRollbackTest);
   assert.deepStrictEqual(storage.readDb(), snapshotDb);
   assert.notDeepStrictEqual(originalConfig, snapshotConfig);
+
+  // A three-file restore is one logical commit. If settlements.json cannot be
+  // replaced, db.json and config.json must both roll back as well.
+  const dbBeforeSettlementFailure = fs.readFileSync(storage.DB_FILE, 'utf8');
+  const configBeforeSettlementFailure = fs.readFileSync(configFile, 'utf8');
+  const settlementsBeforeFailure = fs.readFileSync(storage.SETTLEMENTS_FILE, 'utf8');
+  const nextSettlementLedger = {
+    version: 1,
+    records: [{ id: 's2', type: 'performance_settlement', date: '2027-01-01', createdAt: 2 }]
+  };
+  try {
+    fs.renameSync = (source, target) => {
+      if (target === storage.SETTLEMENTS_FILE && source.endsWith('.tmp')) {
+        throw new Error('simulated settlement commit failure');
+      }
+      return originalRenameSync(source, target);
+    };
+    assert.throws(
+      () => storage.writeSnapshot(
+        { ...snapshotDb, cnhRate: 7.5 },
+        { tickers: [{ ticker: 'NVDA' }] },
+        nextSettlementLedger
+      ),
+      /simulated settlement commit failure/
+    );
+  } finally {
+    fs.renameSync = originalRenameSync;
+  }
+  assert.strictEqual(fs.readFileSync(storage.DB_FILE, 'utf8'), dbBeforeSettlementFailure);
+  assert.strictEqual(fs.readFileSync(configFile, 'utf8'), configBeforeSettlementFailure);
+  assert.strictEqual(fs.readFileSync(storage.SETTLEMENTS_FILE, 'utf8'), settlementsBeforeFailure);
+  assert.deepStrictEqual(storage.readDb(), snapshotDb);
+  assert.deepStrictEqual(storage.readConfig(), snapshotConfig);
+  assert.deepStrictEqual(storage.readSettlements(), settlementLedger);
+
+  // Once initialized, a missing settlement ledger is data loss, not a fresh
+  // install. Fail closed instead of silently recreating an empty file.
+  const savedSettlementContent = fs.readFileSync(storage.SETTLEMENTS_FILE, 'utf8');
+  fs.unlinkSync(storage.SETTLEMENTS_FILE);
+  storage.clearDbCache();
+  assert.throws(() => storage.readSettlements(), /Settlement ledger is missing/);
+  fs.writeFileSync(storage.SETTLEMENTS_FILE, savedSettlementContent, 'utf8');
+  storage.clearDbCache();
+  assert.deepStrictEqual(storage.readSettlements(), settlementLedger);
+
+  // Simulate a process dying immediately after db.json is replaced. The next
+  // process must observe the durable journal and restore the entire old
+  // generation before serving any reads.
+  const crashDataDir = path.join(testRoot, 'data-crash');
+  const crashBackupDir = path.join(testRoot, 'backups-crash');
+  let crashStorage = loadStorage(crashDataDir, crashBackupDir);
+  crashStorage.readDb();
+  crashStorage.clearDbCache();
+  const crashDb = crashStorage.readDb();
+  const crashConfig = crashStorage.readConfig();
+  const crashSettlements = crashStorage.readSettlements();
+  const crashBefore = {
+    db: fs.readFileSync(crashStorage.DB_FILE, 'utf8'),
+    config: fs.readFileSync(path.join(crashDataDir, 'config.json'), 'utf8'),
+    settlements: fs.readFileSync(crashStorage.SETTLEMENTS_FILE, 'utf8'),
+    marker: fs.readFileSync(crashStorage.SETTLEMENTS_MARKER_FILE, 'utf8')
+  };
+  const crashScript = `
+    const fs = require('fs');
+    const storage = require(process.env.FUND_STORAGE_MODULE);
+    const db = storage.readDb();
+    const config = storage.readConfig();
+    const settlements = storage.readSettlements();
+    const originalRename = fs.renameSync;
+    fs.renameSync = (source, target) => {
+      const result = originalRename(source, target);
+      if (target === storage.DB_FILE && source.endsWith('.tmp')) process.exit(73);
+      return result;
+    };
+    storage.writeSnapshot(
+      { ...db, cnhRate: 9.9 },
+      { tickers: [{ ticker: 'CRASH' }] },
+      { version: 1, records: [{ id: 'crash-s', type: 'performance_settlement', date: '2028-01-01', createdAt: 1 }] }
+    );
+  `;
+  const crashed = spawnSync(process.execPath, ['-e', crashScript], {
+    env: {
+      ...process.env,
+      FUND_DATA_DIR: crashDataDir,
+      FUND_BACKUP_DIR: crashBackupDir,
+      FUND_STORAGE_MODULE: storagePath
+    }
+  });
+  assert.strictEqual(crashed.status, 73);
+  assert(fs.existsSync(crashStorage.SNAPSHOT_JOURNAL_FILE));
+  crashStorage = loadStorage(crashDataDir, crashBackupDir);
+  assert.strictEqual(fs.readFileSync(crashStorage.DB_FILE, 'utf8'), crashBefore.db);
+  assert.strictEqual(fs.readFileSync(path.join(crashDataDir, 'config.json'), 'utf8'), crashBefore.config);
+  assert.strictEqual(fs.readFileSync(crashStorage.SETTLEMENTS_FILE, 'utf8'), crashBefore.settlements);
+  assert.strictEqual(fs.readFileSync(crashStorage.SETTLEMENTS_MARKER_FILE, 'utf8'), crashBefore.marker);
+  assert(!fs.existsSync(crashStorage.SNAPSHOT_JOURNAL_FILE));
+  assert.deepStrictEqual(crashStorage.readDb(), crashDb);
+  assert.deepStrictEqual(crashStorage.readConfig(), crashConfig);
+  assert.deepStrictEqual(crashStorage.readSettlements(), crashSettlements);
 
   // If the backup destination is unusable, writeDb must fail before touching
   // the committed database so retrying cannot duplicate a ledger operation.

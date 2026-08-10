@@ -1,3 +1,5 @@
+const { CURRENT_SETTLEMENT_VERSION } = require('../lib/performance-settlement');
+
 function registerSettlementRoutes(app, deps, utils) {
   const { readDb, readSettlements, writeSettlements, calculateStateFromDb,
     isValidDate, normalizeRemark, randomUUID, now: getNow } = deps;
@@ -24,6 +26,7 @@ function buildSettlementPreview(db, body) {
   const event = {
     id: 'preview_settlement', type: 'performance_settlement', date, gpMember,
     lpMembers: db.members.map(member => member.id),
+    algorithmVersion: CURRENT_SETTLEMENT_VERSION,
     annualRate: 0.06, feeRate: 0.25, remark: body.remark || '年度业绩结算',
     createdAt: Number.MAX_SAFE_INTEGER
   };
