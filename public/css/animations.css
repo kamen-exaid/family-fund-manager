@@ -1,0 +1,89 @@
+/* Page-load entrance: primary surfaces arrive in a short, readable sequence. */
+.app-sidebar {
+  animation: pageFlyInLeft 1100ms var(--smooth-ease) 40ms both;
+}
+
+.app-header {
+  animation: pageFlyInDown 1000ms var(--smooth-ease) 100ms both;
+}
+
+#dashboard-home {
+  animation: pageFlyInUp 1100ms var(--smooth-ease) 220ms both;
+}
+
+#trends-section {
+  animation: pageFlyInUp 1150ms var(--smooth-ease) 360ms both;
+}
+
+#members-section {
+  animation: pageFlyInUp 1150ms var(--smooth-ease) 500ms both;
+}
+
+.operations-panel {
+  animation: pageFlyInRight 1100ms var(--smooth-ease) 260ms both;
+}
+
+#ticker-ath-container {
+  animation: pageFlyInRight 1100ms var(--smooth-ease) 420ms both;
+}
+
+#ledger-section {
+  animation: pageFlyInUp 1200ms var(--smooth-ease) 640ms both;
+}
+
+@keyframes pageFlyInLeft {
+  from {
+    opacity: 0;
+    transform: translate3d(-18px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pageFlyInRight {
+  from {
+    opacity: 0;
+    transform: translate3d(18px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pageFlyInUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pageFlyInDown {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar,
+  .app-header,
+  #dashboard-home,
+  #trends-section,
+  #members-section,
+  .operations-panel,
+  #ticker-ath-container,
+  #ledger-section {
+    animation: none;
+  }
+}

@@ -1,10 +1,11 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { loadCssEntry } = require('./helpers/load-css');
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'public', 'css', 'style.css'), 'utf8');
+const css = loadCssEntry(path.join(root, 'public', 'css', 'style.css'));
 const segmentedControl = fs.readFileSync(path.join(root, 'public', 'js', 'segmented-control.js'), 'utf8');
 
 const controlClasses = ['theme-selector-group', 'tab-buttons', 'time-slicer-group', 'operation-tabs'];

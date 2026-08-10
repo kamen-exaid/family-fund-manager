@@ -1,0 +1,314 @@
+/* 主区域网格布局 */
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--layout-gutter);
+  align-items: stretch;
+}
+.layout-left {
+  display: contents;
+}
+
+.layout-right {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-gutter);
+  position: fixed;
+  top: var(--fixed-panel-top);
+  right: var(--fixed-panel-gutter);
+  bottom: var(--fixed-panel-top);
+  width: var(--fixed-panel-width);
+  z-index: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 84px;
+  order: 3;
+}
+
+.layout-left>section:first-child {
+  grid-column: 1;
+  order: 2;
+  height: 100%;
+}
+
+.layout-left>section:last-child {
+  grid-column: 1 / -1;
+  order: 1;
+}
+
+.layout-left>section:last-child .chart-wrapper {
+  height: 340px;
+}
+
+/* 成员面板卡片 */
+.members-grid {
+  display: grid;
+  /* 桌面端最多四列，剩余空间由每张卡片均分。 */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.member-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#members-section .member-view {
+  display: grid;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.24s ease, visibility 0s linear 0.24s;
+}
+
+#members-section .member-view.active {
+  position: relative;
+  z-index: 1;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition-delay: 0.05s, 0.05s, 0s;
+}
+
+.member-views-stage {
+  position: relative;
+  overflow: visible;
+  transition: height 0.26s ease;
+}
+
+/* 成员详情浮层需要越过 glass-panel 和视图舞台边界。 */
+#members-section {
+  overflow: visible;
+  z-index: 30;
+}
+
+#ledger-section {
+  z-index: 1;
+}
+
+#members-section .member-view:not(.active) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+}
+
+/* 成员占比归属家庭成员资产面板，避免与趋势图混在同一功能区。 */
+.member-allocation-summary {
+  min-height: 270px;
+}
+
+.member-allocation-chart {
+  position: relative;
+  width: 100%;
+  height: 270px;
+}
+
+.member-allocation-chart canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+@media (max-width: 720px) {
+  .member-panel-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+.member-card {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.34), rgba(244, 248, 253, 0.16)),
+    rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(72, 94, 119, 0.105);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.42),
+    0 0 24px rgba(43, 65, 91, 0.075),
+    0 12px 30px -18px rgba(36, 62, 90, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(81, 104, 128, 0.05);
+  border-radius: 18px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.32s var(--spring-ease), background 0.3s ease, border-color 0.3s ease, box-shadow 0.32s var(--smooth-ease);
+  position: relative;
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  user-select: none;
+}
+
+.member-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.avatar-me {
+  background: var(--grad-cyan);
+  color: #000 !important;
+}
+
+.avatar-mother {
+  background: var(--grad-magenta);
+}
+
+.avatar-father {
+  background: var(--grad-blue);
+}
+
+.member-details {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.member-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.member-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+.member-roi {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-green);
+}
+
+.member-asset {
+  font-size: 1.2rem;
+  color: var(--color-text-main);
+}
+
+.member-card .member-asset > span:first-child {
+  font-size: 1.35rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em;
+}
+
+.member-card .member-asset > span:nth-child(2) {
+  font-size: 0.72rem !important;
+  color: var(--color-text-muted) !important;
+}
+
+.member-shares {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.member-sub-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  border-top: 1px dashed rgba(255, 255, 255, 0.05);
+  padding-top: 4px;
+  margin-top: 4px;
+}
+
+/* 新增的 LP/GP 台账不改变原卡片布局，仅在指针悬停或键盘聚焦时展示。 */
+.member-hover-details {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 8px);
+  left: 12px;
+  right: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-card-divider);
+  border-radius: 12px;
+  min-width: min(320px, calc(100vw - 48px));
+  background: rgba(250, 252, 255, 0.96);
+  box-shadow: 0 18px 40px -18px rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+}
+
+body.theme-dark .member-hover-details,
+body:not(.theme-light) .member-hover-details {
+  background: rgba(20, 24, 38, 0.96);
+}
+
+.member-card:hover,
+.member-card:focus-visible,
+.member-card:focus-within {
+  z-index: 9;
+}
+
+.member-card:hover .member-hover-details,
+.member-card:focus-visible .member-hover-details,
+.member-card:focus-within .member-hover-details {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+
+.member-hover-details__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--color-text-main);
+}
+
+.member-hover-details__ledger {
+  max-height: 180px;
+  margin-top: 6px;
+  overflow: auto;
+}
+
+/* 图表区块 */
+.chart-wrapper {
+  position: relative;
+  width: 100%;
+  height: 270px;
+}
+
+.chart-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.chart-container.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.chart-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+}

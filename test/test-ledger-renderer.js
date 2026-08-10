@@ -1,10 +1,11 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { loadCssEntry } = require('./helpers/load-css');
 
 const root = path.join(__dirname, '..');
 const renderer = fs.readFileSync(path.join(root, 'public', 'js', 'ledger-renderer.js'), 'utf8');
-const css = fs.readFileSync(path.join(root, 'public', 'css', 'style.css'), 'utf8');
+const css = loadCssEntry(path.join(root, 'public', 'css', 'style.css'));
 
 assert(renderer.includes("['withdraw', 'transfer'].includes(event.type) && event._disposedLots?.length"),
   'withdrawals and transfers must expose their lot disposal breakdown');

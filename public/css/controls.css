@@ -1,0 +1,824 @@
+/* --- 通用分段选择器：所有选项切换只维护这一份几何与视觉规则 --- */
+.segmented-control {
+  --segment-count: 1;
+  --segment-active-color: var(--color-primary);
+  --segment-active-background: rgba(var(--color-primary-rgb), 0.09);
+  --segment-active-border: rgba(var(--color-primary-rgb), 0.16);
+  display: grid;
+  grid-template-columns: repeat(var(--segment-count), minmax(0, 1fr));
+  position: relative;
+  isolation: isolate;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(229, 236, 245, 0.22)),
+    rgba(var(--color-primary-rgb), 0.035);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 6px 16px -8px rgba(var(--color-primary-rgb), 0.28);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+}
+.segmented-control--2 {
+  --segment-count: 2;
+}
+
+.segmented-control--3 {
+  --segment-count: 3;
+}
+
+.segmented-control--4 {
+  --segment-count: 4;
+}
+
+.settlement-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.settlement-preview-table {
+  min-width: 1080px;
+  table-layout: auto;
+}
+
+.settlement-preview-table th,
+.settlement-preview-table td {
+  width: auto !important;
+  padding: 11px 12px !important;
+  text-align: right !important;
+}
+
+.settlement-preview-table th:first-child,
+.settlement-preview-table td:first-child,
+.settlement-preview-table th:nth-child(2),
+.settlement-preview-table td:nth-child(2) {
+  text-align: left !important;
+}
+
+.settlement-preview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#btn-settlement-privacy-toggle {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+}
+
+#btn-settlement-privacy-toggle .btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
+#btn-settlement-privacy-toggle .icon-eye-closed {
+  display: none;
+}
+
+.settlement-lock-warning {
+  justify-content: center;
+  margin-top: 16px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.settlement-fee-detail {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .settlement-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.segmented-control--6 {
+  --segment-count: 6;
+}
+
+.segmented-control::before {
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  left: var(--active-left, 4px);
+  width: var(--active-width, 0px);
+  height: calc(100% - 8px);
+  box-sizing: border-box;
+  border: 1px solid var(--segment-active-border);
+  border-radius: 8px;
+  background: var(--segment-active-background);
+  box-shadow: 0 1px 2px rgba(35, 51, 70, 0.1);
+  content: '';
+  pointer-events: none;
+  transition: left 280ms cubic-bezier(0.22, 1, 0.36, 1), width 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.segmented-control__button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 30px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: normal;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.segmented-control__button:hover {
+  color: var(--color-text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body.theme-light .segmented-control__button:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.segmented-control__button.active,
+.segmented-control__button.active:hover {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--segment-active-color);
+  font-weight: 700;
+}
+
+.theme-selector-group {
+  height: var(--toolbar-control-height);
+  padding: 3px;
+}
+
+#btn-privacy-toggle {
+  width: var(--toolbar-control-height);
+  height: var(--toolbar-control-height);
+  padding: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not(.theme-light) .segmented-control {
+    --segment-active-background: rgba(var(--color-primary-rgb), 0.16);
+    --segment-active-border: rgba(var(--color-primary-rgb), 0.22);
+    border-color: rgba(255, 255, 255, 0.11);
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+      rgba(15, 18, 30, 0.42);
+    box-shadow:
+      0 5px 16px -12px rgba(0, 0, 0, 0.72),
+      inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  }
+
+  body:not(.theme-light) .segmented-control::before {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  }
+}
+
+body.theme-dark .segmented-control {
+  --segment-active-background: rgba(var(--color-primary-rgb), 0.16);
+  --segment-active-border: rgba(var(--color-primary-rgb), 0.22);
+  border-color: rgba(255, 255, 255, 0.11);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+    rgba(15, 18, 30, 0.42);
+  box-shadow:
+    0 5px 16px -12px rgba(0, 0, 0, 0.72),
+    inset 0 1px 0 rgba(255, 255, 255, 0.11);
+}
+
+body.theme-dark .segmented-control::before {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+}
+
+/* --- USD兑CNH汇率配置组件样式 --- */
+.cnh-rate-config {
+  background: rgba(255, 255, 255, 0.03);
+  height: var(--toolbar-control-height);
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid var(--color-panel-border);
+  gap: 8px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-text-muted);
+  transition: all 0.25s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+body.theme-light .system-time,
+body.theme-light .cnh-rate-config {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.cnh-rate-config:focus-within {
+  border-color: rgba(var(--color-primary-rgb), 0.4);
+  box-shadow: 0 0 8px rgba(var(--color-primary-rgb), 0.15);
+}
+
+.rate-label {
+  font: inherit;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.rate-input {
+  background: transparent !important;
+  border: none !important;
+  color: inherit !important;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  width: 64px;
+  padding: 0 !important;
+  outline: none;
+  text-align: center;
+}
+
+.rate-input:focus {
+  color: var(--color-primary) !important;
+}
+
+.rate-input::-webkit-outer-spin-button,
+.rate-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* --- 表格双币种金额展示 --- */
+.amount-double-line {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.amount-usd {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  color: var(--color-text-main);
+  font-size: 0.85rem;
+}
+
+.amount-cnh {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+/* --- 流水操作编辑键设计 --- */
+.btn-edit {
+  background: transparent;
+  border: none;
+  color: var(--color-cyan);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-edit:hover {
+  background: rgba(0, 242, 254, 0.1);
+  transform: scale(1.08);
+}
+
+.btn-edit svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-delete {
+  background: transparent;
+  border: none;
+  color: var(--color-magenta);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-delete:hover {
+  background: rgba(244, 63, 94, 0.1);
+  transform: scale(1.08);
+}
+
+.btn-delete svg {
+  width: 14px;
+  height: 14px;
+}
+
+.action-btns-flex {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* --- 汇率自动刷新按钮样式 --- */
+.btn-sync-rate {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.72rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--color-text-muted);
+  outline: none;
+}
+
+.btn-sync-rate .ui-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.backup-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.btn-sync-rate:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: rotate(180deg) scale(1.1);
+  color: var(--color-primary);
+}
+
+body.theme-light .btn-sync-rate:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+@keyframes rateSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.btn-sync-rate.spinning {
+  animation: rateSpin 0.8s linear infinite !important;
+  color: var(--color-primary) !important;
+  pointer-events: none;
+}
+
+/* --- 图表对标与时间选择控制栏 (Chart Controls Dock) --- */
+.benchmark-policy-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.benchmark-policy-group {
+  width: 162px;
+  padding: 3px;
+}
+
+.benchmark-policy-group::before {
+  top: 3px;
+  height: calc(100% - 6px);
+}
+
+.benchmark-policy-btn.segmented-control__button {
+  height: 26px;
+  padding: 4px 8px;
+  font-size: 0.66rem;
+}
+
+.benchmark-policy-group[aria-busy="true"] {
+  opacity: 0.62;
+}
+
+.benchmark-policy-help-wrap {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 22px;
+  place-items: center;
+}
+
+.benchmark-policy-help {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-panel-border);
+  border-radius: 50%;
+  background: rgba(var(--color-primary-rgb), 0.045);
+  color: var(--color-text-muted);
+  font: 700 0.7rem/1 'Outfit', sans-serif;
+  cursor: help;
+}
+
+.benchmark-policy-tooltip {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 9px);
+  right: -4px;
+  display: grid;
+  width: min(286px, 76vw);
+  gap: 5px;
+  padding: 12px 13px;
+  opacity: 0;
+  visibility: hidden;
+  text-align: left;
+}
+
+.benchmark-policy-tooltip strong {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.benchmark-policy-tooltip > span {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.55;
+}
+
+.benchmark-policy-help-wrap:hover .benchmark-policy-tooltip,
+.benchmark-policy-help:focus-visible + .benchmark-policy-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.benchmark-policy-help:focus-visible {
+  outline: 3px solid rgba(var(--color-primary-rgb), 0.22);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  #trends-section > .panel-header {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .benchmark-policy-control {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .benchmark-policy-group {
+    width: 142px;
+  }
+}
+
+.chart-controls-dock {
+  --dock-inset: 14px;
+  --dock-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dock-inset);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.34), rgba(244, 248, 253, 0.16)),
+    rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(72, 94, 119, 0.105);
+  padding: var(--dock-inset);
+  border-radius: var(--dock-radius);
+  margin-bottom: 20px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.42),
+    0 0 24px rgba(43, 65, 91, 0.075),
+    0 12px 30px -18px rgba(36, 62, 90, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(81, 104, 128, 0.05);
+  transition: transform 0.35s var(--spring-ease);
+}
+
+.comparisons-checkboxes {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+
+.checkbox-inline input[type="checkbox"] {
+  --checkbox-color: var(--color-primary);
+  --checkbox-surface: rgba(255, 255, 255, 0.42);
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  place-content: center;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--checkbox-color) 48%, var(--color-panel-border));
+  border-radius: 4px;
+  background: var(--checkbox-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 120ms ease;
+}
+
+.checkbox-inline input[type="checkbox"]::after {
+  width: 4px;
+  height: 7px;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  content: '';
+  transform: translateY(-1px) rotate(45deg) scale(0);
+  transform-origin: center;
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.checkbox-inline input[type="checkbox"]:hover {
+  border-color: var(--checkbox-color);
+  background: color-mix(in srgb, var(--checkbox-color) 9%, var(--checkbox-surface));
+}
+
+.checkbox-inline input[type="checkbox"]:checked {
+  border-color: var(--checkbox-color);
+  background: var(--checkbox-color);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--checkbox-color) 28%, transparent);
+}
+
+.checkbox-inline input[type="checkbox"]:checked::after {
+  transform: translateY(-1px) rotate(45deg) scale(1);
+}
+
+.checkbox-inline input[type="checkbox"]:active {
+  transform: scale(0.92);
+}
+
+.checkbox-inline input[type="checkbox"]:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--checkbox-color) 34%, transparent);
+  outline-offset: 2px;
+}
+
+#chk-comp-assets {
+  --checkbox-color: var(--series-assets);
+}
+
+#chk-comp-nav {
+  --checkbox-color: var(--series-nav);
+}
+
+#chk-comp-sp500 {
+  --checkbox-color: var(--series-sp500);
+}
+
+#chk-comp-ndx {
+  --checkbox-color: var(--series-ndx);
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not(.theme-light) .checkbox-inline input[type="checkbox"] {
+    --checkbox-surface: rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+}
+
+body.theme-dark .checkbox-inline input[type="checkbox"] {
+  --checkbox-surface: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.time-slicer-group {
+  width: 100% !important;
+}
+
+.trend-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0;
+  width: 100%;
+}
+
+.trend-stat-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  min-width: 0;
+}
+
+.trend-stat-card + .trend-stat-card {
+  border-left: 1px solid var(--color-card-divider);
+}
+
+.trend-stat-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text-main);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trend-stat-name::before {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--series-color);
+  content: '';
+}
+
+.trend-stat-date {
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.trend-stat-date.is-hovering {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.trend-stat-date.is-resting {
+  color: var(--color-text-muted);
+  opacity: 0.75;
+}
+
+.trend-stat-values {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  align-items: end;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.trend-stat-values span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trend-stat-values em {
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+  font-style: normal;
+}
+
+.trend-stat-values strong {
+  color: var(--color-text-main);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-stat-values strong.positive {
+  color: var(--color-positive);
+}
+
+.trend-stat-values strong.negative {
+  color: var(--color-negative);
+}
+
+.trend-stat-empty {
+  border: 1px dashed var(--color-panel-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  padding: 12px;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .trend-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trend-stat-card + .trend-stat-card {
+    border-top: 1px solid var(--color-card-divider);
+    border-left: 0;
+  }
+}
+
+/* --- 坐标轴分段按钮样式；时间区间已使用通用 segmented-control --- */
+.scale-slice-btn {
+  min-height: 30px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted) !important;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.7rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.scale-slice-btn:hover {
+  color: var(--color-text-main) !important;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body.theme-light .scale-slice-btn:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.scale-slice-btn.active {
+  background: var(--color-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 3px 9px rgba(var(--color-primary-rgb), 0.24);
+  font-weight: 700;
+}
+
+body.theme-light .scale-slice-btn.active {
+  background: var(--color-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 3px 9px rgba(var(--color-primary-rgb), 0.24);
+  font-weight: 700;
+}
+
+/* The dock is the floating control layer; cards below it remain quiet content surfaces. */
+@media (prefers-color-scheme: dark) {
+  body:not(.theme-light) .chart-controls-dock,
+  body:not(.theme-light) .ticker-ath-cards,
+  body:not(.theme-light) .ledger-section .table-container,
+  body:not(.theme-light) .metrics-grid,
+  body:not(.theme-light) .member-card {
+    border-color: rgba(255, 255, 255, 0.11);
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+      rgba(15, 18, 30, 0.42);
+    box-shadow:
+      0 0 20px rgba(0, 0, 0, 0.22),
+      0 14px 34px -24px rgba(0, 0, 0, 0.8),
+      inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  }
+
+  body:not(.theme-light) .trend-stat-card {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+body.theme-dark .chart-controls-dock,
+body.theme-dark .ticker-ath-cards,
+body.theme-dark .ledger-section .table-container,
+body.theme-dark .metrics-grid,
+body.theme-dark .member-card {
+  border-color: rgba(255, 255, 255, 0.11);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+    rgba(15, 18, 30, 0.42);
+  box-shadow:
+    0 0 20px rgba(0, 0, 0, 0.22),
+    0 14px 34px -24px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.11);
+}
+
+body.theme-dark .trend-stat-card {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}

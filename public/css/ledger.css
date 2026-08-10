@@ -1,0 +1,351 @@
+/* 历史流水账目表格 */
+.ledger-section {
+  display: flex;
+  flex-direction: column;
+}
+.ledger-filters {
+  display: flex;
+  gap: 12px;
+}
+
+.table-container {
+  overflow-x: auto;
+  margin-top: 8px;
+}
+
+.ledger-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+  text-align: left;
+  table-layout: fixed;
+  /* 锁定表格布局，精准控制比例 */
+}
+
+.ledger-table th {
+  box-sizing: border-box;
+  padding: 10px 12px 9px;
+  background: rgba(var(--color-primary-rgb), 0.035);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-card-divider);
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+/* 业绩结算是账期里程碑，与普通资金流水区别展示。 */
+.ledger-row--settlement td {
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.075), rgba(245, 158, 11, 0.055));
+  box-shadow: inset 0 1px rgba(124, 58, 237, 0.24), inset 0 -1px rgba(124, 58, 237, 0.24);
+}
+
+.ledger-row--settlement td:first-child {
+  border-left: 3px solid #7c3aed;
+}
+
+.ledger-row--settlement td:last-child {
+  border-right: 1px solid rgba(124, 58, 237, 0.24);
+}
+
+.ledger-row--settlement:hover td {
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.12), rgba(245, 158, 11, 0.09));
+}
+
+.badge-settlement {
+  border: 1px solid rgba(124, 58, 237, 0.24);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.13), rgba(245, 158, 11, 0.12));
+  color: #6d28d9;
+  white-space: nowrap;
+}
+
+.settlement-event-title {
+  color: var(--color-text-main);
+  font-size: 0.8rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.settlement-event-route {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.66rem;
+  line-height: 1.2;
+}
+
+.settlement-event-route strong {
+  color: var(--color-green);
+}
+
+.settlement-event-route i {
+  width: 3px;
+  height: 3px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+body.theme-dark .badge-settlement,
+body:not(.theme-light) .badge-settlement {
+  color: #c4b5fd;
+}
+
+.ledger-row--settlement-detail > td {
+  height: 0;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.settlement-breakdown-panel {
+  max-height: 0;
+  padding: 0 18px;
+  overflow: hidden;
+  border-right: 1px solid transparent;
+  border-left: 3px solid transparent;
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.065), rgba(245, 158, 11, 0.04));
+  opacity: 0;
+  transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.18s ease, border-color 0.2s ease;
+}
+
+.ledger-row--settlement:hover + .ledger-row--settlement-detail .settlement-breakdown-panel,
+.ledger-row--disposal:hover + .ledger-row--disposal-detail .settlement-breakdown-panel,
+.ledger-row--settlement-detail:hover .settlement-breakdown-panel {
+  max-height: 520px;
+  padding: 14px 18px 16px;
+  border-color: rgba(124, 58, 237, 0.24);
+  opacity: 1;
+}
+
+.disposal-breakdown-hint {
+  color: var(--color-text-muted);
+  font-size: 0.61rem;
+  font-weight: 500;
+}
+
+.disposal-breakdown-panel {
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.065), rgba(124, 58, 237, 0.04));
+}
+
+.disposal-breakdown-item strong small {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 0.58rem;
+  font-weight: 500;
+}
+
+.disposal-breakdown-item .disposal-share-split {
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 0.55rem;
+  font-weight: 500;
+}
+
+.settlement-breakdown-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: var(--color-text-main);
+  font-size: 0.72rem;
+}
+
+.settlement-breakdown-heading span {
+  color: var(--color-text-muted);
+  font-size: 0.62rem;
+  font-weight: 400;
+}
+
+.settlement-breakdown-item {
+  display: grid;
+  grid-template-columns: minmax(90px, 1.2fr) repeat(5, minmax(90px, 1fr));
+  gap: 12px;
+  align-items: center;
+  padding: 9px 0;
+  border-top: 1px dashed var(--color-card-divider);
+  color: var(--color-text-main);
+  font-size: 0.7rem;
+}
+
+.settlement-breakdown-item span,
+.settlement-breakdown-item small {
+  display: block;
+}
+
+.settlement-breakdown-item small {
+  margin-bottom: 2px;
+  color: var(--color-text-muted);
+  font-size: 0.58rem;
+  font-weight: 500;
+}
+
+.settlement-breakdown-empty {
+  padding: 8px 0;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
+.ledger-table td {
+  box-sizing: border-box;
+  padding: 14px 16px;
+  font-size: 0.825rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  color: var(--color-text-main);
+  white-space: nowrap;
+}
+
+/* 8 列自适应黄金比例分配 (和为100%)，时间独立拆出，备注移至明细次行，极致合理紧凑 */
+.ledger-table th:nth-child(1),
+.ledger-table td:nth-child(1) {
+  width: 10%;
+}
+
+/* 时间 */
+.ledger-table th:nth-child(2),
+.ledger-table td:nth-child(2) {
+  width: 19%;
+  white-space: normal;
+  word-break: break-all;
+}
+
+/* 流水明细 */
+.ledger-table th:nth-child(3),
+.ledger-table td:nth-child(3) {
+  width: 8%;
+  text-align: center;
+}
+
+/* 类型 */
+.ledger-table th:nth-child(4),
+.ledger-table td:nth-child(4) {
+  width: 18%;
+  text-align: center;
+}
+
+.ledger-table td:nth-child(4) .amount-double-line,
+.ledger-table td:nth-child(7) .amount-double-line {
+  align-items: center;
+}
+
+/* 出资/估值金额 */
+.ledger-table th:nth-child(5),
+.ledger-table td:nth-child(5) {
+  width: 12%;
+}
+
+/* 当时折算单位净值 */
+.ledger-table th:nth-child(6),
+.ledger-table td:nth-child(6) {
+  width: 12%;
+}
+
+/* 结算后份额 */
+.ledger-table th:nth-child(7),
+.ledger-table td:nth-child(7) {
+  width: 13%;
+}
+
+/* 结算后总市值 */
+.ledger-table th:nth-child(8),
+.ledger-table td:nth-child(8) {
+  width: 8%;
+  padding-right: 20px;
+  text-align: center;
+}
+
+/* 操作 */
+
+/* 强制第三列（类型徽章）在 td 和 th 居中对齐 */
+.ledger-table th:nth-child(3) {
+  text-align: center;
+}
+
+.ledger-table td:nth-child(3) {
+  text-align: center;
+}
+
+/* 强制最后一列（操作按键）在 td 和 th 居中对齐 */
+.ledger-table th:nth-child(8) {
+  text-align: center;
+}
+
+.ledger-table td:nth-child(8) {
+  text-align: center;
+}
+
+.ledger-table td:nth-child(8) .action-btns-flex {
+  justify-content: center;
+}
+
+.ledger-table tbody tr {
+  transition: background 0.2s ease;
+}
+
+.ledger-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* 类型徽章 */
+.tx-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.badge-deposit {
+  background: rgba(16, 185, 129, 0.08);
+  color: var(--color-green);
+  border-color: rgba(16, 185, 129, 0.15);
+}
+
+.badge-withdraw {
+  background: rgba(244, 63, 94, 0.08);
+  color: var(--color-magenta);
+  border-color: rgba(244, 63, 94, 0.15);
+}
+
+.badge-valuation {
+  background: rgba(139, 92, 246, 0.08);
+  color: var(--color-purple);
+  border-color: rgba(139, 92, 246, 0.15);
+}
+
+.badge-transfer {
+  background: rgba(0, 153, 255, 0.08);
+  color: var(--color-cyan);
+  border-color: rgba(0, 153, 255, 0.15);
+}
+
+/* 操作按钮 */
+.btn-delete {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-delete:hover {
+  background: rgba(244, 63, 94, 0.1);
+  color: var(--color-magenta);
+}
+
+.btn-delete svg {
+  width: 14px;
+  height: 14px;
+}
