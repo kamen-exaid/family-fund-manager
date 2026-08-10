@@ -35,7 +35,7 @@
       </svg>
       <span>
         <strong>家庭财富账本</strong>
-        <small>WEALTH LEDGER <b class="sidebar-version">v3.7.0</b></small>
+        <small>WEALTH LEDGER <b class="sidebar-version">v3.8.0</b></small>
       </span>
     </a>
 
@@ -86,12 +86,12 @@
         </svg>
         <div class="logo-text">
           <h1>家庭基金账目管理系统</h1>
-          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.7.0</span></span>
+          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.8.0</span></span>
         </div>
       </div>
       <div class="header-actions">
         <div class="header-meta">
-        <span class="system-time" id="system-time">2026-05-26 12:00:00</span>
+        <span class="system-time" id="system-time" title="美东时间">2026-05-26 12:00:00 EDT</span>
         <div class="cnh-rate-config flex-center" title="手动修改或一键同步全局 USD/CNH 汇率">
           <span class="rate-label">CNH 汇率:</span>
           <input type="number" id="input-cnh-rate" step="0.0001" min="0.0001" value="7.2000" class="rate-input">
@@ -276,15 +276,11 @@
               业绩表现
             </h2>
             <div class="benchmark-policy-control">
-              <div class="benchmark-policy-group segmented-control segmented-control--2" id="benchmark-policy-group" aria-label="指数收盘口径">
-                <button class="benchmark-policy-btn segmented-control__button active" type="button" data-benchmark-policy="previous">上一交易日</button>
-                <button class="benchmark-policy-btn segmented-control__button" type="button" data-benchmark-policy="same_day">当日收盘</button>
-              </div>
               <span class="benchmark-policy-help-wrap">
                 <button class="benchmark-policy-help" type="button" aria-label="指数口径说明" aria-describedby="benchmark-policy-tooltip">?</button>
                 <span class="glass-tooltip benchmark-policy-tooltip" id="benchmark-policy-tooltip" role="tooltip">
-                  <strong>指数口径</strong>
-                  <span>默认使用上一交易日收盘价。<br>因 IBKR 日期对应的历史净值反映当日开盘时点，若使用当日收盘价，会引入净值产生之后的行情，形成时间错配。</span>
+                  <strong>指数口径说明</strong>
+                  <span>估值日 T 严格匹配 T-1 交易日美股收盘价。今年以来 (YTD) 统一以当年 1 月 1 日（或首个交易日）作为 NAV 的 1.0000 基准点，指数采用上一年最后一个交易日收盘价作为基准点。</span>
                 </span>
               </span>
             </div>
@@ -445,7 +441,7 @@
                 <line x1="12" y1="16" x2="12" y2="12" />
                 <line x1="12" y1="8" x2="12.01" y2="8" />
               </svg>
-              <p>根据投资账户最新总资产生成基金单位净值。北京时间16:05前仅可更新上一交易日；16:05起刷新页面后可更新当日数据，周末自动回退至周五。</p>
+              <p>根据投资账户最新总资产生成基金单位净值。美东时间04:05前仅可更新上一交易日；04:05起刷新页面后可更新当日数据，周末自动回退至周五。</p>
             </div>
 
             <div class="form-row">
@@ -458,7 +454,7 @@
               </div>
               <div class="form-group">
                 <label for="val-date">估值重估日期</label>
-              <input type="date" id="val-date" title="北京时间16:05后开放当日估值" required>
+              <input type="date" id="val-date" title="美东时间04:05后开放当日估值" required>
               </div>
             </div>
 
@@ -649,7 +645,7 @@
         <div class="principles-grid">
           <section class="principle-card"><span class="principle-index">01</span><div><h4>出资人与管理人</h4><p>所有成员都是 LP，其中一人兼任 GP。GP 的个人 LP 资金与 GP 提成报酬分开独立记账。</p></div></section>
           <section class="principle-card"><span class="principle-index">02</span><div><h4>先过6%收益线</h4><p>每笔入金从实际存入当天开始计算，年化收益达到 6% 以前，赚到的收益 100% 属于 LP，无任何费用扣减。</p></div></section>
-          <section class="principle-card"><span class="principle-index">03</span><div><h4>定期结算，多赚才分成</h4><p>每年最后一天或按需统一结算。收益超过 6% 以后，只对超出的部分收取 25% 业绩提成，其余仍归 LP。</p></div></section>
+          <section class="principle-card"><span class="principle-index">03</span><div><h4>定期结算，多赚才分成</h4><p>每年最后一天或按需统一结算。NAV 采用年初第一个交易日的估值数据，对应指数上个年度的最后一个交易日；收益超过 6% 以后，只对超出的部分收取 25% 业绩提成，其余仍归 LP。</p></div></section>
           <section class="principle-card"><span class="principle-index">04</span><div><h4>跌了再涨回来，不收费</h4><p>例如上次已按 10 万元结算，后来跌到 8 万元，再涨回 10 万元，这只是回本，不算新利润。只有超过上次结算水平并越过 6% 收益线，超出的部分才收费。</p></div></section>
           <section class="principle-card"><span class="principle-index">05</span><div><h4>同一人的钱合起来算</h4><p>同一 LP 在本期有多笔入金批次时，赚钱与亏钱的部分会先互相抵消，再计算是否产生业绩提成。</p></div></section>
           <section class="principle-card"><span class="principle-index">06</span><div><h4>出金时立即结算</h4><p>LP 出金时，系统会按当天的账户价值，立即计算该出金部分是否产生业绩提成。</p></div></section>
@@ -762,7 +758,13 @@
           <h3 id="settlement-preview-title">业绩结算预览</h3>
           <p id="settlement-preview-subtitle" class="section-desc" style="margin:4px 0 0"></p>
         </div>
-        <button class="btn-close" id="btn-close-settlement-preview" type="button" aria-label="关闭业绩结算预览">×</button>
+        <div class="settlement-preview-header-actions">
+          <button id="btn-settlement-privacy-toggle" class="btn btn-secondary flex-center" type="button" title="切换结算明细隐私模式" aria-label="切换结算明细隐私模式">
+            <svg class="btn-icon icon-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="btn-icon icon-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+          <button class="btn-close" id="btn-close-settlement-preview" type="button" aria-label="关闭业绩结算预览">×</button>
+        </div>
       </div>
       <div class="modal-body">
         <div id="settlement-preview-summary" class="settlement-summary-grid"></div>
@@ -772,7 +774,7 @@
             <tbody id="settlement-preview-body"></tbody>
           </table>
         </div>
-        <div class="info-alert" style="margin-top:16px">确认后将写入正式结算事件，并锁定结算日及以前的账目。请核对估值日期和每位LP数据。</div>
+        <div class="info-alert settlement-lock-warning">确认后将写入正式结算事件，并锁定结算日及以前的账目。请核对估值日期和每位LP数据。</div>
         <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:18px">
           <button type="button" id="btn-cancel-settlement" class="btn btn-secondary">返回修改</button>
           <button type="button" id="btn-confirm-settlement" class="btn btn-magenta">确认结算并锁账</button>

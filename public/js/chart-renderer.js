@@ -110,6 +110,45 @@ window.FundChartRenderer = {
     };
   },
 
+  calculateTrendCutoff(activeTimeSlice, now = new Date()) {
+    if (!activeTimeSlice || activeTimeSlice === 'ALL') return undefined;
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(now);
+    const values = {};
+    parts.forEach(part => { values[part.type] = part.value; });
+    const easternDate = new Date(Date.UTC(
+      Number(values.year), Number(values.month) - 1, Number(values.day)
+    ));
+    const shiftCalendarDate = (years, months) => {
+      const targetMonth = new Date(Date.UTC(
+        easternDate.getUTCFullYear() + years,
+        easternDate.getUTCMonth() + months,
+        1
+      ));
+      const lastDay = new Date(Date.UTC(
+        targetMonth.getUTCFullYear(),
+        targetMonth.getUTCMonth() + 1,
+        0
+      )).getUTCDate();
+      return new Date(Date.UTC(
+        targetMonth.getUTCFullYear(),
+        targetMonth.getUTCMonth(),
+        Math.min(easternDate.getUTCDate(), lastDay)
+      ));
+    };
+    const offsets = {
+      // YTD selects the calendar year starting from Jan 1st.
+      YTD: () => new Date(Date.UTC(easternDate.getUTCFullYear(), 0, 1)),
+      '1Y': () => shiftCalendarDate(-1, 0),
+      '6M': () => shiftCalendarDate(0, -6),
+      '3M': () => shiftCalendarDate(0, -3),
+      '1M': () => shiftCalendarDate(0, -1)
+    };
+    return offsets[activeTimeSlice]?.().toISOString().slice(0, 10);
+  },
+
   render({ state, members, settings, charts, elements, ui }) {
     const { activeTimeSlice } = settings;
     const { navTrendChart, memberAllocationChart } = charts;
@@ -124,9 +163,7 @@ window.FundChartRenderer = {
       return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
     });
     const history = state.charts.navHistory;
-    const now = new Date();
-    const offsets = { YTD: () => new Date(now.getFullYear(), 0, 1), '1Y': () => new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()), '6M': () => new Date(now.getFullYear(), now.getMonth() - 6, now.getDate()), '3M': () => new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()), '1M': () => new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) };
-    const cutoff = offsets[activeTimeSlice]?.().toISOString().slice(0, 10);
+    const cutoff = this.calculateTrendCutoff(activeTimeSlice);
     let filtered = cutoff ? history.filter(item => item.date >= cutoff) : history;
     if (!filtered.length && history.length) filtered = [history.at(-1)];
 
@@ -134,21 +171,45 @@ window.FundChartRenderer = {
     const labels = filtered.length ? filtered.map(item => item.date) : ['尚未入金'];
     const nav = filtered.length ? filtered.map(item => Number((item.navPerShare / base.navPerShare).toFixed(4))) : [1];
     const assets = filtered.length ? filtered.map(item => item.totalNAV) : [0];
-    const spx = filtered.length ? filtered.map(item => Number((item.sp500NAV / base.sp500NAV).toFixed(4))) : [1];
-    const ndx = filtered.length ? filtered.map(item => Number((item.ndxNAV / base.ndxNAV).toFixed(4))) : [1];
+    const benchmarkSeries = (rawField, normalizedField, sourceDateField) => {
+      if (!filtered.length) return [1];
+      if (activeTimeSlice !== 'YTD') {
+        return filtered.map(item => Number((item[normalizedField] / base[normalizedField]).toFixed(4)));
+      }
 
-    const calculate = values => {
+      const ytdYear = cutoff.slice(0, 4);
+      const configuredAnchor = state.charts.benchmarkAnchors?.[ytdYear];
+      const fallbackAnchor = filtered
+        .filter(item => item[sourceDateField] && item[sourceDateField] <= cutoff && Number.isFinite(item[rawField]))
+        .sort((a, b) => a[sourceDateField].localeCompare(b[sourceDateField]))
+        .at(-1);
+      const anchorValue = configuredAnchor?.[rawField] ?? fallbackAnchor?.[rawField];
+      const anchorDate = configuredAnchor?.[`${rawField}PriceDate`] ?? fallbackAnchor?.[sourceDateField];
+      if (!Number.isFinite(anchorValue)) {
+        return filtered.map(item => Number((item[normalizedField] / base[normalizedField]).toFixed(4)));
+      }
+      return filtered.map(item => {
+        if (!Number.isFinite(item[rawField]) || !item[sourceDateField] || item[sourceDateField] < anchorDate) return null;
+        return Number((item[rawField] / anchorValue).toFixed(4));
+      });
+    };
+    const spx = benchmarkSeries('spx', 'sp500NAV', 'spxPriceDate');
+    const ndx = benchmarkSeries('ndx', 'ndxNAV', 'ndxPriceDate');
+
+    const isYtd = activeTimeSlice === 'YTD';
+    const calculate = (values, isYtdBenchmark = false) => {
       const clean = values.filter(value => Number.isFinite(value) && value > 0);
       if (!clean.length) return { gain: 0, drawdown: 0 };
-      let peak = clean[0]; let drawdown = 0;
+      const baseValue = isYtdBenchmark ? 1.0 : clean[0];
+      let peak = baseValue; let drawdown = 0;
       clean.forEach(value => { peak = Math.max(peak, value); drawdown = Math.min(drawdown, value / peak - 1); });
-      return { gain: clean.at(-1) / clean[0] - 1, drawdown };
+      return { gain: clean.at(-1) / baseValue - 1, drawdown };
     };
     const percent = value => `${value > 0 ? '+' : ''}${(value * 100).toFixed(2)}%`;
     const series = [
-      { label: '单位净值', color: seriesColors.nav, values: nav, visible: chkCompNav.checked },
-      { label: '标普500指数', color: seriesColors.sp500, values: spx, visible: chkCompSp500.checked },
-      { label: '纳斯达克100指数', color: seriesColors.ndx, values: ndx, visible: chkCompNdx.checked }
+      { label: '单位净值', color: seriesColors.nav, values: nav, visible: chkCompNav.checked, isBenchmark: false },
+      { label: '标普500指数', color: seriesColors.sp500, values: spx, visible: chkCompSp500.checked, isBenchmark: true },
+      { label: '纳斯达克100指数', color: seriesColors.ndx, values: ndx, visible: chkCompNdx.checked, isBenchmark: true }
     ];
     const renderStats = (activeIndex = null) => {
       series[0].visible = chkCompNav.checked;
@@ -159,7 +220,8 @@ window.FundChartRenderer = {
         ? visible.map(item => {
           const isHover = Number.isInteger(activeIndex);
           const end = isHover ? Math.min(activeIndex, item.values.length - 1) : item.values.length - 1;
-          const stats = calculate(item.values.slice(0, end + 1));
+          const isYtdBenchmark = isYtd && item.isBenchmark;
+          const stats = calculate(item.values.slice(0, end + 1), isYtdBenchmark);
           const dateText = isHover && labels[end] ? `截至 ${labels[end]}` : '全周期';
           return `<div class="trend-stat-card" style="--series-color:${item.color};">
             <div class="trend-stat-name">${item.label}</div>

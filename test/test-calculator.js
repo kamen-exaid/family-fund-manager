@@ -111,7 +111,7 @@ const sameDayCloseState = calculateStateFromDb({
 });
 assert.strictEqual(sameDayCloseState.charts.navHistory[1].sp500NAV, 1);
 
-const sameDayPolicyState = calculateStateFromDb({
+const deprecatedSameDayPolicyState = calculateStateFromDb({
   ...benchmarkDb,
   benchmarkClosePolicy: 'same_day',
   indexCache: {
@@ -119,8 +119,10 @@ const sameDayPolicyState = calculateStateFromDb({
     '2026-07-07': { spx: 111.1, ndx: 222.2, spxPriceDate: '2026-07-07', ndxPriceDate: '2026-07-07', policy: 'same_day' }
   }
 });
-assert.strictEqual(sameDayPolicyState.charts.navHistory[1].sp500NAV, 1.1);
-assert.strictEqual(sameDayPolicyState.settings.benchmarkClosePolicy, 'same_day');
-assert.strictEqual(sameDayPolicyState.settings.benchmarkCacheReady, true);
+assert.strictEqual(deprecatedSameDayPolicyState.charts.navHistory[1].sp500NAV, 1);
+assert.strictEqual(deprecatedSameDayPolicyState.settings.benchmarkClosePolicy, 'previous');
+assert.strictEqual(deprecatedSameDayPolicyState.settings.benchmarkCacheReady, false);
+assert.strictEqual(benchmarkState.charts.navHistory[1].ndx, 220);
+assert.strictEqual(benchmarkState.charts.navHistory[1].ndxPriceDate, '2026-07-06');
 
 console.log('Production calculateStateFromDb assertions passed.');

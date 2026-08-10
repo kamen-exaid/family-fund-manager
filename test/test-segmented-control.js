@@ -7,8 +7,8 @@ const html = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'public', 'css', 'style.css'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'public', 'js', 'app.js'), 'utf8');
 
-const controlClasses = ['theme-selector-group', 'tab-buttons', 'time-slicer-group', 'operation-tabs', 'benchmark-policy-group'];
-const buttonClasses = ['theme-btn', 'tab-btn', 'time-slice-btn', 'op-tab-btn', 'benchmark-policy-btn'];
+const controlClasses = ['theme-selector-group', 'tab-buttons', 'time-slicer-group', 'operation-tabs'];
+const buttonClasses = ['theme-btn', 'tab-btn', 'time-slice-btn', 'op-tab-btn'];
 
 controlClasses.forEach(className => {
   const tag = html.match(new RegExp(`<[^>]+class="[^"]*\\b${className}\\b[^"]*"[^>]*>`));
@@ -40,12 +40,11 @@ assert(app.includes("document.querySelectorAll('.segmented-control')"), 'indicat
 assert(app.includes('function activateSegmentOption'), 'active option switching must use the shared helper');
 assert(
   html.includes('class="glass-tooltip benchmark-policy-tooltip"') &&
-    html.includes('<strong>指数口径</strong>') &&
-    html.includes('默认使用上一交易日收盘价。<br>因 IBKR 日期对应的历史净值反映当日开盘时点') &&
-    html.includes('形成时间错配。'),
-  'benchmark policy help tooltip must explain the default and its timing rationale'
+    html.includes('<strong>指数口径说明</strong>') &&
+    html.includes('估值日 T 严格匹配 T-1 交易日美股收盘价'),
+  'benchmark help must explain snapshot matching and the YTD anchor'
 );
 assert(!css.includes('.benchmark-policy-help::after'), 'benchmark help must not duplicate the shared tooltip surface');
-assert(app.includes('benchmarkClosePolicy: nextPolicy'), 'benchmark policy buttons must persist their selection');
+assert(!html.includes('data-benchmark-policy="same_day"'), 'future same-day closes must not be selectable');
 
 console.log('Segmented control component regression tests passed.');

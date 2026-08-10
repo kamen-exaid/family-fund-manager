@@ -3407,6 +3407,41 @@ body.theme-light .member-edit-item.is-primary-gp:hover {
   text-align: left !important;
 }
 
+.settlement-preview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#btn-settlement-privacy-toggle {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+}
+
+#btn-settlement-privacy-toggle .btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
+#btn-settlement-privacy-toggle .icon-eye-closed {
+  display: none;
+}
+
+.settlement-lock-warning {
+  justify-content: center;
+  margin-top: 16px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.settlement-fee-detail {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: .68rem;
+  font-weight: 700;
+}
+
 @media (max-width: 640px) {
   .settlement-summary-grid {
     grid-template-columns: 1fr;
@@ -4579,18 +4614,21 @@ body.theme-dark .glass-tooltip {
  * --------------------------------- */
 
 /* 隐私模式切换按钮在激活状态下的色彩 */
-body.privacy-mode-active #btn-privacy-toggle {
+body.privacy-mode-active #btn-privacy-toggle,
+body.privacy-mode-active #btn-settlement-privacy-toggle {
   background: rgba(0, 242, 254, 0.1);
   border-color: rgba(0, 242, 254, 0.25);
   color: var(--color-cyan);
   box-shadow: 0 0 10px rgba(0, 242, 254, 0.1);
 }
 
-body.privacy-mode-active #btn-privacy-toggle .icon-eye-open {
+body.privacy-mode-active #btn-privacy-toggle .icon-eye-open,
+body.privacy-mode-active #btn-settlement-privacy-toggle .icon-eye-open {
   display: none !important;
 }
 
-body.privacy-mode-active #btn-privacy-toggle .icon-eye-closed {
+body.privacy-mode-active #btn-privacy-toggle .icon-eye-closed,
+body.privacy-mode-active #btn-settlement-privacy-toggle .icon-eye-closed {
   display: block !important;
 }
 
@@ -4700,7 +4738,8 @@ body.theme-dark {
   filter: none;
 }
 
-body.privacy-mode-active #btn-privacy-toggle {
+body.privacy-mode-active #btn-privacy-toggle,
+body.privacy-mode-active #btn-settlement-privacy-toggle {
   background: rgba(var(--color-primary-rgb), 0.10);
   border-color: rgba(var(--color-primary-rgb), 0.25);
   color: var(--color-primary);

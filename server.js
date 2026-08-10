@@ -132,14 +132,15 @@ async function ensureIndexCache(dates) {
   if (!dates || dates.length === 0) return;
   const db = readDb();
   if (!db.indexCache) db.indexCache = {};
-  const benchmarkClosePolicy = db.benchmarkClosePolicy === 'same_day' ? 'same_day' : 'previous';
-  const isValidSourceDate = (sourceDate, navDate) => benchmarkClosePolicy === 'same_day'
-    ? sourceDate <= navDate
-    : sourceDate < navDate;
+  const benchmarkClosePolicy = 'previous';
+  const isValidSourceDate = (sourceDate, navDate) => sourceDate < navDate;
 
   // Legacy entries have no source-date fields and may contain the same day's close.
   // Treat them as stale so historical trend data repairs itself on startup.
-  const uniqueDates = [...new Set(dates)];
+  // A January 1 lookup resolves to the prior year's final market close and
+  // gives YTD benchmark calculations a stable, event-independent anchor.
+  const anchorDates = dates.map(date => `${date.slice(0, 4)}-01-01`);
+  const uniqueDates = [...new Set([...dates, ...anchorDates])];
   const missingDates = uniqueDates.filter(dateStr => {
     const cached = db.indexCache[dateStr];
     return !cached ||
@@ -183,7 +184,7 @@ async function ensureIndexCache(dates) {
     if (Object.keys(fetchedUpdates).length > 0) {
       // Re-read before writing so a slow background sync never overwrites newer ledger edits.
       const latestDb = readDb();
-      const latestPolicy = latestDb.benchmarkClosePolicy === 'same_day' ? 'same_day' : 'previous';
+      const latestPolicy = 'previous';
       if (latestPolicy !== benchmarkClosePolicy) return;
       latestDb.indexCache = {
         ...(latestDb.indexCache || {}),

@@ -155,6 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const themeSelectorGroup = document.querySelector('.theme-selector-group');
   const memberViewTabs = document.querySelector('.tab-buttons');
   const btnPrivacyToggle = document.getElementById('btn-privacy-toggle');
+  const btnSettlementPrivacyToggle = document.getElementById('btn-settlement-privacy-toggle');
 
   // Dashboard Metrics
   const elFundTotalNav = document.getElementById('fund-total-nav');
@@ -420,28 +421,41 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- 时间 and 日期模块 ---
+  function getEasternDateParts(now = new Date(), includeTime = false) {
+    const options = {
+      timeZone: 'America/New_York',
+      year: 'numeric', month: '2-digit', day: '2-digit'
+    };
+    if (includeTime) Object.assign(options, {
+      hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23'
+    });
+    const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
+    const values = {};
+    parts.forEach(part => { values[part.type] = part.value; });
+    return values;
+  }
+
   function initTime() {
     const updateTime = () => {
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-      elSystemTime.textContent = timeStr;
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false, hourCycle: 'h23', timeZoneName: 'short'
+      }).formatToParts(new Date());
+      const values = {};
+      parts.forEach(part => { values[part.type] = part.value; });
+      elSystemTime.textContent = `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second} ${values.timeZoneName}`;
     };
     updateTime();
     setInterval(updateTime, 1000);
   }
 
   function getLatestValuationDate(now = new Date()) {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Shanghai',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23'
-    }).formatToParts(now);
-    const values = {};
-    parts.forEach(part => { values[part.type] = part.value; });
+    const values = getEasternDateParts(now, true);
     const cursor = new Date(`${values.year}-${values.month}-${values.day}T00:00:00Z`);
     const minutes = Number(values.hour) * 60 + Number(values.minute);
-    if (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6 || minutes < 16 * 60 + 5) {
+    if (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6 || minutes < 4 * 60 + 5) {
       do {
         cursor.setUTCDate(cursor.getUTCDate() - 1);
       } while (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6);
@@ -450,11 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setDefaultDates() {
-    const shanghaiParts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
-    }).formatToParts(new Date());
-    const dateParts = {};
-    shanghaiParts.forEach(part => { dateParts[part.type] = part.value; });
+    const dateParts = getEasternDateParts();
     const today = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
     const latestSunday = new Date(`${today}T00:00:00Z`);
     latestSunday.setUTCDate(latestSunday.getUTCDate() - latestSunday.getUTCDay());
@@ -489,7 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const day = new Date(`${input.value}T00:00:00Z`).getUTCDay();
       let message = '';
       if (day === 0 || day === 6) message = '估值日期请选择周一至周五的交易日。';
-      else if (input.value > latest) message = `北京时间16:05后才开放当日估值，当前最晚可选择 ${latest}。`;
+      else if (input.value > latest) message = `美东时间04:05后才开放当日估值，当前最晚可选择 ${latest}。`;
       input.setCustomValidity(message);
       return !message;
     };
@@ -699,19 +709,20 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // 绑定隐私模式切换按钮的点击事件 (仅图标切换)
-    if (btnPrivacyToggle) {
-      btnPrivacyToggle.addEventListener('click', () => {
-        isPrivacyMode = !isPrivacyMode;
-        if (isPrivacyMode) {
-          document.body.classList.add('privacy-mode-active');
-          showToast('隐私模式已开启，敏感财务数据已模糊隐藏', 'success');
-        } else {
-          document.body.classList.remove('privacy-mode-active');
-          showToast('隐私模式已关闭', 'warning');
-        }
+    // 顶部与结算预览按钮共享同一隐私状态。
+    const togglePrivacyMode = () => {
+      isPrivacyMode = !isPrivacyMode;
+      document.body.classList.toggle('privacy-mode-active', isPrivacyMode);
+      [btnPrivacyToggle, btnSettlementPrivacyToggle].forEach(button => {
+        if (button) button.setAttribute('aria-pressed', String(isPrivacyMode));
       });
-    }
+      showToast(isPrivacyMode ? '隐私模式已开启，敏感财务数据已模糊隐藏' : '隐私模式已关闭', isPrivacyMode ? 'success' : 'warning');
+    };
+    [btnPrivacyToggle, btnSettlementPrivacyToggle].forEach(button => {
+      if (!button) return;
+      button.setAttribute('aria-pressed', String(isPrivacyMode));
+      button.addEventListener('click', togglePrivacyMode);
+    });
 
     // 监听系统主题变化，如果当前是“系统模式”，则自动触发图表配色重绘
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -790,7 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <td colspan="6"><strong>${escapeHtml(name)}</strong><span style="margin-left:10px;color:var(--color-text-muted)">${item.lots?.length || 0}笔资金批次 · 结算后 ${item.sharesAfter.toFixed(6)}份</span></td>
               <td class="privacy-sensitive"><strong>$${formatMoney(item.valueBefore)}</strong></td>
               <td class="privacy-sensitive"><strong>$${formatMoney(item.hurdle)}</strong></td>
-              <td class="privacy-sensitive"><strong class="${item.excess > 0 ? 'text-green' : ''}">$${formatMoney(item.excess)}</strong><div style="font-size:.68rem;color:var(--color-text-muted)">25%报酬 $${formatMoney(item.fee)} · ${item.feeShares.toFixed(6)}份</div></td>
+              <td class="privacy-sensitive"><strong class="${item.excess > 0 ? 'text-green' : ''}">$${formatMoney(item.excess)}</strong><div class="settlement-fee-detail">25%报酬 $${formatMoney(item.fee)} · ${item.feeShares.toFixed(6)}份</div></td>
             </tr>${lotRows}`;
         }).join('');
         const gpName = membersList.find(member => member.id === pendingSettlement.gpMember)?.name || '主GP';

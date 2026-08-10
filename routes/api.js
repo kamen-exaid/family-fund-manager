@@ -41,15 +41,15 @@ function registerApiRoutes(app, deps) {
 
   function latestValuationDate(now = getNow()) {
     const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Shanghai',
+      timeZone: 'America/New_York',
       year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false
+      hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23'
     }).formatToParts(now);
     const values = {};
     parts.forEach(part => { values[part.type] = part.value; });
     const cursor = new Date(`${values.year}-${values.month}-${values.day}T00:00:00Z`);
     const minutes = Number(values.hour) * 60 + Number(values.minute);
-    if (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6 || minutes < 16 * 60 + 5) {
+    if (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6 || minutes < 4 * 60 + 5) {
       do {
         cursor.setUTCDate(cursor.getUTCDate() - 1);
       } while (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6);
@@ -61,7 +61,7 @@ function registerApiRoutes(app, deps) {
     const day = new Date(`${date}T00:00:00Z`).getUTCDay();
     if (day === 0 || day === 6) return '估值日期必须为周一至周五的交易日。';
     const latest = latestValuationDate();
-    return date <= latest ? null : `北京时间16:05后才开放当日估值；当前最晚可选择 ${latest}。`;
+    return date <= latest ? null : `美东时间04:05后才开放当日估值；当前最晚可选择 ${latest}。`;
   }
 
   // The calculator caps underfunded replay events for display safety. Before
@@ -904,10 +904,10 @@ app.post('/api/settings', (req, res) => {
     }
 
     if (benchmarkClosePolicy !== undefined) {
-      if (!['previous', 'same_day'].includes(benchmarkClosePolicy)) {
+      if (benchmarkClosePolicy !== 'previous') {
         return res.status(400).json({ success: false, message: '指数收盘口径无效' });
       }
-      db.benchmarkClosePolicy = benchmarkClosePolicy;
+      db.benchmarkClosePolicy = 'previous';
     }
 
     writeDb(db);
@@ -1124,9 +1124,7 @@ app.post('/api/backup/import', express.raw({
       events: events.filter(event =>
         event.type !== 'performance_settlement' && event.type !== 'performance_settlement_reversal'),
       cnhRate: importedCnhRate,
-      benchmarkClosePolicy: ['previous', 'same_day'].includes(benchmarkClosePolicy)
-        ? benchmarkClosePolicy
-        : (currentDb.benchmarkClosePolicy || 'previous'),
+      benchmarkClosePolicy: 'previous',
       performanceFee: {
         gpMemberId: importedMembers.some(member => member.id === performanceFee?.gpMemberId && member.roles?.gp === true)
           ? performanceFee.gpMemberId : null,

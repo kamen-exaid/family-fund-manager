@@ -80,13 +80,27 @@ async function request(handler, body, params = {}) {
     totalNAV: 120, date: '2026-08-06'
   });
   assert.strictEqual(beforeCutoffValuation.status, 400);
-  assert.match(beforeCutoffValuation.body.message, /16:05/);
+  assert.match(beforeCutoffValuation.body.message, /美东时间04:05/);
 
   const afterCutoffApi = makeApi(() => new Date('2026-08-06T08:05:00Z'));
   const afterCutoffValuation = await request(afterCutoffApi.routes['post:/api/valuation'], {
     totalNAV: 120, date: '2026-08-06'
   });
   assert.strictEqual(afterCutoffValuation.status, 200);
+
+  // Winter EST is UTC-5: the same 04:05 NAV cutoff moves from 16:05 to 17:05
+  // in Beijing instead of opening an hour early at a fixed Beijing time.
+  const beforeWinterCutoffApi = makeApi(() => new Date('2026-01-12T09:04:00Z'));
+  const beforeWinterCutoffValuation = await request(beforeWinterCutoffApi.routes['post:/api/valuation'], {
+    totalNAV: 120, date: '2026-01-12'
+  });
+  assert.strictEqual(beforeWinterCutoffValuation.status, 400);
+
+  const afterWinterCutoffApi = makeApi(() => new Date('2026-01-12T09:05:00Z'));
+  const afterWinterCutoffValuation = await request(afterWinterCutoffApi.routes['post:/api/valuation'], {
+    totalNAV: 120, date: '2026-01-12'
+  });
+  assert.strictEqual(afterWinterCutoffValuation.status, 200);
 
   const zeroValuation = await request(valuation, {
     totalNAV: 0, date: '2026-01-11'
@@ -157,7 +171,7 @@ async function request(handler, body, params = {}) {
   assert.strictEqual(invalidPolicy.status, 400);
   assert.strictEqual(api.getWrites(), 0);
 
-  const validPolicy = await request(settings, { benchmarkClosePolicy: 'same_day' });
+  const validPolicy = await request(settings, { benchmarkClosePolicy: 'previous' });
   assert.strictEqual(validPolicy.status, 200);
   assert.strictEqual(api.getWrites(), 1);
 

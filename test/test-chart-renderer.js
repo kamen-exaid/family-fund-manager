@@ -82,6 +82,31 @@ global.Chart.defaults = {
 
 vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'chart-renderer.js'), 'utf8'));
 
+assert.strictEqual(
+  window.FundChartRenderer.calculateTrendCutoff('YTD', new Date('2026-01-01T02:00:00Z')),
+  '2025-01-01',
+  'trend ranges must still use the prior Eastern date before New York midnight'
+);
+assert.strictEqual(
+  window.FundChartRenderer.calculateTrendCutoff('YTD', new Date('2026-01-01T05:00:00Z')),
+  '2026-01-01',
+  'trend ranges must roll over at New York midnight'
+);
+assert.strictEqual(
+  window.FundChartRenderer.calculateTrendCutoff('1M', new Date('2026-07-15T12:00:00Z')),
+  '2026-06-15'
+);
+assert.strictEqual(
+  window.FundChartRenderer.calculateTrendCutoff('1M', new Date('2026-03-31T16:00:00Z')),
+  '2026-02-28',
+  'month-end ranges must clamp to the last valid day of the target month'
+);
+assert.strictEqual(
+  window.FundChartRenderer.calculateTrendCutoff('1Y', new Date('2024-02-29T16:00:00Z')),
+  '2023-02-28',
+  'leap-day yearly ranges must clamp to February 28'
+);
+
 const rightTooltipPosition = window.FundChartRenderer.calculateTooltipPosition({
   caretX: 100,
   caretY: 120,
@@ -201,5 +226,26 @@ rendered.navTrendChart.options.onHover(null, [{ index: 1 }]);
 assert.match(stats.innerHTML, /截至 2026-01-02/);
 listeners.mouseleave();
 assert.doesNotMatch(stats.innerHTML, /截至/);
+
+const ytdState = {
+  members: state.members,
+  charts: {
+    benchmarkAnchors: {
+      2026: { spx: 6900, ndx: 25249.85, spxPriceDate: '2025-12-31', ndxPriceDate: '2025-12-31', policy: 'previous' }
+    },
+    navHistory: [
+      { date: '2025-12-31', navPerShare: 1, totalNAV: 100, sp500NAV: 1, ndxNAV: 1, spx: 6880, ndx: 25000, spxPriceDate: '2025-12-30', ndxPriceDate: '2025-12-30' },
+      { date: '2026-01-02', navPerShare: 1.01, totalNAV: 101, sp500NAV: 1.01, ndxNAV: 1.01, spx: 6900, ndx: 25249.85, spxPriceDate: '2025-12-31', ndxPriceDate: '2025-12-31' },
+      { date: '2026-08-07', navPerShare: 1.15, totalNAV: 115, sp500NAV: 1.1, ndxNAV: 1.16, spx: 7500, ndx: 29373.33, spxPriceDate: '2026-08-06', ndxPriceDate: '2026-08-06' }
+    ]
+  }
+};
+const ytdRendered = window.FundChartRenderer.render({
+  state: ytdState, members, settings: { activeTimeSlice: 'YTD', theme: 'dark' },
+  charts: rendered, elements, ui
+});
+assert.strictEqual(ytdRendered.trendSeries[2].values[0], 1, 'NDX at first YTD valuation must equal 1.0 baseline');
+assert.strictEqual(ytdRendered.trendSeries[2].values[1], 1.1633);
+assert.match(stats.innerHTML, /\+16\.33%/);
 
 console.log('Chart renderer interaction regression tests passed.');
