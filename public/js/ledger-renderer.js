@@ -24,6 +24,7 @@ window.FundLedgerRenderer = {
       const row = document.createElement('tr');
       if (event.type === 'performance_settlement') row.className = 'ledger-row--settlement';
       if (event.type === 'performance_settlement_reversal') row.className = 'ledger-row--settlement-reversal';
+      if (['withdraw', 'transfer'].includes(event.type) && event._disposedLots?.length) row.className = 'ledger-row--disposal';
       const append = (html, className = '') => {
         const cell = document.createElement('td');
         if (className) cell.className = className;
@@ -65,12 +66,22 @@ window.FundLedgerRenderer = {
       append(`<span class="tx-badge ${typeMeta[0]}">${typeMeta[1]}</span>`);
 
       let amountHtml;
+      const isSelfGpDisposal = event.performanceFee?.gpMember ===
+        (event.type === 'transfer' ? event.fromMember : event.member);
+      const feeCaption = isSelfGpDisposal ? '其中内部结晶业绩报酬' : '另结业绩报酬';
       if (event.type === 'deposit') amountHtml = `<div class="amount-double-line"><span class="amount-usd privacy-sensitive" style="color:var(--color-green);">+$${formatMoney(event.amount)}</span><span class="amount-cnh privacy-sensitive">+¥${formatMoney(event.cnhAmount || event._cnhAmountComputed)}</span></div>`;
-      else if (event.type === 'withdraw') amountHtml = `<div class="amount-double-line"><span class="amount-usd privacy-sensitive" style="color:var(--color-magenta);">-$${formatMoney(event.amount)}</span>${event._performanceFee ? `<span class="privacy-sensitive" style="font-size:.66rem">另结业绩报酬 $${formatMoney(event._performanceFee)}</span>` : ''}</div>`;
-      else if (event.type === 'transfer') amountHtml = `<div class="amount-double-line"><span class="amount-usd privacy-sensitive" style="color:var(--color-cyan);font-weight:700;">⇄ $${formatMoney(event.amount)}</span><span class="amount-cnh privacy-sensitive" style="font-size:0.68rem;">≈ ¥${formatMoney(event.cnhAmount || event._cnhAmountComputed)} (汇率: ${(event.cnhRate || state.summary.cnhRate || 7.2).toFixed(4)})</span>${event._performanceFee ? `<span class="privacy-sensitive" style="font-size:.66rem;color:var(--color-magenta)">出让方另结报酬 $${formatMoney(event._performanceFee)}</span>` : ''}</div>`;
+      else if (event.type === 'withdraw') amountHtml = `<div class="amount-double-line"><span class="amount-usd privacy-sensitive" style="color:var(--color-magenta);">-$${formatMoney(event.amount)}</span>${event._performanceFee ? `<span class="privacy-sensitive" style="font-size:.66rem">${feeCaption} $${formatMoney(event._performanceFee)}</span>` : ''}</div>`;
+      else if (event.type === 'transfer') amountHtml = `<div class="amount-double-line"><span class="amount-usd privacy-sensitive" style="color:var(--color-cyan);font-weight:700;">⇄ $${formatMoney(event.amount)}</span><span class="amount-cnh privacy-sensitive" style="font-size:0.68rem;">≈ ¥${formatMoney(event.cnhAmount || event._cnhAmountComputed)} (汇率: ${(event.cnhRate || state.summary.cnhRate || 7.2).toFixed(4)})</span>${event._performanceFee ? `<span class="privacy-sensitive" style="font-size:.66rem;color:var(--color-magenta)">${isSelfGpDisposal ? feeCaption : '出让方另结报酬'} $${formatMoney(event._performanceFee)}</span>` : ''}</div>`;
       else if (event.type === 'performance_settlement') amountHtml = `<div class="amount-double-line"><span style="font-size:.66rem;color:var(--color-text-muted);">业绩报酬</span><span class="amount-usd privacy-sensitive" style="color:var(--color-cyan);">$${formatMoney(event._totalFee ?? event.snapshot?.totalFee ?? 0)}</span></div>`;
       else if (event.type === 'performance_settlement_reversal') amountHtml = `<div class="amount-double-line"><span style="color:var(--color-magenta);">撤销 ${escapeHtml(event.settlementDate || '')}</span></div>`;
       else amountHtml = `<div class="amount-double-line"><span class="amount-usd privacy-sensitive" style="color:var(--color-purple);">$${formatMoney(event.totalNAV)}</span></div>`;
+      if (['withdraw', 'transfer'].includes(event.type) && event._disposedLots?.length) {
+        const ratio = Math.max(0, Math.min(1, event._disposedRatio || 0));
+        const hint = event._disposalVersion >= 2
+          ? `各批次按净额同比结晶 ${(ratio * 100).toFixed(2)}%`
+          : `历史出金口径 ${(ratio * 100).toFixed(2)}%`;
+        amountHtml = amountHtml.replace('</div>', `<span class="disposal-breakdown-hint">${hint} · 悬停查看</span></div>`);
+      }
       append(amountHtml);
 
       const navHtml = event.type === 'performance_settlement'
@@ -126,6 +137,34 @@ window.FundLedgerRenderer = {
             <span><small>划转份额</small>${(item.feeShares || 0).toFixed(4)} 份</span>
           </div>`).join('');
         detailCell.innerHTML = `<div class="settlement-breakdown-panel"><div class="settlement-breakdown-heading"><strong>结算快照</strong><span>数据锁定于 ${escapeHtml(event.date)} · 鼠标移开后收起</span></div>${breakdownRows || '<div class="settlement-breakdown-empty">本期没有产生应计业绩报酬。</div>'}</div>`;
+        detailRow.appendChild(detailCell);
+        ledgerTbody.appendChild(detailRow);
+      } else if (['withdraw', 'transfer'].includes(event.type) && event._disposedLots?.length) {
+        const detailRow = document.createElement('tr');
+        detailRow.className = 'ledger-row--settlement-detail ledger-row--disposal-detail';
+        const detailCell = document.createElement('td');
+        detailCell.colSpan = 8;
+        const ratio = Math.max(0, Math.min(1, event._disposedRatio || 0));
+        const actionLabel = event.type === 'withdraw' ? '出金' : '转出';
+        const disposalMethod = event._disposalVersion >= 2
+          ? `按 LP 实收净额计算，所有存量批次同比处置 ${(ratio * 100).toFixed(2)}% · 未过门槛批次报酬为 0`
+          : `历史计算口径：现金份额同比扣减 ${(ratio * 100).toFixed(2)}%，业绩报酬份额另行扣减`;
+        const carryExitNote = event._carrySharesDisposed > 0
+          ? ` · 另结清已归属 GP 报酬 ${event._carrySharesDisposed.toFixed(6)} 份`
+          : '';
+        const lotRows = event._disposedLots.map((lot, index) => {
+          const excess = lot.aboveHurdle ?? ((lot.value || 0) - (lot.hurdle || 0));
+          return `
+          <div class="settlement-breakdown-item disposal-breakdown-item">
+            <strong>批次 ${index + 1}<small>起算日 ${escapeHtml(lot.startDate || '')} · ${lot.holdingDays ?? 0} 天</small></strong>
+            <span><small>本次总扣减份额</small>${(lot.totalShares ?? lot.shares ?? 0).toFixed(6)} 份<small class="disposal-share-split">LP 实收 ${(lot.cashShares || 0).toFixed(6)} · GP 报酬 ${(lot.feeShares || 0).toFixed(6)}</small></span>
+            <span><small>本次处置总值</small>$${formatMoney(lot.totalValue ?? lot.value ?? 0)}<small class="disposal-share-split">LP 实收 $${formatMoney(lot.cashValue || 0)}</small></span>
+            <span><small>按比例 6% 门槛</small>$${formatMoney(lot.hurdle || 0)}</span>
+            <span class="${excess > 0 ? 'text-green' : excess < 0 ? 'text-magenta' : ''}"><small>超门槛差额</small>${excess > 0 ? '+' : excess < 0 ? '-' : ''}$${formatMoney(Math.abs(excess))}</span>
+            <span class="${lot.fee > 0 ? 'text-cyan' : ''}"><small>本批次业绩报酬</small>$${formatMoney(lot.fee || 0)}</span>
+          </div>`;
+        }).join('');
+        detailCell.innerHTML = `<div class="settlement-breakdown-panel disposal-breakdown-panel"><div class="settlement-breakdown-heading"><strong>${actionLabel}批次结晶明细</strong><span>${disposalMethod}${carryExitNote}</span></div>${lotRows}</div>`;
         detailRow.appendChild(detailCell);
         ledgerTbody.appendChild(detailRow);
       }

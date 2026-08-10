@@ -87,6 +87,17 @@ function registerApiRoutes(app, deps) {
     return insufficientBalance ? { type: 'insufficient_balance', event: insufficientBalance } : null;
   }
 
+  function accountValueBeforeEvent(db, event, memberId) {
+    const validationDb = JSON.parse(JSON.stringify(db));
+    const orderedEvents = [...validationDb.events].sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date);
+      return dateCompare !== 0 ? dateCompare : a.createdAt - b.createdAt;
+    });
+    const eventIndex = orderedEvents.findIndex(item => item.id === event.id);
+    validationDb.events = eventIndex < 0 ? orderedEvents : orderedEvents.slice(0, eventIndex);
+    return calculateStateFromDb(validationDb).members[memberId]?.currentValue || 0;
+  }
+
   function rejectLedgerIssue(res, issue) {
     const { event } = issue;
     if (issue.type === 'valuation_without_shares') {
@@ -333,22 +344,6 @@ app.post('/api/transaction', (req, res) => {
       return res.status(400).json({ success: false, message: '日期不能为空' });
     }
 
-    // 如果是出金，先做一轮预演算，检查出金人当前份额换算成的资产是否足够
-    // [Fix #5] 使用带缓存的 getState() 而非直接调用 calculateState()，避免不必要的重算
-    let fullExit = false;
-    if (type === 'withdraw') {
-      const state = getState();
-      const memberState = state.members[member];
-      const memberValue = memberState ? memberState.currentValue : 0;
-      if (parsedAmount > memberValue) {
-        return res.status(400).json({
-          success: false,
-          message: `余额不足！${memberObj.name}当前资产为 $${memberValue.toFixed(2)}，无法提取 $${parsedAmount.toFixed(2)}`
-        });
-      }
-      fullExit = Math.abs(parsedAmount - memberValue) <= Math.max(BALANCE_TOLERANCE, memberValue * 1e-10);
-    }
-
     if (!isValidDate(date)) {
       return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
     }
@@ -371,9 +366,30 @@ app.post('/api/transaction', (req, res) => {
       remark: normalizedRemark,
       createdAt: Date.now()
     };
-    if (fullExit) newEvent.fullExit = true;
     if (type === 'withdraw' && db.performanceFee?.gpMemberId) {
-      newEvent.performanceFee = { gpMember: db.performanceFee.gpMemberId, annualRate: 0.06, feeRate: 0.25 };
+      newEvent.performanceFee = {
+        gpMember: db.performanceFee.gpMemberId,
+        annualRate: 0.06,
+        feeRate: 0.25,
+        disposalVersion: 2
+      };
+    }
+
+    if (type === 'withdraw') {
+      const availableValue = accountValueBeforeEvent(
+        { ...db, events: [...db.events, newEvent] },
+        newEvent,
+        member
+      );
+      if (parsedAmount > availableValue + BALANCE_TOLERANCE) {
+        return res.status(400).json({
+          success: false,
+          message: `余额不足！${memberObj.name}在 ${date} 交易前的资产为 $${availableValue.toFixed(2)}，无法提取 $${parsedAmount.toFixed(2)}`
+        });
+      }
+      if (Math.abs(parsedAmount - availableValue) <= Math.max(BALANCE_TOLERANCE, availableValue * 1e-10)) {
+        newEvent.fullExit = true;
+      }
     }
 
     db.events.push(newEvent);
@@ -480,19 +496,6 @@ app.post('/api/transfer', (req, res) => {
       return res.status(400).json({ success: false, message: '日期不能为空' });
     }
 
-    // 检查出让方余额是否充足
-    // [Fix #5] 使用带缓存的 getState() 而非直接调用 calculateState()，避免不必要的重算
-    const state = getState();
-    const fromMemberState = state.members[fromMember];
-    const fromValue = fromMemberState ? fromMemberState.currentValue : 0;
-    if (parsedAmount > fromValue) {
-      return res.status(400).json({
-        success: false,
-        message: `出让方余额不足！${fromObj.name}当前资产为 $${fromValue.toFixed(2)}，无法划转 $${parsedAmount.toFixed(2)}`
-      });
-    }
-    const fullExit = Math.abs(parsedAmount - fromValue) <= Math.max(BALANCE_TOLERANCE, fromValue * 1e-10);
-
     if (!isValidDate(date)) {
       return res.status(400).json({ success: false, message: '日期必须是有效的 YYYY-MM-DD。' });
     }
@@ -517,9 +520,28 @@ app.post('/api/transfer', (req, res) => {
       remark: normalizedRemark,
       createdAt: Date.now()
     };
-    if (fullExit) newEvent.fullExit = true;
     if (db.performanceFee?.gpMemberId) {
-      newEvent.performanceFee = { gpMember: db.performanceFee.gpMemberId, annualRate: 0.06, feeRate: 0.25 };
+      newEvent.performanceFee = {
+        gpMember: db.performanceFee.gpMemberId,
+        annualRate: 0.06,
+        feeRate: 0.25,
+        disposalVersion: 2
+      };
+    }
+
+    const availableValue = accountValueBeforeEvent(
+      { ...db, events: [...db.events, newEvent] },
+      newEvent,
+      fromMember
+    );
+    if (parsedAmount > availableValue + BALANCE_TOLERANCE) {
+      return res.status(400).json({
+        success: false,
+        message: `出让方余额不足！${fromObj.name}在 ${date} 交易前的资产为 $${availableValue.toFixed(2)}，无法划转 $${parsedAmount.toFixed(2)}`
+      });
+    }
+    if (Math.abs(parsedAmount - availableValue) <= Math.max(BALANCE_TOLERANCE, availableValue * 1e-10)) {
+      newEvent.fullExit = true;
     }
 
     db.events.push(newEvent);
@@ -677,6 +699,20 @@ app.put('/api/event/:id', (req, res) => {
     if (event.type === 'performance_settlement') {
       return res.status(409).json({ success: false, message: '已确认的业绩结算不可直接修改。' });
     }
+    const wasFullExit = event.fullExit === true;
+    const previousAmount = event.amount;
+    const previousRequestedGrossAmount = event.requestedGrossAmount;
+    const previousCnhAmount = event.cnhAmount;
+    if (event.type === 'withdraw' || event.type === 'transfer') {
+      delete event.fullExit;
+      delete event.requestedGrossAmount;
+      if (wasFullExit && req.body?.amount === undefined && previousRequestedGrossAmount !== undefined) {
+        event.amount = previousRequestedGrossAmount;
+        if (previousAmount > 0 && previousCnhAmount !== undefined) {
+          event.cnhAmount = previousCnhAmount * previousRequestedGrossAmount / previousAmount;
+        }
+      }
+    }
     if (rejectLockedPeriod(res, db, event.date)) return;
     const requestedDate = req.body?.date;
     if (requestedDate !== undefined) {
@@ -703,6 +739,12 @@ app.put('/api/event/:id', (req, res) => {
           return res.status(400).json({ success: false, message: '美元金额必须大于 0' });
         }
         event.amount = parsedAmount;
+        if (cnhAmount === undefined) {
+          const effectiveRate = previousAmount > 0 && Number.isFinite(previousCnhAmount)
+            ? previousCnhAmount / previousAmount
+            : (db.cnhRate || 7.2);
+          event.cnhAmount = parsedAmount * effectiveRate;
+        }
       }
 
       if (cnhAmount !== undefined) {
@@ -828,8 +870,25 @@ app.put('/api/event/:id', (req, res) => {
       }
     }
 
+    if (event.type === 'withdraw' || event.type === 'transfer') {
+      const ownerId = event.type === 'withdraw' ? event.member : event.fromMember;
+      const availableValue = accountValueBeforeEvent(db, event, ownerId);
+      const fullExit = Math.abs(event.amount - availableValue) <= Math.max(
+        BALANCE_TOLERANCE,
+        availableValue * 1e-10
+      );
+      if (fullExit) event.fullExit = true;
+    }
+
     const ledgerIssue = findLedgerIssue(db);
     if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
+
+    if (event.fullExit === true) {
+      const computedEvent = calculateStateFromDb(JSON.parse(JSON.stringify(db))).events.find(item => item.id === event.id);
+      event.requestedGrossAmount = event.amount;
+      event.amount = computedEvent._actualAmount;
+      event.cnhAmount = computedEvent._cnhAmountComputed;
+    }
 
     writeDb(db);
 
@@ -1095,7 +1154,11 @@ app.post('/api/backup/import', express.raw({
         return res.status(400).json({ success: false, message: 'A transfer contains invalid member references or exchange rate.' });
       }
       if ((e.type === 'withdraw' || e.type === 'transfer') && e.performanceFee &&
-          (!memberIds.has(e.performanceFee.gpMember) || e.performanceFee.annualRate !== 0.06 || e.performanceFee.feeRate !== 0.25)) {
+          (!memberIds.has(e.performanceFee.gpMember) ||
+           e.performanceFee.annualRate !== 0.06 ||
+           e.performanceFee.feeRate !== 0.25 ||
+           (e.performanceFee.disposalVersion !== undefined &&
+            ![1, 2].includes(e.performanceFee.disposalVersion)))) {
         return res.status(400).json({ success: false, message: '部分退出记录包含无效的业绩结算参数快照。' });
       }
       if (e.type === 'performance_settlement' &&

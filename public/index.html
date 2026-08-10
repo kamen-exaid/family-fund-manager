@@ -35,7 +35,7 @@
       </svg>
       <span>
         <strong>家庭财富账本</strong>
-        <small>WEALTH LEDGER <b class="sidebar-version">v3.8.0</b></small>
+        <small>WEALTH LEDGER <b class="sidebar-version">v3.9.0</b></small>
       </span>
     </a>
 
@@ -86,7 +86,7 @@
         </svg>
         <div class="logo-text">
           <h1>家庭基金账目管理系统</h1>
-          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.8.0</span></span>
+          <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span class="version-badge">v3.9.0</span></span>
         </div>
       </div>
       <div class="header-actions">
@@ -546,7 +546,7 @@
                 <line x1="12" y1="16" x2="12" y2="12" />
                 <line x1="12" y1="8" x2="12.01" y2="8" />
               </svg>
-              <p>按每位LP汇总其结算周期内的全部入金批次计算6%复利门槛，批次间盈亏允许对冲，净超额部分的25%以份额划转给唯一GP。结算确认后将锁定此前账期。</p>
+              <p>每笔入金批次独立计算 6% 复利门槛，批次之间不对冲盈亏。只对超过自身门槛的批次收取超额部分的 25%，未盈利批次不收费。结算确认后将锁定此前账期。</p>
             </div>
             <div class="form-row">
               <div class="form-group">
@@ -638,21 +638,21 @@
       <div class="modal-body principles-body">
         <section class="principle-lead">
           <div class="principle-lead-content">
-            <strong>“不收固定管理费，多赚才分成” —— 先保障出资人(LP) 6% 年化收益；超额部分管理人(GP) 提成 25%</strong>
+            <strong>“不收固定管理费，达到门槛才分成” —— 每笔 LP 资金先跨越按年化 6% 随实际持有天数复利增长的业绩门槛；仅对超额部分提取 25%</strong>
             <div class="principle-lead-motto">GP 自有资金同投，利益高度绑定</div>
           </div>
         </section>
         <div class="principles-grid">
           <section class="principle-card"><span class="principle-index">01</span><div><h4>出资人与管理人</h4><p>所有成员都是 LP，其中一人兼任 GP。GP 的个人 LP 资金与 GP 提成报酬分开独立记账。</p></div></section>
-          <section class="principle-card"><span class="principle-index">02</span><div><h4>先过6%收益线</h4><p>每笔入金从实际存入当天开始计算，年化收益达到 6% 以前，赚到的收益 100% 属于 LP，无任何费用扣减。</p></div></section>
-          <section class="principle-card"><span class="principle-index">03</span><div><h4>定期结算，多赚才分成</h4><p>每年最后一天或按需统一结算。NAV 采用年初第一个交易日的估值数据，对应指数上个年度的最后一个交易日；收益超过 6% 以后，只对超出的部分收取 25% 业绩提成，其余仍归 LP。</p></div></section>
-          <section class="principle-card"><span class="principle-index">04</span><div><h4>跌了再涨回来，不收费</h4><p>例如上次已按 10 万元结算，后来跌到 8 万元，再涨回 10 万元，这只是回本，不算新利润。只有超过上次结算水平并越过 6% 收益线，超出的部分才收费。</p></div></section>
-          <section class="principle-card"><span class="principle-index">05</span><div><h4>同一人的钱合起来算</h4><p>同一 LP 在本期有多笔入金批次时，赚钱与亏钱的部分会先互相抵消，再计算是否产生业绩提成。</p></div></section>
-          <section class="principle-card"><span class="principle-index">06</span><div><h4>出金时立即结算</h4><p>LP 出金时，系统会按当天的账户价值，立即计算该出金部分是否产生业绩提成。</p></div></section>
-          <section class="principle-card"><span class="principle-index">07</span><div><h4>转让时重新开始算</h4><p>转出 LP 按当天结晶；受让 LP 视为当天新入金，不继承原 LP 的投入日期与历史成本。</p></div></section>
+          <section class="principle-card"><span class="principle-index">02</span><div><h4>每笔入金独立核算</h4><p>每笔入金或转入都建立独立批次，从实际入账日起按年化 6% 复利增长门槛。持有两年的门槛系数是 1.06²，三年是 1.06³，不是无论多久只要累计赚 6%。</p></div></section>
+          <section class="principle-card"><span class="principle-index">03</span><div><h4>逐批结算，盈亏不对冲</h4><p>结算时使用结算日之前最近一次基金估值。每个批次各算各的：只对自身超过门槛的部分收取 25%，亏损批次不能抵消其他批次的费用。</p></div></section>
+          <section class="principle-card"><span class="principle-index">04</span><div><h4>未过线不重置水位</h4><p>未达门槛的批次报酬为 0，并保留原基准和原起算日。以后必须先超过从原起算日按年化 6% 复利增长至今的水位，不会因年度结算而降低门槛。</p></div></section>
+          <section class="principle-card"><span class="principle-index">05</span><div><h4>过线结晶，全过才合批</h4><p>过线批次扣除报酬后，以剩余价值作为新基准，从结算日重新起算。只有全部存量批次都过线时才合并；任一批次未过线就继续分批。</p></div></section>
+          <section class="principle-card"><span class="principle-index">06</span><div><h4>部分出金按批次同比扣减</h4><p>部分出金按同一比例扣减每个存量批次，并逐批结晶；不优先扣赚钱或亏钱批次。处置比例 = LP 实收金额 ÷ 全部批次扣费后可退出净值。每批次总扣减份额会分别列示 LP 实收与 GP 报酬，两者之和必须等于总扣减。成员本人兼任 GP 时，超过 LP 扣费后可退出净值的实收金额，再从其已归属 GP 报酬中支付；全额退出则两类份额一并结清。</p></div></section>
+          <section class="principle-card"><span class="principle-index">07</span><div><h4>转让两端分开计算</h4><p>转出方与出金相同，按各批次同比结晶；受让方以实际受让净值建立当日的新批次，不继承转出方的历史成本和水位。</p></div></section>
           <section class="principle-card"><span class="principle-index">08</span><div><h4>结算后不能随便改</h4><p>正式结算后，之前的账目会锁定。只能撤销最近一次结算，而且原记录会保留，方便日后核对。</p></div></section>
         </div>
-        <p class="principles-footnote">计算规则：收益门槛 = 基准金额 × (1 + 6%)<sup>实际持有天数 ÷ 365</sup> · 超出收益门槛的部分提取25%业绩提成（零固定管理费）<br><small style="opacity: 0.8; font-size: 0.85em; margin-top: 4px; display: inline-block;">* 注：基准金额为初始投入本金；若经历过业绩结算或转让，则为上次结算/转让时的账户价值。</small></p>
+        <p class="principles-footnote">批次门槛 = 批次基准 × (1 + 6%)<sup>实际持有天数 ÷ 365</sup> · 批次报酬 = max(批次当前价值 − 批次门槛, 0) × 25%<br><small style="opacity: 0.8; font-size: 0.85em; margin-top: 4px; display: inline-block;">基准首次为实际入金/转入金额；只有产生报酬的结晶才以扣费后价值重置基准。未过线批次保留原基准与起算日。</small></p>
       </div>
     </div>
   </div>

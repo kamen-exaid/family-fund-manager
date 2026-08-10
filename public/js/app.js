@@ -1869,8 +1869,13 @@ document.addEventListener('DOMContentLoaded', () => {
       editLabelAmount.textContent = '美元金额 (USD)';
 
       editMember.value = e.member;
-      editAmount.value = e.amount;
-      editCnhAmount.value = e.cnhAmount || '';
+      const editUsdAmount = e.fullExit && e.requestedGrossAmount !== undefined
+        ? e.requestedGrossAmount
+        : e.amount;
+      editAmount.value = editUsdAmount;
+      editCnhAmount.value = e.fullExit && e.requestedGrossAmount !== undefined && e.amount > 0
+        ? ((e.cnhAmount || 0) * e.requestedGrossAmount / e.amount).toFixed(2)
+        : (e.cnhAmount || '');
     } else if (e.type === 'valuation') {
       // 估值类型：隐藏成员选择和人民币金额
       editModalTitle.textContent = '修改定期基金估值重估记录';
@@ -1886,7 +1891,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       editFromMember.value = e.fromMember;
       editToMember.value = e.toMember;
-      editAmount.value = e.amount;
+      editAmount.value = e.fullExit && e.requestedGrossAmount !== undefined
+        ? e.requestedGrossAmount
+        : e.amount;
       editCnhRate.value = e.cnhRate || appState.summary.cnhRate || 7.2000;
     }
 

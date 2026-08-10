@@ -110,6 +110,25 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     assert(Array.isArray(exportedConfig.tickers));
     assert.deepStrictEqual(exportedSettlements, { version: 1, records: [] });
 
+    const invalidDisposalVersionBackup = new AdmZip();
+    invalidDisposalVersionBackup.addFile('data/db.json', Buffer.from(JSON.stringify({
+      ...exportedDb,
+      events: exportedDb.events.map((event, index) => index === exportedDb.events.length - 1
+        ? {
+            ...event,
+            performanceFee: { gpMember: 'me', annualRate: 0.06, feeRate: 0.25, disposalVersion: 999 }
+          }
+        : event)
+    })));
+    invalidDisposalVersionBackup.addFile('data/config.json', Buffer.from(JSON.stringify(exportedConfig)));
+    const rejectedDisposalVersionRestore = await requestBuffer(
+      server,
+      'POST',
+      '/api/backup/import',
+      invalidDisposalVersionBackup.toBuffer()
+    );
+    assert.strictEqual(rejectedDisposalVersionRestore.status, 400);
+
     response = await request(server, 'POST', '/api/settings/tickers', {
       tickers: [{ ticker: 'AAPL' }]
     });

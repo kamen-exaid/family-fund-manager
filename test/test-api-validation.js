@@ -7,7 +7,7 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function makeApi(now = () => new Date()) {
+function makeApi(now = () => new Date(), initialDb = null) {
   const routes = {};
   const app = {};
   for (const method of ['get', 'post', 'put', 'delete']) {
@@ -16,7 +16,7 @@ function makeApi(now = () => new Date()) {
 
   let writes = 0;
   let settlementLedger = { version: 1, records: [] };
-  const db = {
+  const db = initialDb ? clone(initialDb) : {
     cnhRate: 7.2,
     members: [
       { id: 'a', name: 'Alice', roles: { lp: true, gp: false } },
@@ -51,7 +51,7 @@ function makeApi(now = () => new Date()) {
     randomUUID,
     now
   });
-  return { routes, getWrites: () => writes };
+  return { routes, getWrites: () => writes, getDb: () => clone(db) };
 }
 
 async function request(handler, body, params = {}) {
@@ -225,6 +225,88 @@ async function request(handler, body, params = {}) {
   assert.strictEqual((await request(historicalPreview, {
     gpMember: 'b', date: '2026-01-15'
   })).status, 200);
+
+  const versionApi = makeApi();
+  const versionedWithdrawal = await request(versionApi.routes['post:/api/transaction'], {
+    member: 'a', type: 'withdraw', amount: 10, date: '2026-01-11'
+  });
+  assert.strictEqual(versionedWithdrawal.status, 200);
+  assert.strictEqual(versionedWithdrawal.body.data.performanceFee.disposalVersion, 2);
+  const versionedTransfer = await request(versionApi.routes['post:/api/transfer'], {
+    fromMember: 'a', toMember: 'b', amount: 10, cnhRate: 7.2, date: '2026-01-11'
+  });
+  assert.strictEqual(versionedTransfer.status, 200);
+  assert.strictEqual(versionedTransfer.body.data.performanceFee.disposalVersion, 2);
+
+  const editApi = makeApi();
+  assert.strictEqual((await request(editApi.routes['post:/api/valuation'], {
+    totalNAV: 120, date: '2026-01-12'
+  })).status, 200);
+  const createdFullExit = await request(editApi.routes['post:/api/transaction'], {
+    member: 'a', type: 'withdraw', amount: 120, cnhAmount: 864, date: '2026-01-18'
+  });
+  assert.strictEqual(createdFullExit.status, 200);
+  assert.strictEqual(createdFullExit.body.data.fullExit, true);
+  const editedToPartial = await request(
+    editApi.routes['put:/api/event/:id'],
+    { amount: 60, cnhAmount: 432, date: '2026-01-18' },
+    { id: createdFullExit.body.data.id }
+  );
+  assert.strictEqual(editedToPartial.status, 200);
+  assert.strictEqual(editedToPartial.body.data.fullExit, undefined);
+  assert.strictEqual(editedToPartial.body.data.amount, 60);
+  let editedState = calculateStateFromDb(editApi.getDb());
+  assert.strictEqual(editedState.events.find(item => item.id === createdFullExit.body.data.id)._actualAmount, 60);
+  assert(editedState.members.a.currentValue > 0);
+  const editedAmountOnly = await request(
+    editApi.routes['put:/api/event/:id'],
+    { amount: 30, date: '2026-01-18' },
+    { id: createdFullExit.body.data.id }
+  );
+  assert.strictEqual(editedAmountOnly.status, 200);
+  assert.strictEqual(editedAmountOnly.body.data.cnhAmount, 216);
+  const editedBackToFull = await request(
+    editApi.routes['put:/api/event/:id'],
+    { amount: 120, cnhAmount: 864, date: '2026-01-18' },
+    { id: createdFullExit.body.data.id }
+  );
+  assert.strictEqual(editedBackToFull.status, 200);
+  assert.strictEqual(editedBackToFull.body.data.fullExit, true);
+  assert.strictEqual(editedBackToFull.body.data.requestedGrossAmount, 120);
+  editedState = calculateStateFromDb(editApi.getDb());
+  assert.strictEqual(editedState.members.a.currentValue, 0);
+
+  const historicalDb = {
+    cnhRate: 7.2,
+    members: [
+      { id: 'a', name: 'Alice', roles: { lp: true, gp: false } },
+      { id: 'b', name: 'Bob', roles: { lp: true, gp: true } }
+    ],
+    performanceFee: { gpMemberId: 'b', annualRate: 0.06, feeRate: 0.25 },
+    indexCache: {},
+    events: [
+      { id: 'hd', type: 'deposit', member: 'a', amount: 100, cnhAmount: 720, date: '2026-01-04', createdAt: 1 },
+      { id: 'hv1', type: 'valuation', totalNAV: 120, date: '2026-01-05', createdAt: 2 },
+      { id: 'hv2', type: 'valuation', totalNAV: 60, date: '2026-01-12', createdAt: 3 }
+    ]
+  };
+  const historicalWithdrawalApi = makeApi(undefined, historicalDb);
+  const historicalPartialWithdrawal = await request(
+    historicalWithdrawalApi.routes['post:/api/transaction'],
+    { member: 'a', type: 'withdraw', amount: 60, cnhAmount: 432, date: '2026-01-11' }
+  );
+  assert.strictEqual(historicalPartialWithdrawal.status, 200);
+  assert.strictEqual(historicalPartialWithdrawal.body.data.fullExit, undefined);
+  assert.strictEqual(historicalPartialWithdrawal.body.data.amount, 60);
+
+  const historicalTransferApi = makeApi(undefined, historicalDb);
+  const historicalPartialTransfer = await request(
+    historicalTransferApi.routes['post:/api/transfer'],
+    { fromMember: 'a', toMember: 'b', amount: 60, cnhRate: 7.2, date: '2026-01-11' }
+  );
+  assert.strictEqual(historicalPartialTransfer.status, 200);
+  assert.strictEqual(historicalPartialTransfer.body.data.fullExit, undefined);
+  assert.strictEqual(historicalPartialTransfer.body.data.amount, 60);
 
   console.log('API validation regression tests passed.');
 })().catch(error => {

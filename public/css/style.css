@@ -2185,11 +2185,37 @@ body:not(.theme-light) .badge-settlement {
 }
 
 .ledger-row--settlement:hover + .ledger-row--settlement-detail .settlement-breakdown-panel,
+.ledger-row--disposal:hover + .ledger-row--disposal-detail .settlement-breakdown-panel,
 .ledger-row--settlement-detail:hover .settlement-breakdown-panel {
   max-height: 520px;
   padding: 14px 18px 16px;
   border-color: rgba(124, 58, 237, 0.24);
   opacity: 1;
+}
+
+.disposal-breakdown-hint {
+  color: var(--color-text-muted);
+  font-size: 0.61rem;
+  font-weight: 500;
+}
+
+.disposal-breakdown-panel {
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.065), rgba(124, 58, 237, 0.04));
+}
+
+.disposal-breakdown-item strong small {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 0.58rem;
+  font-weight: 500;
+}
+
+.disposal-breakdown-item .disposal-share-split {
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 0.55rem;
+  font-weight: 500;
 }
 
 .settlement-breakdown-heading {
