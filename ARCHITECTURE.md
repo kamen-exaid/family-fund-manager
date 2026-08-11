@@ -32,15 +32,20 @@ graph TB
 
     subgraph Lib["核心业务层 lib/"]
         CALC["calculator.js 事件溯源重放引擎 Decimal.js精确计算"]
+        DISPOSAL["member-disposal.js 出金/转让统一处置"]
         PERF["performance-settlement.js v1/v2/v3冻结算法"]
+        POLICY["performance-fee-policy.js 费率/快照策略"]
         LEDGER["settlement-ledger.js 算法版本迁移/快照校验"]
+        ORDER["event-order.js 顺序键/旧账本迁移"]
+        ERRORS["api-errors.js 公共错误信封/类型"]
         STORAGE["storage.js 原子写入/事务日志/备份"]
         YAHOO["yahoo.js Yahoo Finance抓取 汇率多源降级"]
     end
 
     subgraph Data["持久化数据层 data/"]
-        DB["db.json 成员/事件流/汇率/指数缓存"]
+        DB["db.json 成员/普通事件/汇率/业绩报酬配置"]
         CONFIG["config.json 标的配置"]
+        INDEX_CACHE["index-cache.json 指数历史收盘缓存"]
         SETTLEMENTS["settlements.json 结算/冲销审计记录"]
         TICKER_CACHE["ticker-cache.json 标的行情缓存"]
         MARKER[".settlements-initialized 账本初始化标记"]
@@ -60,7 +65,14 @@ graph TB
     Server --> Routes
     Routes --> Lib
     CALC --> PERF
-    CALC --> LEDGER
+    CALC --> DISPOSAL
+    CALC --> POLICY
+    CALC --> ORDER
+    DISPOSAL --> PERF
+    PERF --> POLICY
+    LEDGER --> CALC
+    LEDGER --> ORDER
+    Routes --> ERRORS
     Lib --> Data
     STORAGE --> Backup
     YAHOO --> External
@@ -80,12 +92,12 @@ flowchart LR
         S["结算 settlement"]
     end
 
-    subgraph EventStore["不可变事件流"]
-        ES["db.json events 数组<br/>+ settlements.json records 数组"]
+    subgraph EventStore["事件账本"]
+        ES["db.json 普通 events<br/>+ settlements.json 不可直接修改的结算 records"]
     end
 
     subgraph Replay["全量重放引擎"]
-        SORT["按日期+createdAt排序"]
+        SORT["按日期 + sequenceNumber 排序<br/>旧数据迁移前回退 createdAt/数组顺序"]
         LOOP["逐事件遍历"]
         DEC["Decimal.js precision:40"]
     end
@@ -98,10 +110,10 @@ flowchart LR
         LOT["LP 批次明细 / 高水位"]
     end
 
-    Input -->|追加| ES
-    ES -->|读取| Replay
+    D & W & V & T & S -->|新增；未锁定普通事件可删改并级联重算| ES
+    ES -->|读取| SORT
     SORT --> LOOP --> DEC
-    Replay -->|计算| State
+    DEC --> NAV & MEM & HIST & BENCH & LOT
 ```
 
 ---
@@ -110,7 +122,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    START["API 写入请求"] --> VALIDATE["全字段输入校验"]
+    START["API 写入请求"] --> VALIDATE["全字段输入校验 + 当前/历史GP引用不变量"]
     VALIDATE -->|不通过| REJECT["400 拒绝"]
     VALIDATE -->|通过| LEDGER_CHECK["findLedgerIssue 全账本一致性校验"]
     LEDGER_CHECK -->|余额不足 / 费用不足| REJECT
@@ -216,8 +228,39 @@ graph LR
     R_API --> R_BK["backup.js"]
 
     CALC --> PERF["performance-settlement.js"]
+    CALC --> DISPOSAL["member-disposal.js"]
+    CALC --> POLICY["performance-fee-policy.js"]
+    CALC --> ORDER["event-order.js"]
+    STORAGE --> POLICY
+    POLICY --> ERRORS["api-errors.js"]
     SETTLE_L --> CALC
     SETTLE_L --> PERF
+    SETTLE_L --> ORDER
+    SERVER --> ERRORS
     R_BK --> SETTLE_L
+    R_BK --> POLICY
+    R_BK --> ORDER
     R_SET --> PERF
+    R_SET --> POLICY
+
+    TEST_PERF["test/test-replay-performance.js"] --> BUDGET["replay-performance-budget.js"]
+    TEST_PERF --> CALC
 ```
+
+---
+
+## 7. 部署与安全边界
+
+```mermaid
+flowchart LR
+    BROWSER["本机浏览器"] -->|127.0.0.1 HTTP| SERVER_LOCAL["Express 单用户服务"]
+    SERVER_LOCAL --> DATA_LOCAL["本机 data/ 与 backups/"]
+    REMOTE["局域网 / 公网客户端"] -. 默认不可连接 .-> SERVER_LOCAL
+    PROXY["反向代理 / 端口转发 / 修改监听地址"] -->|扩大暴露前必须先加固| GATE["认证 + CSRF + Host/Origin + 限流"]
+    GATE --> SERVER_LOCAL
+```
+
+- 默认监听 `127.0.0.1`，当前设计目标是本机、单用户部署；
+- CSP 和本地化依赖保护浏览器资源执行边界，不等同于用户身份认证；
+- 不得通过反向代理、端口转发或修改监听地址直接暴露服务；
+- 任何网络暴露必须先完成 TASK-008，并重新评估 TLS、会话和审计要求。

@@ -4,7 +4,10 @@ const http = require('http');
 const os = require('os');
 const path = require('path');
 const AdmZip = require('adm-zip');
+const express = require('express');
 const { calculateStateFromDb } = require('../lib/calculator');
+const { registerSettingsRoutes } = require('../routes/settings');
+const { normalizeApiErrorResponses, apiErrorHandler } = require('../lib/api-errors');
 
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'family-fund-api-'));
 process.env.FUND_DATA_DIR = dataDir;
@@ -56,6 +59,24 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     if (body) req.write(body);
     req.end();
   });
+}
+
+async function startExternalFailureServer() {
+  const isolatedApp = express();
+  isolatedApp.use('/api', normalizeApiErrorResponses);
+  isolatedApp.use(express.json());
+  registerSettingsRoutes(isolatedApp, {
+    readDb: () => ({ cnhRate: 7.2, events: [] }),
+    writeDb: () => {},
+    ensureIndexCache: () => {},
+    fetchCnhRateFromApi: async () => null
+  }, {
+    toFiniteNumber: value => Number(value)
+  });
+  isolatedApp.use('/api', apiErrorHandler);
+  const server = isolatedApp.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  return server;
 }
 
 (async () => {
@@ -185,6 +206,78 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
 
     response = await request(server, 'GET', '/api/settings/tickers');
     assert.deepStrictEqual(response.body.data, exportedConfig.tickers);
+
+    // TASK-012: a configured GP cannot be deleted, and every newly persisted
+    // disposal snapshot must point to that existing member throughout a ZIP
+    // export/import round trip.
+    response = await request(server, 'PUT', '/api/members/father/roles', {
+      gp: true, primaryGp: true
+    });
+    assert.strictEqual(response.status, 200);
+    response = await request(server, 'DELETE', '/api/members/father');
+    assert.strictEqual(response.status, 409);
+    assert.strictEqual(response.body.code, 'BUSINESS_CONFLICT');
+
+    response = await request(server, 'POST', '/api/transaction', {
+      member: 'mother', type: 'deposit', amount: 100, date: '2026-03-15'
+    });
+    assert.strictEqual(response.status, 200);
+    response = await request(server, 'POST', '/api/transaction', {
+      member: 'mother', type: 'withdraw', amount: 10, date: '2026-03-22'
+    });
+    assert.strictEqual(response.status, 200);
+    response = await request(server, 'POST', '/api/transfer', {
+      fromMember: 'mother', toMember: 'me', amount: 10, cnhRate: 7.2, date: '2026-03-29'
+    });
+    assert.strictEqual(response.status, 200);
+
+    // Once the GP role moves, the former GP is still referenced by immutable
+    // historical disposal snapshots and therefore must remain undeletable.
+    response = await request(server, 'PUT', '/api/members/me/roles', {
+      gp: true, primaryGp: true
+    });
+    assert.strictEqual(response.status, 200);
+    response = await request(server, 'DELETE', '/api/members/father');
+    assert.strictEqual(response.status, 409);
+    assert.strictEqual(response.body.code, 'BUSINESS_CONFLICT');
+
+    const gpInvariantExport = await requestBuffer(server, 'GET', '/api/backup/export');
+    const gpInvariantZip = new AdmZip(gpInvariantExport.body);
+    const gpInvariantDb = JSON.parse(gpInvariantZip.readAsText('data/db.json'));
+    const disposalSnapshots = gpInvariantDb.events
+      .filter(event => event.type === 'withdraw' || event.type === 'transfer')
+      .map(event => event.performanceFee)
+      .filter(Boolean);
+    assert(disposalSnapshots.length >= 2);
+    assert(disposalSnapshots.every(snapshot => snapshot.gpMember === 'father'));
+    let invariantRestore = await requestBuffer(server, 'POST', '/api/backup/import', gpInvariantExport.body);
+    assert.strictEqual(invariantRestore.status, 200);
+    const beforeRejectedInvariantRestore = await request(server, 'GET', '/api/state');
+
+    const danglingGpZip = new AdmZip(gpInvariantExport.body);
+    danglingGpZip.updateFile('data/db.json', Buffer.from(JSON.stringify({
+      ...gpInvariantDb,
+      members: gpInvariantDb.members.filter(member => member.id !== 'father')
+    })));
+    invariantRestore = await requestBuffer(server, 'POST', '/api/backup/import', danglingGpZip.toBuffer());
+    assert.strictEqual(invariantRestore.status, 400);
+    assert.strictEqual(JSON.parse(invariantRestore.body.toString('utf8')).code, 'INPUT_ERROR');
+    const afterRejectedInvariantRestore = await request(server, 'GET', '/api/state');
+    assert.deepStrictEqual(afterRejectedInvariantRestore.body.data, beforeRejectedInvariantRestore.body.data,
+      'a rejected dangling-GP restore must not mutate the live ledger');
+
+    // Reset for the independent import and settlement scenarios below.
+    invariantRestore = await requestBuffer(server, 'POST', '/api/backup/import', exported.body);
+    assert.strictEqual(invariantRestore.status, 200);
+
+    const externalFailureServer = await startExternalFailureServer();
+    try {
+      response = await request(externalFailureServer, 'POST', '/api/settings/sync-rate', {});
+      assert.strictEqual(response.status, 502);
+      assert.strictEqual(response.body.code, 'EXTERNAL_SERVICE_ERROR');
+    } finally {
+      await new Promise(resolve => externalFailureServer.close(resolve));
+    }
 
     const zeroNavBackup = new AdmZip();
     zeroNavBackup.addFile('data/db.json', Buffer.from(JSON.stringify({

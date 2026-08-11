@@ -1,7 +1,7 @@
 const { CURRENT_SETTLEMENT_VERSION } = require('../lib/performance-settlement');
 const { createSettlementFeeSnapshot } = require('../lib/performance-fee-policy');
 const { compareEvents } = require('../lib/event-order');
-const { InputError, handleApiError } = require('../lib/api-errors');
+const { InputError, NotFoundError, handleApiError } = require('../lib/api-errors');
 
 function registerSettlementRoutes(app, deps, utils) {
   const { readDb, readSettlements, writeSettlements, calculateStateFromDb,
@@ -66,7 +66,7 @@ app.post('/api/performance-settlement', (req, res, next) => {
     const saved = savedState.events.find(item => item.id === event.id);
     event.snapshot = { breakdown: saved._breakdown, totalFee: saved._totalFee, feeShares: saved._feeShares, navPerShare: saved._navAtTx };
     const ledgerIssue = findLedgerIssue(db);
-    if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
+    if (ledgerIssue) rejectLedgerIssue(ledgerIssue);
     ledger.records.push(event);
     ledger.lastEventSequence = event.sequenceNumber;
     writeSettlements(ledger);
@@ -87,12 +87,12 @@ app.post('/api/performance-settlement/reverse-latest', (req, res, next) => {
       .filter(record => record.type === 'performance_settlement' && !reversedIds.has(record.id))
       .sort(compareEvents)
       .at(-1);
-    if (!latest) return res.status(404).json({ success: false, message: '当前没有可以撤销的有效结算。' });
+    if (!latest) throw new NotFoundError('当前没有可以撤销的有效结算。');
 
     const projectedDb = readDb();
     projectedDb.events = projectedDb.events.filter(event => event.id !== latest.id);
     const issue = findLedgerIssue(projectedDb);
-    if (issue) return rejectLedgerIssue(res, issue);
+    if (issue) rejectLedgerIssue(issue);
 
     const reversal = {
       id: 'settle_reversal_' + randomUUID(),

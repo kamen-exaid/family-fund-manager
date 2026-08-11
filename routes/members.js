@@ -1,6 +1,6 @@
 const { DEFAULT_PERFORMANCE_FEE_CONFIG } = require('../lib/performance-fee-policy');
 
-const { handleApiError } = require('../lib/api-errors');
+const { InputError, NotFoundError, ConflictError, handleApiError } = require('../lib/api-errors');
 
 function registerMemberRoutes(app, deps) {
   const { readDb, writeDb, readSettlements, normalizeMemberName, randomUUID } = deps;
@@ -29,15 +29,10 @@ app.post('/api/members', (req, res, next) => {
   try {
     const { name } = req.body;
     const db = readDb();
-    let trimmedName;
-    try {
-      trimmedName = normalizeMemberName(name);
-    } catch (error) {
-      return res.status(400).json({ success: false, message: error.message });
-    }
+    const trimmedName = normalizeMemberName(name);
 
     if (db.members.some(m => m.name === trimmedName)) {
-      return res.status(400).json({ success: false, message: '该成员姓名已存在' });
+      throw new InputError('该成员姓名已存在');
     }
 
     const newMember = {
@@ -60,20 +55,15 @@ app.put('/api/members/:id', (req, res, next) => {
     const memberId = req.params.id;
     const { name } = req.body;
     const db = readDb();
-    let trimmedName;
-    try {
-      trimmedName = normalizeMemberName(name);
-    } catch (error) {
-      return res.status(400).json({ success: false, message: error.message });
-    }
+    const trimmedName = normalizeMemberName(name);
 
     const memberIndex = db.members.findIndex(m => m.id === memberId);
     if (memberIndex === -1) {
-      return res.status(404).json({ success: false, message: '未找到该家庭成员' });
+      throw new NotFoundError('未找到该家庭成员');
     }
 
     if (db.members.some((m, idx) => m.name === trimmedName && idx !== memberIndex)) {
-      return res.status(400).json({ success: false, message: '该成员姓名已被使用' });
+      throw new InputError('该成员姓名已被使用');
     }
 
     db.members[memberIndex].name = trimmedName;
@@ -89,10 +79,10 @@ app.put('/api/members/:id/roles', (req, res, next) => {
   try {
     const db = readDb();
     const member = db.members.find(item => item.id === req.params.id);
-    if (!member) return res.status(404).json({ success: false, message: '未找到该家庭成员' });
+    if (!member) throw new NotFoundError('未找到该家庭成员');
     db.performanceFee ||= { ...DEFAULT_PERFORMANCE_FEE_CONFIG };
     if (req.body?.gp !== true && req.body?.primaryGp !== true) {
-      return res.status(400).json({ success: false, message: '系统必须指定且只能指定一位GP。' });
+      throw new InputError('系统必须指定且只能指定一位GP。');
     }
     db.performanceFee.gpMemberId = member.id;
     db.members.forEach(item => {
@@ -113,20 +103,22 @@ app.delete('/api/members/:id', (req, res, next) => {
 
     const memberIndex = db.members.findIndex(m => m.id === memberId);
     if (memberIndex === -1) {
-      return res.status(404).json({ success: false, message: '未找到该家庭成员' });
+      throw new NotFoundError('未找到该家庭成员');
+    }
+
+    if (db.performanceFee?.gpMemberId === memberId) {
+      throw new ConflictError('当前GP不能直接删除，请先将GP角色转移给其他成员。');
     }
 
     // 安全检查：如果该成员已经录入过出入金或参与过转让，则绝对不允许删除
     const hasTransactions = db.events.some(e =>
-      e.member === memberId || e.fromMember === memberId || e.toMember === memberId || e.gpMember === memberId
+      e.member === memberId || e.fromMember === memberId || e.toMember === memberId ||
+      e.gpMember === memberId || e.performanceFee?.gpMember === memberId
     ) || readSettlements().records.some(record =>
       record.gpMember === memberId || record.lpMembers?.includes(memberId)
     );
     if (hasTransactions) {
-      return res.status(400).json({
-        success: false,
-        message: '删除失败！该成员已有出入金或转让记录，删除其账号会破坏历史净值计算。若不需要显示该成员，可在无持股时将其更名或保留。'
-      });
+      throw new ConflictError('删除失败！该成员已有出入金或转让记录，删除其账号会破坏历史净值计算。若不需要显示该成员，可在无持股时将其更名或保留。');
     }
 
     const removed = db.members.splice(memberIndex, 1)[0];

@@ -5,6 +5,7 @@ const { registerTickerRoutes } = require('./tickers');
 const { registerSettingsRoutes } = require('./settings');
 const { registerBackupRoutes } = require('./backup');
 const { nextSequenceNumber } = require('../lib/event-order');
+const { InputError, ConflictError } = require('../lib/api-errors');
 
 function registerApiRoutes(app, deps) {
   const resolvedDeps = {
@@ -85,38 +86,25 @@ function registerApiRoutes(app, deps) {
     return insufficientBalance ? { type: 'insufficient_balance', event: insufficientBalance } : null;
   }
 
-  function rejectLedgerIssue(res, issue) {
+  function rejectLedgerIssue(issue) {
     const { event } = issue;
     if (issue.type === 'valuation_without_shares') {
-      return res.status(400).json({
-        success: false,
-        message: `估值日期 ${event.date} 当时尚无基金份额，请先在该日期之前录入首次入金。`
-      });
+      throw new InputError(`估值日期 ${event.date} 当时尚无基金份额，请先在该日期之前录入首次入金。`);
     }
     if (issue.type === 'performance_fee_balance') {
-      return res.status(400).json({
-        success: false,
-        message: `${event.date} 的${event.type === 'withdraw' ? '出金' : '转让'}需要额外结算业绩报酬，但LP剩余份额不足。请降低金额后重试。`
-      });
+      throw new InputError(`${event.date} 的${event.type === 'withdraw' ? '出金' : '转让'}需要额外结算业绩报酬，但LP剩余份额不足。请降低金额后重试。`);
     }
-    return res.status(400).json({
-      success: false,
-      message: `操作会导致历史${event.type === 'withdraw' ? '出金' : '转让'}余额不足：${event.date} 的记录要求 $${event.amount.toFixed(2)}，实际仅可结算 $${event._actualAmount.toFixed(2)}。`
-    });
+    throw new InputError(`操作会导致历史${event.type === 'withdraw' ? '出金' : '转让'}余额不足：${event.date} 的记录要求 $${event.amount.toFixed(2)}，实际仅可结算 $${event._actualAmount.toFixed(2)}。`);
   }
   function latestSettlementDate(db) {
     return db.events.filter(event => event.type === 'performance_settlement')
       .map(event => event.date).sort().at(-1) || null;
   }
 
-  function rejectLockedPeriod(res, db, date) {
+  function rejectLockedPeriod(db, date) {
     const lockedThrough = latestSettlementDate(db);
     if (!lockedThrough || date > lockedThrough) return false;
-    res.status(409).json({
-      success: false,
-      message: `账目已结算锁定至 ${lockedThrough}，不能变更该日期以前的记录。`
-    });
-    return true;
+    throw new ConflictError(`账目已结算锁定至 ${lockedThrough}，不能变更该日期以前的记录。`);
   }
 
   function peekEventSequence(db, ledger = resolvedDeps.readSettlements()) {

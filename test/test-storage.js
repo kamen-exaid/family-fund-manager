@@ -19,6 +19,61 @@ function loadStorage(dataDir, backupDir) {
 const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'family-fund-storage-'));
 
 try {
+  const danglingDataDir = path.join(testRoot, 'data-dangling-gp');
+  const danglingBackupDir = path.join(testRoot, 'backups-dangling-gp');
+  fs.mkdirSync(danglingDataDir, { recursive: true });
+  fs.writeFileSync(path.join(danglingDataDir, 'db.json'), JSON.stringify({
+    cnhRate: 7.2,
+    benchmarkClosePolicy: 'previous',
+    performanceFee: { gpMemberId: 'deleted-gp', annualRate: 0.06, feeRate: 0.25 },
+    members: [{ id: 'lp', name: 'LP', roles: { lp: true, gp: false } }],
+    events: []
+  }));
+  const danglingStorage = loadStorage(danglingDataDir, danglingBackupDir);
+  const danglingConsoleError = console.error;
+  try {
+    console.error = () => {};
+    assert.throws(
+      () => danglingStorage.readDb(),
+      /gpMemberId references a member that does not exist/,
+      'startup must fail closed when the current GP reference is dangling'
+    );
+  } finally {
+    console.error = danglingConsoleError;
+  }
+
+  const danglingSnapshotDataDir = path.join(testRoot, 'data-dangling-snapshot');
+  const danglingSnapshotBackupDir = path.join(testRoot, 'backups-dangling-snapshot');
+  fs.mkdirSync(danglingSnapshotDataDir, { recursive: true });
+  fs.writeFileSync(path.join(danglingSnapshotDataDir, 'db.json'), JSON.stringify({
+    cnhRate: 7.2,
+    benchmarkClosePolicy: 'previous',
+    performanceFee: { gpMemberId: null, annualRate: 0.06, feeRate: 0.25 },
+    members: [{ id: 'lp', name: 'LP', roles: { lp: true, gp: false } }],
+    events: [{
+      id: 'historical-withdrawal',
+      type: 'withdraw',
+      member: 'lp',
+      amount: 1,
+      date: '2026-01-01',
+      createdAt: 1,
+      performanceFee: {
+        gpMember: 'deleted-gp', annualRate: 0.06, feeRate: 0.25, disposalVersion: 2
+      }
+    }]
+  }));
+  const danglingSnapshotStorage = loadStorage(danglingSnapshotDataDir, danglingSnapshotBackupDir);
+  try {
+    console.error = () => {};
+    assert.throws(
+      () => danglingSnapshotStorage.readDb(),
+      /invalid performance-fee snapshot/,
+      'startup must fail closed when a historical disposal snapshot references a deleted GP'
+    );
+  } finally {
+    console.error = danglingConsoleError;
+  }
+
   // Every durable mutation archives the complete intended state in the same
   // ZIP structure accepted by the manual restore endpoint.
   const dataDir = path.join(testRoot, 'data-ok');
@@ -27,6 +82,27 @@ try {
   const originalDb = storage.readDb();
   const nextDb = { ...originalDb, cnhRate: 7.3 };
   storage.writeDb(nextDb);
+  assert.throws(
+    () => storage.writeDb({
+      ...nextDb,
+      events: [{
+        id: 'dangling-fee-snapshot',
+        type: 'withdraw',
+        member: 'me',
+        amount: 1,
+        date: '2026-01-01',
+        createdAt: 1,
+        performanceFee: {
+          gpMember: 'deleted-gp',
+          annualRate: 0.06,
+          feeRate: 0.25,
+          disposalVersion: 2
+        }
+      }]
+    }),
+    /invalid performance-fee snapshot/,
+    'durable writes must reject historical fee snapshots that reference a deleted GP'
+  );
   assert.throws(
     () => storage.writeDb({ ...nextDb, lastEventSequence: Number.NaN }),
     /invalid event sequence high-water mark/

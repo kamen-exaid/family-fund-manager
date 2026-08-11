@@ -187,10 +187,10 @@ app.post('/api/settings/tickers', (req, res, next) => {
   try {
     const { tickers } = req.body;
     if (!Array.isArray(tickers)) {
-      return res.status(400).json({ success: false, message: '无效的标的列表数据格式' });
+      throw new InputError('无效的标的列表数据格式');
     }
     if (tickers.length < 1) {
-      return res.status(400).json({ success: false, message: '至少需要追踪 1 个标的' });
+      throw new InputError('至少需要追踪 1 个标的');
     }
 
     const cleanedTickers = tickers.map(e => {

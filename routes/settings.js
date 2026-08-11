@@ -1,4 +1,4 @@
-const { handleApiError } = require('../lib/api-errors');
+const { InputError, ExternalServiceError, handleApiError } = require('../lib/api-errors');
 
 function registerSettingsRoutes(app, deps, utils) {
   const { readDb, writeDb, ensureIndexCache, fetchCnhRateFromApi } = deps;
@@ -13,14 +13,14 @@ app.post('/api/settings', (req, res, next) => {
     if (cnhRate !== undefined) {
       const parsedRate = toFiniteNumber(cnhRate);
       if (!Number.isFinite(parsedRate) || parsedRate <= 0) {
-        return res.status(400).json({ success: false, message: '汇率参数必须大于 0' });
+        throw new InputError('汇率参数必须大于 0');
       }
       db.cnhRate = parsedRate;
     }
 
     if (benchmarkClosePolicy !== undefined) {
       if (benchmarkClosePolicy !== 'previous') {
-        return res.status(400).json({ success: false, message: '指数收盘口径无效' });
+        throw new InputError('指数收盘口径无效');
       }
       db.benchmarkClosePolicy = 'previous';
     }
@@ -43,18 +43,10 @@ app.post('/api/settings/sync-rate', async (req, res, next) => {
       rate = await fetchCnhRateFromApi();
     } catch (error) {
       console.error('[External Service Error] USD/CNH sync:', error);
-      return res.status(502).json({
-        success: false,
-        code: 'EXTERNAL_SERVICE_ERROR',
-        message: '从公开汇率接口获取数据失败，请检查网络或稍后重试'
-      });
+      throw new ExternalServiceError('从公开汇率接口获取数据失败，请检查网络或稍后重试', { cause: error });
     }
     if (!rate) {
-      return res.status(502).json({
-        success: false,
-        code: 'EXTERNAL_SERVICE_ERROR',
-        message: '从公开汇率接口获取数据失败，请检查网络或稍后重试'
-      });
+      throw new ExternalServiceError('从公开汇率接口获取数据失败，请检查网络或稍后重试');
     }
     const db = readDb();
     db.cnhRate = rate;
