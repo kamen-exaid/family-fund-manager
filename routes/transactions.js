@@ -1,3 +1,5 @@
+const { createDisposalFeeSnapshot } = require('../lib/performance-fee-policy');
+
 function registerTransactionRoutes(app, deps, utils) {
   const { readDb, writeDb, getState, ensureIndexCache,
     isValidDate, normalizeRemark, randomUUID } = deps;
@@ -72,14 +74,10 @@ app.post('/api/transaction', (req, res) => {
       remark: normalizedRemark,
       createdAt: Date.now()
     };
-    if (type === 'withdraw' && db.performanceFee?.gpMemberId) {
-      newEvent.performanceFee = {
-        gpMember: db.performanceFee.gpMemberId,
-        annualRate: 0.06,
-        feeRate: 0.25,
-        disposalVersion: 2
-      };
-    }
+    const performanceFeeSnapshot = type === 'withdraw'
+      ? createDisposalFeeSnapshot(db.performanceFee)
+      : null;
+    if (performanceFeeSnapshot) newEvent.performanceFee = performanceFeeSnapshot;
 
     db.events.push(newEvent);
     const validationState = calculateLedgerState(db, {
@@ -223,14 +221,8 @@ app.post('/api/transfer', (req, res) => {
       remark: normalizedRemark,
       createdAt: Date.now()
     };
-    if (db.performanceFee?.gpMemberId) {
-      newEvent.performanceFee = {
-        gpMember: db.performanceFee.gpMemberId,
-        annualRate: 0.06,
-        feeRate: 0.25,
-        disposalVersion: 2
-      };
-    }
+    const performanceFeeSnapshot = createDisposalFeeSnapshot(db.performanceFee);
+    if (performanceFeeSnapshot) newEvent.performanceFee = performanceFeeSnapshot;
 
     db.events.push(newEvent);
     const validationState = calculateLedgerState(db, {

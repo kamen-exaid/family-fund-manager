@@ -249,6 +249,44 @@ async function request(handler, body, params = {}) {
   assert.strictEqual(versionedTransfer.status, 200);
   assert.strictEqual(versionedTransfer.body.data.performanceFee.disposalVersion, 2);
 
+  const configuredRatesDb = {
+    cnhRate: 7.2,
+    members: [
+      { id: 'a', name: 'Alice', roles: { lp: true, gp: false } },
+      { id: 'b', name: 'Bob', roles: { lp: true, gp: true } }
+    ],
+    performanceFee: { gpMemberId: 'b', annualRate: 0.08, feeRate: 0.3 },
+    events: [
+      { id: 'rate-d', type: 'deposit', member: 'a', amount: 100, cnhAmount: 720, date: '2025-01-05', createdAt: 1 },
+      { id: 'rate-v', type: 'valuation', totalNAV: 120, date: '2026-01-09', createdAt: 2 }
+    ],
+    indexCache: {}
+  };
+  const configuredRatesApi = makeApi(() => new Date('2026-01-12T12:00:00Z'), configuredRatesDb);
+  const configuredWithdrawal = await request(configuredRatesApi.routes['post:/api/transaction'], {
+    member: 'a', type: 'withdraw', amount: 10, date: '2026-01-11'
+  });
+  assert.strictEqual(configuredWithdrawal.status, 200);
+  assert.deepStrictEqual(
+    { annualRate: configuredWithdrawal.body.data.performanceFee.annualRate, feeRate: configuredWithdrawal.body.data.performanceFee.feeRate },
+    { annualRate: 0.08, feeRate: 0.3 }
+  );
+  const configuredTransfer = await request(configuredRatesApi.routes['post:/api/transfer'], {
+    fromMember: 'a', toMember: 'b', amount: 10, cnhRate: 7.2, date: '2026-01-11'
+  });
+  assert.strictEqual(configuredTransfer.status, 200);
+  assert.deepStrictEqual(
+    { annualRate: configuredTransfer.body.data.performanceFee.annualRate, feeRate: configuredTransfer.body.data.performanceFee.feeRate },
+    { annualRate: 0.08, feeRate: 0.3 }
+  );
+  const configuredPreview = await request(
+    configuredRatesApi.routes['post:/api/performance-settlement/preview'],
+    { date: '2026-01-12' }
+  );
+  assert.strictEqual(configuredPreview.status, 200);
+  assert.strictEqual(configuredPreview.body.data.event.annualRate, 0.08);
+  assert.strictEqual(configuredPreview.body.data.event.feeRate, 0.3);
+
   const editApi = makeApi();
   assert.strictEqual((await request(editApi.routes['post:/api/valuation'], {
     totalNAV: 120, date: '2026-01-12'

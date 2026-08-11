@@ -532,4 +532,88 @@ assert(!reversedChartState.charts.navHistory.some(item => item.eventId === 'reve
 assert.strictEqual(reversedChartState.charts.navHistory.at(-1).date, '2025-12-31');
 assert.strictEqual(reversedChartState.members.lp.lpLedger[0].hurdle, 105.98);
 
+// Withdrawals and transfers must share one disposal engine. For every current
+// and historical disposal shape, the outgoing member and GP economics are
+// identical; only the fund cash flow and recipient acquisition differ.
+for (const disposalVersion of [1, 2]) {
+  for (const fullExit of [false, true]) {
+    for (const selfGp of [false, true]) {
+      const makePairedDb = type => ({
+        cnhRate: 7.2,
+        members: [
+          { id: 'seller', name: 'Seller', roles: { lp: true, gp: selfGp } },
+          { id: 'buyer', name: 'Buyer', roles: { lp: true, gp: false } },
+          ...(!selfGp ? [{ id: 'gp', name: 'GP', roles: { lp: true, gp: true } }] : [])
+        ],
+        indexCache: {},
+        events: [
+          event('paired-d', 'deposit', '2025-01-01', 1, { member: 'seller', amount: 100, cnhAmount: 720 }),
+          event('paired-v', 'valuation', '2026-01-01', 2, { totalNAV: 120 }),
+          event(`paired-${type}`, type, '2026-01-01', 3, {
+            ...(type === 'withdraw'
+              ? { member: 'seller' }
+              : { fromMember: 'seller', toMember: 'buyer', cnhRate: 7.2 }),
+            amount: fullExit ? 120 : 60,
+            cnhAmount: (fullExit ? 120 : 60) * 7.2,
+            fullExit,
+            performanceFee: {
+              gpMember: selfGp ? 'seller' : 'gp',
+              annualRate: 0.06,
+              feeRate: 0.25,
+              disposalVersion
+            }
+          })
+        ]
+      });
+      const withdrawalState = calculateStateFromDb(makePairedDb('withdraw'));
+      const transferState = calculateStateFromDb(makePairedDb('transfer'));
+      const withdrawal = withdrawalState.events.at(-1);
+      const transfer = transferState.events.at(-1);
+      for (const field of [
+        '_actualAmount', '_grossAmount', '_performanceFee', '_performanceFeeShares',
+        '_carrySharesDisposed', '_unpaidPerformanceFeeShares', '_fullExit',
+        '_disposalVersion', '_disposedRatio'
+      ]) {
+        assert.strictEqual(transfer[field], withdrawal[field], `${field} must match for paired disposal`);
+      }
+      assert.deepStrictEqual(transfer._disposedLots, withdrawal._disposedLots);
+      for (const field of ['shares', 'lpShares', 'gpCarryShares', 'totalWithdraw', 'cnhWithdraw']) {
+        assert.strictEqual(transferState.members.seller[field], withdrawalState.members.seller[field]);
+      }
+      if (!selfGp) {
+        for (const field of ['shares', 'gpCarryShares']) {
+          assert.strictEqual(transferState.members.gp[field], withdrawalState.members.gp[field]);
+        }
+      }
+    }
+  }
+}
+
+const snapshottedRateDb = {
+  cnhRate: 7.2,
+  performanceFee: { gpMemberId: 'gp', annualRate: 0.5, feeRate: 0.9 },
+  members: [{ id: 'lp', name: 'LP' }, { id: 'gp', name: 'GP' }],
+  indexCache: {},
+  events: [
+    event('snapshot-d', 'deposit', '2025-01-01', 1, { member: 'lp', amount: 100, cnhAmount: 720 }),
+    event('snapshot-v', 'valuation', '2026-01-01', 2, { totalNAV: 120 }),
+    event('snapshot-w', 'withdraw', '2026-01-01', 3, {
+      member: 'lp', amount: 60, cnhAmount: 432,
+      performanceFee: { gpMember: 'gp', annualRate: 0.06, feeRate: 0.25, disposalVersion: 2 }
+    })
+  ]
+};
+const snapshottedRateState = calculateStateFromDb(snapshottedRateDb);
+const changedCurrentConfig = JSON.parse(JSON.stringify(snapshottedRateDb));
+changedCurrentConfig.performanceFee = { gpMemberId: 'gp', annualRate: 0, feeRate: 0 };
+const changedCurrentRateState = calculateStateFromDb(changedCurrentConfig);
+assert.deepStrictEqual(changedCurrentRateState.events, snapshottedRateState.events,
+  'changing current fee configuration must not rewrite historical event economics');
+for (const field of ['shares', 'currentValue', 'totalWithdraw', 'lpShares', 'gpCarryShares']) {
+  assert.strictEqual(changedCurrentRateState.members.lp[field], snapshottedRateState.members.lp[field]);
+  assert.strictEqual(changedCurrentRateState.members.gp[field], snapshottedRateState.members.gp[field]);
+}
+assert(changedCurrentRateState.members.lp.lpLedger[0].hurdle < snapshottedRateState.members.lp.lpLedger[0].hurdle,
+  'the prospective member hurdle must reflect the current configured annual rate');
+
 console.log('Performance settlement hurdle, HWM and lot-transfer assertions passed.');

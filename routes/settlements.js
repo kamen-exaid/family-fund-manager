@@ -1,4 +1,5 @@
 const { CURRENT_SETTLEMENT_VERSION } = require('../lib/performance-settlement');
+const { createSettlementFeeSnapshot } = require('../lib/performance-fee-policy');
 
 function registerSettlementRoutes(app, deps, utils) {
   const { readDb, readSettlements, writeSettlements, calculateStateFromDb,
@@ -22,12 +23,13 @@ function buildSettlementPreview(db, body) {
     .filter(event => event.type === 'valuation' && event.date <= date)
     .map(event => event.date).sort().at(-1);
   if (!valuationDate) throw new Error('结算日以前没有可用的基金估值。');
+  const feeRates = createSettlementFeeSnapshot(db.performanceFee);
   const previewDb = JSON.parse(JSON.stringify(db));
   const event = {
     id: 'preview_settlement', type: 'performance_settlement', date, gpMember,
     lpMembers: db.members.map(member => member.id),
     algorithmVersion: CURRENT_SETTLEMENT_VERSION,
-    annualRate: 0.06, feeRate: 0.25, remark: body.remark || '年度业绩结算',
+    ...feeRates, remark: body.remark || '年度业绩结算',
     createdAt: Number.MAX_SAFE_INTEGER
   };
   previewDb.events.push(event);

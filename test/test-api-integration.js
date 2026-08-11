@@ -132,6 +132,45 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     );
     assert.strictEqual(rejectedDisposalVersionRestore.status, 400);
 
+    const invalidCurrentRateBackup = new AdmZip();
+    invalidCurrentRateBackup.addFile('data/db.json', Buffer.from(JSON.stringify({
+      ...exportedDb,
+      performanceFee: { ...exportedDb.performanceFee, annualRate: 1.01 }
+    })));
+    invalidCurrentRateBackup.addFile('data/config.json', Buffer.from(JSON.stringify(exportedConfig)));
+    const rejectedCurrentRateRestore = await requestBuffer(
+      server,
+      'POST',
+      '/api/backup/import',
+      invalidCurrentRateBackup.toBuffer()
+    );
+    assert.strictEqual(rejectedCurrentRateRestore.status, 400, 'out-of-range current fee policy must be rejected');
+
+    const historicalRateBackup = new AdmZip();
+    historicalRateBackup.addFile('data/db.json', Buffer.from(JSON.stringify({
+      ...exportedDb,
+      performanceFee: { gpMemberId: 'me', annualRate: 0.08, feeRate: 0.3 },
+      events: exportedDb.events.map((event, index) => index === exportedDb.events.length - 1
+        ? {
+            ...event,
+            performanceFee: { gpMember: 'me', annualRate: 0.07, feeRate: 0.2, disposalVersion: 2 }
+          }
+        : event)
+    })));
+    historicalRateBackup.addFile('data/config.json', Buffer.from(JSON.stringify(exportedConfig)));
+    const historicalRateRestore = await requestBuffer(
+      server,
+      'POST',
+      '/api/backup/import',
+      historicalRateBackup.toBuffer()
+    );
+    assert.strictEqual(historicalRateRestore.status, 200, 'valid historical fee snapshots must survive import');
+    const historicalRateRoundTrip = await requestBuffer(server, 'GET', '/api/backup/export');
+    const historicalRateRoundTripDb = JSON.parse(new AdmZip(historicalRateRoundTrip.body).readAsText('data/db.json'));
+    assert.strictEqual(historicalRateRoundTripDb.performanceFee.gpMemberId, 'me');
+    assert.strictEqual(historicalRateRoundTripDb.members.find(member => member.id === 'me').roles.gp, true,
+      'the imported GP configuration must remain the role source of truth');
+
     response = await request(server, 'POST', '/api/settings/tickers', {
       tickers: [{ ticker: 'AAPL' }]
     });

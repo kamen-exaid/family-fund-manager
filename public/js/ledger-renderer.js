@@ -11,6 +11,11 @@ window.FundLedgerRenderer = {
     ledgerTbody.replaceChildren();
 
     const memberName = id => members.find(member => member.id === id)?.name || '未知成员';
+    const formatRate = value => {
+      const rate = Number(value);
+      if (!Number.isFinite(rate)) return '业绩';
+      return `${(rate * 100).toFixed(2).replace(/\.00$/, '')}%`;
+    };
     let rendered = 0;
 
     [...state.events].reverse().forEach(event => {
@@ -127,11 +132,12 @@ window.FundLedgerRenderer = {
         detailRow.className = 'ledger-row--settlement-detail';
         const detailCell = document.createElement('td');
         detailCell.colSpan = 8;
+        const annualRateLabel = formatRate(event.annualRate);
         const breakdownRows = breakdown.map(item => `
           <div class="settlement-breakdown-item">
             <strong>${escapeHtml(memberName(item.member))}</strong>
             <span><small>结算前价值</small>$${formatMoney(item.valueBefore || 0)}</span>
-            <span><small>6% 门槛</small>$${formatMoney(item.hurdle || 0)}</span>
+            <span><small>${annualRateLabel} 门槛</small>$${formatMoney(item.hurdle || 0)}</span>
             <span class="${item.excess > 0 ? 'text-green' : ''}"><small>超额收益</small>$${formatMoney(item.excess || 0)}</span>
             <span class="text-cyan"><small>业绩报酬</small>$${formatMoney(item.fee || 0)}</span>
             <span><small>划转份额</small>${(item.feeShares || 0).toFixed(4)} 份</span>
@@ -144,6 +150,7 @@ window.FundLedgerRenderer = {
         detailRow.className = 'ledger-row--settlement-detail ledger-row--disposal-detail';
         const detailCell = document.createElement('td');
         detailCell.colSpan = 8;
+        const annualRateLabel = formatRate(event.performanceFee?.annualRate);
         const ratio = Math.max(0, Math.min(1, event._disposedRatio || 0));
         const actionLabel = event.type === 'withdraw' ? '出金' : '转出';
         const disposalMethod = event._disposalVersion >= 2
@@ -159,7 +166,7 @@ window.FundLedgerRenderer = {
             <strong>批次 ${index + 1}<small>起算日 ${escapeHtml(lot.startDate || '')} · ${lot.holdingDays ?? 0} 天</small></strong>
             <span><small>本次总扣减份额</small>${(lot.totalShares ?? lot.shares ?? 0).toFixed(6)} 份<small class="disposal-share-split">LP 实收 ${(lot.cashShares || 0).toFixed(6)} · GP 报酬 ${(lot.feeShares || 0).toFixed(6)}</small></span>
             <span><small>本次处置总值</small>$${formatMoney(lot.totalValue ?? lot.value ?? 0)}<small class="disposal-share-split">LP 实收 $${formatMoney(lot.cashValue || 0)}</small></span>
-            <span><small>按比例 6% 门槛</small>$${formatMoney(lot.hurdle || 0)}</span>
+            <span><small>按比例 ${annualRateLabel} 门槛</small>$${formatMoney(lot.hurdle || 0)}</span>
             <span class="${excess > 0 ? 'text-green' : excess < 0 ? 'text-magenta' : ''}"><small>超门槛差额</small>${excess > 0 ? '+' : excess < 0 ? '-' : ''}$${formatMoney(Math.abs(excess))}</span>
             <span class="${lot.fee > 0 ? 'text-cyan' : ''}"><small>本批次业绩报酬</small>$${formatMoney(lot.fee || 0)}</span>
           </div>`;

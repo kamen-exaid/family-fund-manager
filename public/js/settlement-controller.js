@@ -35,6 +35,9 @@
       try {
         pendingSettlement = settlementPayload();
         const preview = await Api.previewSettlement(pendingSettlement);
+        const formatRate = value => `${(Number(value) * 100).toFixed(2).replace(/\.00$/, '')}%`;
+        const annualRateLabel = formatRate(preview.event.annualRate);
+        const feeRateLabel = formatRate(preview.event.feeRate);
         const rows = preview.breakdown.map(item => {
           const name = getMembers().find(member => member.id === item.member)?.name || item.member;
           const lotRows = (item.lots || []).map((lot, index) => {
@@ -61,11 +64,11 @@
               <td colspan="6"><strong>${escapeHtml(name)}</strong><span style="margin-left:10px;color:var(--color-text-muted)">${item.lots?.length || 0}笔资金批次 · 结算后 ${item.sharesAfter.toFixed(6)}份</span></td>
               <td class="privacy-sensitive"><strong>$${formatMoney(item.valueBefore)}</strong></td>
               <td class="privacy-sensitive"><strong>$${formatMoney(item.hurdle)}</strong></td>
-              <td class="privacy-sensitive"><strong class="${item.excess > 0 ? 'text-green' : ''}">$${formatMoney(item.excess)}</strong><div class="settlement-fee-detail">25%报酬 $${formatMoney(item.fee)} · ${item.feeShares.toFixed(6)}份</div></td>
+              <td class="privacy-sensitive"><strong class="${item.excess > 0 ? 'text-green' : ''}">$${formatMoney(item.excess)}</strong><div class="settlement-fee-detail">${feeRateLabel}报酬 $${formatMoney(item.fee)} · ${item.feeShares.toFixed(6)}份</div></td>
             </tr>${lotRows}`;
         }).join('');
         const gpName = getMembers().find(member => member.id === pendingSettlement.gpMember)?.name || '主GP';
-        settlementPreviewSubtitle.textContent = `${pendingSettlement.date} · 采用 ${preview.valuationDate} 估值 · GP：${gpName}`;
+        settlementPreviewSubtitle.textContent = `${pendingSettlement.date} · 采用 ${preview.valuationDate} 估值 · ${annualRateLabel} 门槛 / ${feeRateLabel} 报酬 · GP：${gpName}`;
         settlementPreviewSummary.innerHTML = [
           ['结算单位净值', preview.navPerShare.toFixed(4)],
           ['参与LP', `${preview.breakdown.length} 人`],

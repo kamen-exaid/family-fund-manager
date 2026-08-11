@@ -1,3 +1,5 @@
+const { DEFAULT_PERFORMANCE_FEE_CONFIG } = require('../lib/performance-fee-policy');
+
 function registerMemberRoutes(app, deps) {
   const { readDb, writeDb, readSettlements, normalizeMemberName, randomUUID } = deps;
 
@@ -86,7 +88,7 @@ app.put('/api/members/:id/roles', (req, res) => {
     const db = readDb();
     const member = db.members.find(item => item.id === req.params.id);
     if (!member) return res.status(404).json({ success: false, message: '未找到该家庭成员' });
-    db.performanceFee ||= { gpMemberId: null, annualRate: 0.06, feeRate: 0.25 };
+    db.performanceFee ||= { ...DEFAULT_PERFORMANCE_FEE_CONFIG };
     if (req.body?.gp !== true && req.body?.primaryGp !== true) {
       return res.status(400).json({ success: false, message: '系统必须指定且只能指定一位GP。' });
     }

@@ -1,5 +1,12 @@
 const express = require('express');
 const AdmZip = require('adm-zip');
+const {
+  DEFAULT_ANNUAL_RATE,
+  DEFAULT_FEE_RATE,
+  configuredPerformanceFeeRates,
+  isValidPerformanceFeeRates,
+  isValidDisposalFeeSnapshot
+} = require('../lib/performance-fee-policy');
 const { mergeSettlementLedger, migrateSettlementLedger } = require('../lib/settlement-ledger');
 
 function registerBackupRoutes(app, deps, utils, tickerUtils) {
@@ -148,15 +155,11 @@ app.post('/api/backup/import', express.raw({
         return res.status(400).json({ success: false, message: 'A transfer contains invalid member references or exchange rate.' });
       }
       if ((e.type === 'withdraw' || e.type === 'transfer') && e.performanceFee &&
-          (!memberIds.has(e.performanceFee.gpMember) ||
-           e.performanceFee.annualRate !== 0.06 ||
-           e.performanceFee.feeRate !== 0.25 ||
-           (e.performanceFee.disposalVersion !== undefined &&
-            ![1, 2].includes(e.performanceFee.disposalVersion)))) {
+          !isValidDisposalFeeSnapshot(e.performanceFee, memberIds)) {
         return res.status(400).json({ success: false, message: '部分退出记录包含无效的业绩结算参数快照。' });
       }
       if (e.type === 'performance_settlement' &&
-          (!memberIds.has(e.gpMember) || e.annualRate !== 0.06 || e.feeRate !== 0.25)) {
+          (!memberIds.has(e.gpMember) || !isValidPerformanceFeeRates(e))) {
         return res.status(400).json({ success: false, message: '业绩结算记录包含无效的GP或费率参数。' });
       }
     }
@@ -172,13 +175,25 @@ app.post('/api/backup/import', express.raw({
     const importedIndexCache = (indexCache && typeof indexCache === 'object' && !Array.isArray(indexCache))
       ? indexCache
       : (currentDb.indexCache || {});
+    let importedFeeRates;
+    try {
+      importedFeeRates = configuredPerformanceFeeRates(performanceFee || {
+        annualRate: DEFAULT_ANNUAL_RATE,
+        feeRate: DEFAULT_FEE_RATE
+      });
+    } catch (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    const importedGpMemberId = memberIds.has(performanceFee?.gpMemberId)
+      ? performanceFee.gpMemberId
+      : null;
     const db = {
       members: importedMembers.map(member => ({
         id: member.id,
         name: member.name.trim(),
         roles: {
           lp: true,
-          gp: member.id === performanceFee?.gpMemberId
+          gp: member.id === importedGpMemberId
         }
       })),
       events: events.filter(event =>
@@ -186,10 +201,8 @@ app.post('/api/backup/import', express.raw({
       cnhRate: importedCnhRate,
       benchmarkClosePolicy: 'previous',
       performanceFee: {
-        gpMemberId: importedMembers.some(member => member.id === performanceFee?.gpMemberId && member.roles?.gp === true)
-          ? performanceFee.gpMemberId : null,
-        annualRate: 0.06,
-        feeRate: 0.25
+        gpMemberId: importedGpMemberId,
+        ...importedFeeRates
       }
     };
     if (!backupConfig || !Array.isArray(backupConfig.tickers) || backupConfig.tickers.length < 1) {
@@ -206,7 +219,7 @@ app.post('/api/backup/import', express.raw({
         return res.status(400).json({ success: false, message: '独立结算账本包含无效或重复记录。' });
       }
       if (record.type === 'performance_settlement' &&
-          (!memberIds.has(record.gpMember) || record.annualRate !== 0.06 || record.feeRate !== 0.25)) {
+          (!memberIds.has(record.gpMember) || !isValidPerformanceFeeRates(record))) {
         return res.status(400).json({ success: false, message: '独立结算账本包含无效的结算参数。' });
       }
       if (record.type === 'performance_settlement_reversal' &&
