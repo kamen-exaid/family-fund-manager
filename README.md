@@ -68,8 +68,10 @@
 ```text
 ├── backups/               # 自动完整 ZIP 快照（滚动留存最新 15 份）
 ├── data/                  # 本地数据库目录
-│   ├── db.json            # 普通账目、成员、汇率及指数缓存
+│   ├── db.json            # 普通账目、成员、汇率与业绩报酬配置
 │   ├── config.json        # 标的配置
+│   ├── index-cache.json   # 可重建的标普500/纳指100历史收盘缓存
+│   ├── ticker-cache.json  # 可重建的标的行情缓存
 │   └── settlements.json   # 结算、冲销、算法版本及锁定快照
 ├── lib/                   # 后端基础模块
 │   ├── calculator.js      # 事件溯源重放与 Decimal 精确账务计算

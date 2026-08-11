@@ -37,7 +37,7 @@ try {
   assert.deepStrictEqual(JSON.parse(firstBackup.readAsText('data/settlements.json')), { version: 1, records: [] });
 
   const originalConfig = storage.readConfig();
-  const snapshotDb = { ...nextDb, cnhRate: 7.35, indexCache: nextDb.indexCache || {} };
+  const snapshotDb = { ...nextDb, cnhRate: 7.35 };
   const snapshotConfig = { tickers: [{ ticker: 'AAPL' }] };
   storage.writeSnapshot(snapshotDb, snapshotConfig);
   assert.deepStrictEqual(storage.readDb(), snapshotDb);
@@ -60,6 +60,24 @@ try {
   storage.writeTickerCache(tickerCache);
   assert.deepStrictEqual(storage.readTickerCache(), tickerCache);
   assert.strictEqual(fs.readdirSync(backupDir).length, backupsBeforeTickerWrite);
+
+  const backupsBeforeIndexWrite = fs.readdirSync(backupDir).length;
+  const indexCache = {
+    '2026-08-04': {
+      spx: 6330.94,
+      ndx: 23219.34,
+      spxPriceDate: '2026-08-03',
+      ndxPriceDate: '2026-08-03',
+      policy: 'previous'
+    }
+  };
+  storage.writeIndexCache(indexCache);
+  assert.deepStrictEqual(storage.readIndexCache(), indexCache);
+  assert.strictEqual(fs.readdirSync(backupDir).length, backupsBeforeIndexWrite);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(
+    JSON.parse(fs.readFileSync(storage.DB_FILE, 'utf8')),
+    'indexCache'
+  ), false);
 
   // If the second live-file commit fails, the already replaced db.json must
   // roll back to the exact previous bytes and config.json must remain unchanged.
@@ -204,7 +222,107 @@ try {
   }
   assert.strictEqual(fs.readFileSync(blockedStorage.DB_FILE, 'utf8'), beforeFailureRaw);
 
-  console.log('Storage commit/backup ordering and snapshot rollback assertions passed.');
+  // Upgrade an existing installation without losing its embedded benchmark
+  // prices. The cache file is committed first, then the legacy db field is
+  // removed; neither step creates a core-ledger ZIP backup.
+  const legacyDataDir = path.join(testRoot, 'data-legacy-index');
+  const legacyBackupDir = path.join(testRoot, 'backups-legacy-index');
+  fs.mkdirSync(legacyDataDir, { recursive: true });
+  const legacyIndexCache = {
+    '2025-01-01': {
+      spx: 5881.63,
+      ndx: 21012.17,
+      spxPriceDate: '2024-12-31',
+      ndxPriceDate: '2024-12-31',
+      policy: 'previous'
+    }
+  };
+  const preexistingIndexCache = {
+    '2024-01-01': {
+      spx: 4769.83,
+      ndx: 16825.93,
+      spxPriceDate: '2023-12-29',
+      ndxPriceDate: '2023-12-29',
+      policy: 'previous'
+    },
+    '2025-01-01': {
+      spx: 1,
+      ndx: 1,
+      spxPriceDate: '2024-12-30',
+      ndxPriceDate: '2024-12-30',
+      policy: 'previous'
+    }
+  };
+  fs.writeFileSync(
+    path.join(legacyDataDir, 'db.json'),
+    JSON.stringify({ ...originalDb, indexCache: legacyIndexCache }, null, 2),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(legacyDataDir, 'index-cache.json'),
+    JSON.stringify(preexistingIndexCache, null, 2),
+    'utf8'
+  );
+  let legacyStorage = loadStorage(legacyDataDir, legacyBackupDir);
+  const consoleErrorBeforeInterruptedMigration = console.error;
+  try {
+    console.error = () => {};
+    fs.renameSync = (source, target) => {
+      if (target === legacyStorage.DB_FILE && source.endsWith('.tmp')) {
+        throw new Error('simulated legacy db migration interruption');
+      }
+      return originalRenameSync(source, target);
+    };
+    assert.throws(
+      () => legacyStorage.readDb(),
+      /simulated legacy db migration interruption/
+    );
+  } finally {
+    fs.renameSync = originalRenameSync;
+    console.error = consoleErrorBeforeInterruptedMigration;
+  }
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(
+    JSON.parse(fs.readFileSync(legacyStorage.DB_FILE, 'utf8')),
+    'indexCache'
+  ), true);
+  assert.deepStrictEqual(legacyStorage.readIndexCache(), {
+    ...preexistingIndexCache,
+    ...legacyIndexCache
+  });
+
+  legacyStorage = loadStorage(legacyDataDir, legacyBackupDir);
+  const migratedDb = legacyStorage.readDb();
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(migratedDb, 'indexCache'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(
+    JSON.parse(fs.readFileSync(legacyStorage.DB_FILE, 'utf8')),
+    'indexCache'
+  ), false);
+  assert.deepStrictEqual(legacyStorage.readIndexCache(), {
+    ...preexistingIndexCache,
+    ...legacyIndexCache
+  });
+  assert.strictEqual(fs.readdirSync(legacyBackupDir).length, 0);
+
+  // A corrupt disposable cache degrades to an in-memory empty cache once per
+  // process instead of reparsing the same bad file and flooding logs on every
+  // API read.
+  const malformedDataDir = path.join(testRoot, 'data-malformed-index');
+  const malformedBackupDir = path.join(testRoot, 'backups-malformed-index');
+  fs.mkdirSync(malformedDataDir, { recursive: true });
+  fs.writeFileSync(path.join(malformedDataDir, 'index-cache.json'), '{bad json', 'utf8');
+  const malformedStorage = loadStorage(malformedDataDir, malformedBackupDir);
+  let cacheReadErrors = 0;
+  const consoleErrorBeforeMalformedRead = console.error;
+  try {
+    console.error = () => { cacheReadErrors += 1; };
+    assert.deepStrictEqual(malformedStorage.readIndexCache(), {});
+    assert.deepStrictEqual(malformedStorage.readIndexCache(), {});
+  } finally {
+    console.error = consoleErrorBeforeMalformedRead;
+  }
+  assert.strictEqual(cacheReadErrors, 1);
+
+  console.log('Storage, index-cache recovery, backup ordering and snapshot rollback assertions passed.');
 } finally {
   if (originalDataDir === undefined) delete process.env.FUND_DATA_DIR;
   else process.env.FUND_DATA_DIR = originalDataDir;

@@ -26,6 +26,11 @@ assert.strictEqual(state.members.bob.shares, 700);
 assert.strictEqual(state.members.alice.currentValue, 960);
 assert.strictEqual(state.members.bob.currentValue, 840);
 assert.strictEqual(state.events.find(event => event.id === 'transfer-1')._sharesTransferred, 200);
+assert.strictEqual(
+  Object.prototype.hasOwnProperty.call(state.events.find(event => event.id === 'transfer-1'), '_accountValueBefore'),
+  false,
+  'request-only balance analysis must not leak into the default derived state'
+);
 // A member-to-member transfer is not new capital for the family fund and
 // must not dilute the fund-level USD or CNH return rates.
 assert.strictEqual(state.summary.totalDeposit, 1600);

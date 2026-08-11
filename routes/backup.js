@@ -4,7 +4,7 @@ const { mergeSettlementLedger, migrateSettlementLedger } = require('../lib/settl
 
 function registerBackupRoutes(app, deps, utils, tickerUtils) {
   const { readDb, readSettlements, readConfig, writeSnapshot,
-    ensureIndexCache, isValidDate } = deps;
+    writeIndexCache = () => {}, ensureIndexCache, isValidDate } = deps;
   const { toFiniteNumber, findLedgerIssue, rejectLedgerIssue } = utils;
   const { queueTickerRefresh } = tickerUtils;
 
@@ -15,8 +15,9 @@ app.get('/api/backup/export', (req, res) => {
     const config = readConfig();
     const settlements = readSettlements();
     const zip = new AdmZip();
+    const { indexCache: _indexCache, ...coreDb } = db;
     const baseDb = {
-      ...db,
+      ...coreDb,
       events: db.events.filter(event =>
         event.type !== 'performance_settlement' && event.type !== 'performance_settlement_reversal')
     };
@@ -168,6 +169,9 @@ app.post('/api/backup/import', express.raw({
       }
     }
 
+    const importedIndexCache = (indexCache && typeof indexCache === 'object' && !Array.isArray(indexCache))
+      ? indexCache
+      : (currentDb.indexCache || {});
     const db = {
       members: importedMembers.map(member => ({
         id: member.id,
@@ -186,10 +190,7 @@ app.post('/api/backup/import', express.raw({
           ? performanceFee.gpMemberId : null,
         annualRate: 0.06,
         feeRate: 0.25
-      },
-      indexCache: (indexCache && typeof indexCache === 'object' && !Array.isArray(indexCache))
-        ? indexCache
-        : (currentDb.indexCache || {})
+      }
     };
     if (!backupConfig || !Array.isArray(backupConfig.tickers) || backupConfig.tickers.length < 1) {
       return res.status(400).json({ success: false, message: '备份中的标的配置无效（至少需要 1 个标的）。' });
@@ -220,7 +221,7 @@ app.post('/api/backup/import', express.raw({
     } catch (error) {
       return res.status(400).json({ success: false, message: error.message });
     }
-    const projectedDb = mergeSettlementLedger(db, settlementMigration.ledger);
+    const projectedDb = mergeSettlementLedger({ ...db, indexCache: importedIndexCache }, settlementMigration.ledger);
     const ledgerIssue = findLedgerIssue(projectedDb);
     if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
 
@@ -237,6 +238,13 @@ app.post('/api/backup/import', express.raw({
     }
 
     writeSnapshot(db, { tickers: importedTickers }, settlementMigration.ledger);
+    try {
+      writeIndexCache(importedIndexCache);
+    } catch (error) {
+      // Market data is disposable. A cache write failure must not turn a
+      // successful core-ledger restore into an ambiguous failed import.
+      console.error('Failed to restore optional index cache:', error.message);
+    }
     void queueTickerRefresh({ tickers: importedTickers });
 
     // 批量导入触发指数同步

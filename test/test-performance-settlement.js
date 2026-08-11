@@ -493,6 +493,26 @@ approximately(
 );
 approximately(legacyDisposalState.members.lp.shares, legacyDisposalState.members.lp.lpShares, 1e-4);
 
+// Preserve the frozen legacy algorithm even in its pathological boundary:
+// cash shares plus carry can exactly exhaust one lot during a nominally
+// partial disposal. Historical replay retained that zero lot for audit output.
+const legacyExhaustedLotState = calculateStateFromDb({
+  cnhRate: 7.2,
+  members: [{ id: 'lp', name: 'LP' }, { id: 'gp', name: 'GP' }],
+  indexCache: {},
+  events: [
+    event('legacy-zero-d', 'deposit', '2025-01-01', 1, { member: 'lp', amount: 100, cnhAmount: 720 }),
+    event('legacy-zero-v', 'valuation', '2025-01-02', 2, { totalNAV: 180 }),
+    event('legacy-zero-w', 'withdraw', '2025-01-03', 3, {
+      member: 'lp', amount: 162, cnhAmount: 1166.4,
+      performanceFee: { gpMember: 'gp', annualRate: 0, feeRate: 0.25 }
+    })
+  ]
+});
+assert.strictEqual(legacyExhaustedLotState.members.lp.lpLedger.length, 1);
+assert.strictEqual(legacyExhaustedLotState.members.lp.lpLedger[0].shares, 0);
+assert(Number.isNaN(legacyExhaustedLotState.members.lp.lpLedger[0].highWaterNav));
+
 // Reversal records remain auditable ledger events, but must not create a
 // fake point/remark on the economic performance timeline.
 const reversedChartState = calculateStateFromDb({

@@ -109,6 +109,7 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     const exportedConfig = JSON.parse(backupZip.readAsText('data/config.json'));
     const exportedSettlements = JSON.parse(backupZip.readAsText('data/settlements.json'));
     assert.strictEqual(exportedDb.events.length, 3);
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(exportedDb, 'indexCache'), false);
     assert(Array.isArray(exportedConfig.tickers));
     assert.deepStrictEqual(exportedSettlements, { version: 1, records: [] });
 
@@ -208,6 +209,15 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
 
     // Full cross-version lifecycle: import an active v1 settlement, reverse
     // it, confirm v2 on the same date, then export/import without state drift.
+    const legacyBackupIndexCache = {
+      '2025-01-01': {
+        spx: 5881.63,
+        ndx: 21012.17,
+        spxPriceDate: '2024-12-31',
+        ndxPriceDate: '2024-12-31',
+        policy: 'previous'
+      }
+    };
     const crossVersionDb = {
       cnhRate: 7.2,
       benchmarkClosePolicy: 'previous',
@@ -216,7 +226,7 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
         { id: 'me', name: 'LP', roles: { lp: true, gp: false } },
         { id: 'father', name: 'GP', roles: { lp: true, gp: true } }
       ],
-      indexCache: {},
+      indexCache: legacyBackupIndexCache,
       events: [
         { id: 'cross_d', type: 'deposit', member: 'me', amount: 100, cnhAmount: 720, date: '2025-01-01', createdAt: 1 },
         { id: 'cross_v', type: 'valuation', totalNAV: 120, date: '2026-01-01', createdAt: 2 }
@@ -249,6 +259,10 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
       server, 'POST', '/api/backup/import', crossVersionZip.toBuffer()
     );
     assert.strictEqual(crossResponse.status, 200);
+    assert.deepStrictEqual(
+      JSON.parse(fs.readFileSync(path.join(dataDir, 'index-cache.json'), 'utf8')),
+      legacyBackupIndexCache
+    );
     response = await request(server, 'POST', '/api/performance-settlement/reverse-latest', {
       remark: 'cross-version reversal'
     });
@@ -262,7 +276,9 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     const crossExport = await requestBuffer(server, 'GET', '/api/backup/export');
     assert.strictEqual(crossExport.status, 200);
     const crossExportZip = new AdmZip(crossExport.body);
+    const crossExportDb = JSON.parse(crossExportZip.readAsText('data/db.json'));
     const crossLedger = JSON.parse(crossExportZip.readAsText('data/settlements.json'));
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(crossExportDb, 'indexCache'), false);
     assert.deepStrictEqual(
       crossLedger.records.filter(item => item.type === 'performance_settlement').map(item => item.algorithmVersion),
       [1, 3]

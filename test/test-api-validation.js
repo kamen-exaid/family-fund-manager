@@ -15,6 +15,7 @@ function makeApi(now = () => new Date(), initialDb = null) {
   }
 
   let writes = 0;
+  let calculations = 0;
   let settlementLedger = { version: 1, records: [] };
   const db = initialDb ? clone(initialDb) : {
     cnhRate: 7.2,
@@ -25,6 +26,10 @@ function makeApi(now = () => new Date(), initialDb = null) {
     performanceFee: { gpMemberId: 'b', annualRate: 0.06, feeRate: 0.25 },
     events: [{ id: 'deposit', type: 'deposit', member: 'a', amount: 100, cnhAmount: 720, date: '2026-01-10', createdAt: 1 }],
     indexCache: {}
+  };
+  const trackedCalculateState = (...args) => {
+    calculations++;
+    return calculateStateFromDb(...args);
   };
   registerApiRoutes(app, {
     readDb: () => clone(db),
@@ -37,12 +42,12 @@ function makeApi(now = () => new Date(), initialDb = null) {
       db.events = db.events.filter(item => item.type !== 'performance_settlement' && item.type !== 'performance_settlement_reversal');
       db.events.push(...settlementLedger.records.filter(item => item.type === 'performance_settlement' && !reversed.has(item.id)));
     },
-    getState: () => calculateStateFromDb(clone(db)),
+    getState: () => trackedCalculateState(clone(db)),
     readConfig: () => ({ tickers: [] }),
     writeConfig: () => {},
     writeSnapshot: () => {},
     ensureIndexCache: async () => {},
-    calculateStateFromDb,
+    calculateStateFromDb: trackedCalculateState,
     fetchCnhRateFromApi: async () => null,
     isValidDate: date => /^\d{4}-\d{2}-\d{2}$/.test(date),
     normalizeRemark: value => value || '',
@@ -51,7 +56,12 @@ function makeApi(now = () => new Date(), initialDb = null) {
     randomUUID,
     now
   });
-  return { routes, getWrites: () => writes, getDb: () => clone(db) };
+  return {
+    routes,
+    getWrites: () => writes,
+    getCalculations: () => calculations,
+    getDb: () => clone(db)
+  };
 }
 
 async function request(handler, body, params = {}) {
@@ -243,17 +253,21 @@ async function request(handler, body, params = {}) {
   assert.strictEqual((await request(editApi.routes['post:/api/valuation'], {
     totalNAV: 120, date: '2026-01-12'
   })).status, 200);
+  let calculationsBefore = editApi.getCalculations();
   const createdFullExit = await request(editApi.routes['post:/api/transaction'], {
     member: 'a', type: 'withdraw', amount: 120, cnhAmount: 864, date: '2026-01-18'
   });
   assert.strictEqual(createdFullExit.status, 200);
+  assert.strictEqual(editApi.getCalculations() - calculationsBefore, 1, 'full-exit creation must replay once');
   assert.strictEqual(createdFullExit.body.data.fullExit, true);
+  calculationsBefore = editApi.getCalculations();
   const editedToPartial = await request(
     editApi.routes['put:/api/event/:id'],
     { amount: 60, cnhAmount: 432, date: '2026-01-18' },
     { id: createdFullExit.body.data.id }
   );
   assert.strictEqual(editedToPartial.status, 200);
+  assert.strictEqual(editApi.getCalculations() - calculationsBefore, 1, 'withdrawal edit must replay once');
   assert.strictEqual(editedToPartial.body.data.fullExit, undefined);
   assert.strictEqual(editedToPartial.body.data.amount, 60);
   let editedState = calculateStateFromDb(editApi.getDb());
@@ -301,13 +315,60 @@ async function request(handler, body, params = {}) {
   assert.strictEqual(historicalPartialWithdrawal.body.data.amount, 60);
 
   const historicalTransferApi = makeApi(undefined, historicalDb);
+  calculationsBefore = historicalTransferApi.getCalculations();
   const historicalPartialTransfer = await request(
     historicalTransferApi.routes['post:/api/transfer'],
     { fromMember: 'a', toMember: 'b', amount: 60, cnhRate: 7.2, date: '2026-01-11' }
   );
   assert.strictEqual(historicalPartialTransfer.status, 200);
+  assert.strictEqual(historicalTransferApi.getCalculations() - calculationsBefore, 1, 'transfer creation must replay once');
   assert.strictEqual(historicalPartialTransfer.body.data.fullExit, undefined);
   assert.strictEqual(historicalPartialTransfer.body.data.amount, 60);
+
+  // Full-exit detection must use the same two-decimal account value shown by
+  // the API. A user entering the displayed $100.00 should still close an
+  // account whose exact Decimal value is $100.004.
+  const roundedExitApi = makeApi(undefined, {
+    cnhRate: 7.2,
+    members: [
+      { id: 'a', name: 'Alice', roles: { lp: true, gp: false } },
+      { id: 'b', name: 'Bob', roles: { lp: true, gp: true } }
+    ],
+    performanceFee: { gpMemberId: 'b', annualRate: 0.06, feeRate: 0.25 },
+    indexCache: {},
+    events: [
+      { id: 'rounded-d', type: 'deposit', member: 'a', amount: 100, cnhAmount: 720, date: '2026-01-04', createdAt: 1 },
+      { id: 'rounded-v', type: 'valuation', totalNAV: 100.004, date: '2026-01-05', createdAt: 2 }
+    ]
+  });
+  const roundedFullExit = await request(
+    roundedExitApi.routes['post:/api/transaction'],
+    { member: 'a', type: 'withdraw', amount: 100, cnhAmount: 720, date: '2026-01-11' }
+  );
+  assert.strictEqual(roundedFullExit.status, 200);
+  assert.strictEqual(roundedFullExit.body.data.fullExit, true);
+  assert.strictEqual(roundedFullExit.body.data.requestedGrossAmount, 100);
+
+  const roundedOverdrawApi = makeApi(undefined, {
+    cnhRate: 7.2,
+    members: [
+      { id: 'a', name: 'Alice', roles: { lp: true, gp: false } },
+      { id: 'b', name: 'Bob', roles: { lp: true, gp: true } }
+    ],
+    performanceFee: { gpMemberId: 'b', annualRate: 0.06, feeRate: 0.25 },
+    indexCache: {},
+    events: [
+      { id: 'rounded-over-d', type: 'deposit', member: 'a', amount: 100, cnhAmount: 720, date: '2026-01-04', createdAt: 1 },
+      { id: 'rounded-over-v', type: 'valuation', totalNAV: 100.004, date: '2026-01-05', createdAt: 2 }
+    ]
+  });
+  calculationsBefore = roundedOverdrawApi.getCalculations();
+  const roundedOverdraw = await request(
+    roundedOverdrawApi.routes['post:/api/transaction'],
+    { member: 'a', type: 'withdraw', amount: 100.01, cnhAmount: 720.072, date: '2026-01-11' }
+  );
+  assert.strictEqual(roundedOverdraw.status, 400);
+  assert.strictEqual(roundedOverdrawApi.getCalculations() - calculationsBefore, 1, 'rejected withdrawal must replay once');
 
   console.log('API validation regression tests passed.');
 })().catch(error => {

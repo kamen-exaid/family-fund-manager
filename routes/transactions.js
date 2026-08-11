@@ -1,8 +1,8 @@
 function registerTransactionRoutes(app, deps, utils) {
-  const { readDb, writeDb, getState, ensureIndexCache, calculateStateFromDb,
+  const { readDb, writeDb, getState, ensureIndexCache,
     isValidDate, normalizeRemark, randomUUID } = deps;
-  const { toFiniteNumber, isSundayDate, validateValuationDate, findLedgerIssue,
-    rejectLedgerIssue, rejectLockedPeriod, accountValueBeforeEvent, BALANCE_TOLERANCE } = utils;
+  const { toFiniteNumber, isSundayDate, validateValuationDate, calculateLedgerState,
+    findLedgerIssue, rejectLedgerIssue, rejectLockedPeriod, BALANCE_TOLERANCE } = utils;
 
 app.get('/api/state', (req, res) => {
   try {
@@ -81,28 +81,24 @@ app.post('/api/transaction', (req, res) => {
       };
     }
 
+    db.events.push(newEvent);
+    const validationState = calculateLedgerState(db, {
+      autoFullExitEventIds: type === 'withdraw' ? [newEvent.id] : []
+    });
+    const computedEvent = validationState.events.find(event => event.id === newEvent.id);
     if (type === 'withdraw') {
-      const availableValue = accountValueBeforeEvent(
-        { ...db, events: [...db.events, newEvent] },
-        newEvent,
-        member
-      );
+      const availableValue = computedEvent?._accountValueBefore || 0;
       if (parsedAmount > availableValue + BALANCE_TOLERANCE) {
         return res.status(400).json({
           success: false,
           message: `余额不足！${memberObj.name}在 ${date} 交易前的资产为 $${availableValue.toFixed(2)}，无法提取 $${parsedAmount.toFixed(2)}`
         });
       }
-      if (Math.abs(parsedAmount - availableValue) <= Math.max(BALANCE_TOLERANCE, availableValue * 1e-10)) {
-        newEvent.fullExit = true;
-      }
     }
-
-    db.events.push(newEvent);
-    const ledgerIssue = findLedgerIssue(db);
+    const ledgerIssue = findLedgerIssue(db, validationState);
     if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
-    if (newEvent.fullExit) {
-      const computedEvent = calculateStateFromDb(JSON.parse(JSON.stringify(db))).events.find(event => event.id === newEvent.id);
+    if (computedEvent?._fullExit) {
+      newEvent.fullExit = true;
       newEvent.requestedGrossAmount = parsedAmount;
       newEvent.amount = computedEvent._actualAmount;
       newEvent.cnhAmount = computedEvent._cnhAmountComputed;
@@ -155,7 +151,8 @@ app.post('/api/valuation', (req, res) => {
     };
 
     db.events.push(newEvent);
-    const ledgerIssue = findLedgerIssue(db);
+    const validationState = calculateLedgerState(db);
+    const ledgerIssue = findLedgerIssue(db, validationState);
     if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
     writeDb(db);
 
@@ -235,26 +232,22 @@ app.post('/api/transfer', (req, res) => {
       };
     }
 
-    const availableValue = accountValueBeforeEvent(
-      { ...db, events: [...db.events, newEvent] },
-      newEvent,
-      fromMember
-    );
+    db.events.push(newEvent);
+    const validationState = calculateLedgerState(db, {
+      autoFullExitEventIds: [newEvent.id]
+    });
+    const computedEvent = validationState.events.find(event => event.id === newEvent.id);
+    const availableValue = computedEvent?._accountValueBefore || 0;
     if (parsedAmount > availableValue + BALANCE_TOLERANCE) {
       return res.status(400).json({
         success: false,
         message: `出让方余额不足！${fromObj.name}在 ${date} 交易前的资产为 $${availableValue.toFixed(2)}，无法划转 $${parsedAmount.toFixed(2)}`
       });
     }
-    if (Math.abs(parsedAmount - availableValue) <= Math.max(BALANCE_TOLERANCE, availableValue * 1e-10)) {
-      newEvent.fullExit = true;
-    }
-
-    db.events.push(newEvent);
-    const ledgerIssue = findLedgerIssue(db);
+    const ledgerIssue = findLedgerIssue(db, validationState);
     if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
-    if (newEvent.fullExit) {
-      const computedEvent = calculateStateFromDb(JSON.parse(JSON.stringify(db))).events.find(event => event.id === newEvent.id);
+    if (computedEvent?._fullExit) {
+      newEvent.fullExit = true;
       newEvent.requestedGrossAmount = parsedAmount;
       newEvent.amount = computedEvent._actualAmount;
       newEvent.cnhAmount = computedEvent._cnhAmountComputed;
@@ -382,18 +375,6 @@ app.put('/api/event/:id', (req, res) => {
         }
       }
 
-      if (event.type === 'withdraw') {
-        const validationDb = JSON.parse(JSON.stringify(db));
-        const validationState = calculateStateFromDb(validationDb);
-        const validationEvent = validationState.events.find(e => e.id === eventId);
-        const actualAmount = validationEvent ? (validationEvent._grossAmount ?? validationEvent._actualAmount ?? 0) : 0;
-        if (actualAmount + 0.000001 < event.amount) {
-          return res.status(400).json({
-            success: false,
-            message: `余额不足：该修改会导致实际可出金 $${actualAmount.toFixed(2)}，低于填写金额 $${event.amount.toFixed(2)}`
-          });
-        }
-      }
     } else if (event.type === 'valuation') {
       const { totalNAV, date, remark } = req.body;
 
@@ -471,33 +452,31 @@ app.put('/api/event/:id', (req, res) => {
         }
       }
 
-      const validationDb = JSON.parse(JSON.stringify(db));
-      const validationState = calculateStateFromDb(validationDb);
-      const validationEvent = validationState.events.find(e => e.id === eventId);
-      const actualAmount = validationEvent ? (validationEvent._grossAmount ?? validationEvent._actualAmount ?? 0) : 0;
-      if (actualAmount + 0.000001 < event.amount) {
+    }
+
+    const validationState = calculateLedgerState(db, {
+      autoFullExitEventIds: event.type === 'withdraw' || event.type === 'transfer'
+        ? [event.id]
+        : []
+    });
+    const computedEvent = validationState.events.find(item => item.id === event.id);
+    if (event.type === 'withdraw' || event.type === 'transfer') {
+      const actualAmount = computedEvent
+        ? (computedEvent._grossAmount ?? computedEvent._actualAmount ?? 0)
+        : 0;
+      if (actualAmount + BALANCE_TOLERANCE < event.amount) {
         return res.status(400).json({
           success: false,
-          message: `出让方余额不足：该修改会导致实际可转让 $${actualAmount.toFixed(2)}，低于填写金额 $${event.amount.toFixed(2)}`
+          message: `${event.type === 'withdraw' ? '余额不足' : '出让方余额不足'}：该修改会导致实际可${event.type === 'withdraw' ? '出金' : '转让'} $${actualAmount.toFixed(2)}，低于填写金额 $${event.amount.toFixed(2)}`
         });
       }
+      if (computedEvent?._fullExit) event.fullExit = true;
     }
 
-    if (event.type === 'withdraw' || event.type === 'transfer') {
-      const ownerId = event.type === 'withdraw' ? event.member : event.fromMember;
-      const availableValue = accountValueBeforeEvent(db, event, ownerId);
-      const fullExit = Math.abs(event.amount - availableValue) <= Math.max(
-        BALANCE_TOLERANCE,
-        availableValue * 1e-10
-      );
-      if (fullExit) event.fullExit = true;
-    }
-
-    const ledgerIssue = findLedgerIssue(db);
+    const ledgerIssue = findLedgerIssue(db, validationState);
     if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
 
     if (event.fullExit === true) {
-      const computedEvent = calculateStateFromDb(JSON.parse(JSON.stringify(db))).events.find(item => item.id === event.id);
       event.requestedGrossAmount = event.amount;
       event.amount = computedEvent._actualAmount;
       event.cnhAmount = computedEvent._cnhAmountComputed;

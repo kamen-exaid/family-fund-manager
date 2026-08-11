@@ -57,9 +57,15 @@ function registerApiRoutes(app, deps) {
   // The calculator caps underfunded replay events for display safety. Before
   // persisting a mutation, reject any ledger where requested and settled amounts
   // would differ instead.
-  function findLedgerIssue(db) {
+  function calculateLedgerState(db, options = {}) {
     const validationDb = JSON.parse(JSON.stringify(db));
-    const validationState = calculateStateFromDb(validationDb);
+    return calculateStateFromDb(validationDb, {
+      includeDisposalLotDetails: false,
+      ...options
+    });
+  }
+
+  function findLedgerIssue(db, validationState = calculateLedgerState(db)) {
     const valuationWithoutShares = validationState.events.find(event =>
       event.type === 'valuation' && event._hasSharesAtValuation === false
     );
@@ -75,17 +81,6 @@ function registerApiRoutes(app, deps) {
     );
     if (unpaidFee) return { type: 'performance_fee_balance', event: unpaidFee };
     return insufficientBalance ? { type: 'insufficient_balance', event: insufficientBalance } : null;
-  }
-
-  function accountValueBeforeEvent(db, event, memberId) {
-    const validationDb = JSON.parse(JSON.stringify(db));
-    const orderedEvents = [...validationDb.events].sort((a, b) => {
-      const dateCompare = a.date.localeCompare(b.date);
-      return dateCompare !== 0 ? dateCompare : a.createdAt - b.createdAt;
-    });
-    const eventIndex = orderedEvents.findIndex(item => item.id === event.id);
-    validationDb.events = eventIndex < 0 ? orderedEvents : orderedEvents.slice(0, eventIndex);
-    return calculateStateFromDb(validationDb).members[memberId]?.currentValue || 0;
   }
 
   function rejectLedgerIssue(res, issue) {
@@ -124,7 +119,7 @@ function registerApiRoutes(app, deps) {
 
   const utils = {
     BALANCE_TOLERANCE, toFiniteNumber, isSundayDate, latestValuationDate,
-    validateValuationDate, findLedgerIssue, accountValueBeforeEvent,
+    validateValuationDate, calculateLedgerState, findLedgerIssue,
     rejectLedgerIssue, latestSettlementDate, rejectLockedPeriod
   };
 

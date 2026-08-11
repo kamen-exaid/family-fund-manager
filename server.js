@@ -42,7 +42,10 @@ let _stateDirty = true;    // 脏标记：数据变更后标记缓存失效
 let _settlementLedgerValidated = false;
 
 function readDb() {
-  let db = storage.readDb();
+  let db = {
+    ...storage.readDb(),
+    indexCache: storage.readIndexCache()
+  };
   let settlementLedger = storage.readSettlements();
   if (!_settlementLedgerValidated) {
     const legacy = db.events.filter(event =>
@@ -85,6 +88,12 @@ function writeDb(dbData) {
     _stateDirty = true;
     throw error;
   }
+}
+
+function writeIndexCache(cacheData) {
+  storage.writeIndexCache(cacheData);
+  _stateCache = null;
+  _stateDirty = true;
 }
 
 function readSettlements() {
@@ -150,8 +159,7 @@ const {
  */
 async function ensureIndexCache(dates) {
   if (!dates || dates.length === 0) return;
-  const db = readDb();
-  if (!db.indexCache) db.indexCache = {};
+  const indexCache = storage.readIndexCache();
   const benchmarkClosePolicy = 'previous';
   const isValidSourceDate = (sourceDate, navDate) => sourceDate < navDate;
 
@@ -162,7 +170,7 @@ async function ensureIndexCache(dates) {
   const anchorDates = dates.map(date => `${date.slice(0, 4)}-01-01`);
   const uniqueDates = [...new Set([...dates, ...anchorDates])];
   const missingDates = uniqueDates.filter(dateStr => {
-    const cached = db.indexCache[dateStr];
+    const cached = indexCache[dateStr];
     return !cached ||
       cached.policy !== benchmarkClosePolicy ||
       !cached.spxPriceDate || !isValidSourceDate(cached.spxPriceDate, dateStr) ||
@@ -202,16 +210,15 @@ async function ensureIndexCache(dates) {
     });
 
     if (Object.keys(fetchedUpdates).length > 0) {
-      // Re-read before writing so a slow background sync never overwrites newer ledger edits.
-      const latestDb = readDb();
-      const latestPolicy = 'previous';
-      if (latestPolicy !== benchmarkClosePolicy) return;
-      latestDb.indexCache = {
-        ...(latestDb.indexCache || {}),
+      // Re-read the dedicated cache so concurrent background refreshes merge
+      // their results without touching or backing up the financial ledger.
+      const latestCache = storage.readIndexCache();
+      const mergedCache = {
+        ...latestCache,
         ...fetchedUpdates
       };
       console.log(`[Yahoo Sync Worker] Successfully synced indices for dates:`, Object.keys(fetchedUpdates));
-      writeDb(latestDb);
+      writeIndexCache(mergedCache);
     }
   } catch (err) {
     console.error(`[Yahoo Sync Worker Error]:`, err.message);
@@ -241,6 +248,8 @@ registerApiRoutes(app, {
   readTickerCache: storage.readTickerCache,
   writeTickerCache: storage.writeTickerCache,
   writeSnapshot,
+  readIndexCache: storage.readIndexCache,
+  writeIndexCache,
   ensureIndexCache: EXTERNAL_SYNC_ENABLED ? ensureIndexCache : () => {},
   calculateStateFromDb,
   fetchCnhRateFromApi,
