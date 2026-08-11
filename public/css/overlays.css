@@ -320,7 +320,7 @@ select:focus-visible {
   border-radius: 5px;
   letter-spacing: 0.05em;
   vertical-align: middle;
-  font-family: 'Outfit', monospace;
+  font-family: 'Outfit Variable', 'Outfit', monospace;
   line-height: 1.5;
   transition: background 0.2s, border-color 0.2s;
 }

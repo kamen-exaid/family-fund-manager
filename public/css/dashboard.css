@@ -34,7 +34,7 @@
 }
 
 .panel-title {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-size: 1.02rem !important;
   font-weight: 600 !important;
   display: flex;
@@ -227,7 +227,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--color-text-muted);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter Variable', 'Inter', sans-serif;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0;

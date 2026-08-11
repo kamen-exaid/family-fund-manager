@@ -76,7 +76,7 @@
   min-width: 176px;
   max-width: 260px;
   padding: 13px 14px;
-  font-family: Inter, sans-serif;
+  font-family: 'Inter Variable', Inter, sans-serif;
   transform: translateY(-50%);
   white-space: nowrap;
 }
@@ -89,7 +89,7 @@
 
 .chart-external-tooltip-title {
   margin-bottom: 8px;
-  font-family: Outfit, sans-serif;
+  font-family: 'Outfit Variable', Outfit, sans-serif;
   font-size: 0.8rem;
   font-weight: 700;
 }
@@ -137,7 +137,7 @@
 
 .chart-external-tooltip-row strong {
   color: var(--color-text-main);
-  font-family: Outfit, sans-serif;
+  font-family: 'Outfit Variable', Outfit, sans-serif;
   font-size: 0.74rem;
 }
 

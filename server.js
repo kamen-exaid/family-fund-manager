@@ -9,6 +9,71 @@ const PORT = process.env.PORT || 3000;
 const EXTERNAL_SYNC_ENABLED = process.env.FUND_EXTERNAL_SYNC !== '0';
 const MAX_REMARK_LENGTH = 500;
 const MAX_MEMBER_NAME_LENGTH = 50;
+const DEPENDENCIES = require('./package.json').dependencies;
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "script-src-attr 'none'",
+  "style-src 'self' 'unsafe-inline'",
+  "style-src-elem 'self'",
+  "style-src-attr 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "frame-src 'none'",
+  "media-src 'none'",
+  "worker-src 'none'",
+  "manifest-src 'none'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'"
+].join('; ');
+
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+});
+
+const IMMUTABLE_ASSET_OPTIONS = {
+  immutable: true,
+  index: false,
+  maxAge: '1y'
+};
+const vendorAssets = [
+  {
+    url: `/vendor/chart.js/${DEPENDENCIES['chart.js']}/chart.umd.min.js`,
+    file: path.join(path.dirname(require.resolve('chart.js')), 'chart.umd.min.js')
+  },
+  {
+    url: `/vendor/sortablejs/${DEPENDENCIES.sortablejs}/Sortable.min.js`,
+    file: require.resolve('sortablejs/Sortable.min.js')
+  },
+  {
+    url: `/vendor/fonts/inter/${DEPENDENCIES['@fontsource-variable/inter']}/index.css`,
+    file: require.resolve('@fontsource-variable/inter/index.css')
+  },
+  {
+    url: `/vendor/fonts/outfit/${DEPENDENCIES['@fontsource-variable/outfit']}/index.css`,
+    file: require.resolve('@fontsource-variable/outfit/index.css')
+  }
+];
+
+vendorAssets.forEach(({ url, file }) => {
+  app.get(url, (req, res) => res.sendFile(file, {
+    headers: { 'Cache-Control': 'public, max-age=31536000, immutable' }
+  }));
+});
+
+[
+  ['inter', '@fontsource-variable/inter'],
+  ['outfit', '@fontsource-variable/outfit']
+].forEach(([family, packageName]) => {
+  const version = DEPENDENCIES[packageName];
+  const filesDirectory = path.join(path.dirname(require.resolve(`${packageName}/index.css`)), 'files');
+  app.use(`/vendor/fonts/${family}/${version}/files`, express.static(filesDirectory, IMMUTABLE_ASSET_OPTIONS));
+});
 
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));

@@ -214,7 +214,7 @@ body.theme-dark .segmented-control::before {
   border-radius: 8px;
   border: 1px solid var(--color-panel-border);
   gap: 8px;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-size: 0.8rem;
   font-weight: 500;
   line-height: 1;
@@ -273,14 +273,14 @@ body.theme-light .cnh-rate-config {
 }
 
 .amount-usd {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-weight: 600;
   color: var(--color-text-main);
   font-size: 0.85rem;
 }
 
 .amount-cnh {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-size: 0.72rem;
   color: var(--color-text-muted);
 }
@@ -437,7 +437,7 @@ body.theme-light .btn-sync-rate:hover {
   border-radius: 50%;
   background: rgba(var(--color-primary-rgb), 0.045);
   color: var(--color-text-muted);
-  font: 700 0.7rem/1 'Outfit', sans-serif;
+  font: 700 0.7rem/1 'Outfit Variable', 'Outfit', sans-serif;
   cursor: help;
 }
 
@@ -456,7 +456,7 @@ body.theme-light .btn-sync-rate:hover {
 }
 
 .benchmark-policy-tooltip strong {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-size: 0.76rem;
   line-height: 1.25;
 }

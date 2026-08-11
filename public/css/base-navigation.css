@@ -3,7 +3,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 body {
@@ -120,7 +120,7 @@ html {
 }
 
 .sidebar-brand strong {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-size: 1.05rem;
   font-weight: 750;
   line-height: 1;
@@ -146,7 +146,7 @@ html {
   border-radius: 5px;
   background: rgba(var(--color-primary-rgb), 0.09);
   color: var(--color-primary);
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-size: 0.54rem;
   font-weight: 800;
   letter-spacing: 0.03em;
@@ -408,7 +408,7 @@ body.theme-dark .app-sidebar {
 
 /* 高端数字字体 */
 .font-outfit {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-weight: 700;
   letter-spacing: -0.5px;
 }
@@ -500,7 +500,7 @@ body.theme-dark .app-sidebar {
 
 .welcome-copy h1 {
   color: var(--color-heading);
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-size: clamp(1.35rem, 1.6vw, 1.7rem);
   line-height: 1.1;
   letter-spacing: -0.04em;
@@ -526,7 +526,7 @@ body.theme-dark .app-sidebar {
 }
 
 .logo-text h1 {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
   background: linear-gradient(90deg, var(--color-text-main), var(--color-text-muted));
@@ -550,7 +550,7 @@ body.theme-dark .app-sidebar {
 }
 
 .system-time {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-variant-numeric: tabular-nums;
   /* Monospaced numbers to prevent digit width jitter */
   font-size: 0.8rem;

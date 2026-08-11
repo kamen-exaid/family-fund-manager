@@ -349,7 +349,7 @@ input:focus,
 .input-wrapper input {
   padding-left: 28px !important;
   width: 100%;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit Variable', 'Outfit', sans-serif;
   font-size: 1.1rem;
   font-weight: 600;
 }
