@@ -1,12 +1,14 @@
 const { DEFAULT_PERFORMANCE_FEE_CONFIG } = require('../lib/performance-fee-policy');
 
+const { handleApiError } = require('../lib/api-errors');
+
 function registerMemberRoutes(app, deps) {
   const { readDb, writeDb, readSettlements, normalizeMemberName, randomUUID } = deps;
 
 // 7. 家庭成员增删改 API 路由
 
 // 获取成员列表
-app.get('/api/members', (req, res) => {
+app.get('/api/members', (req, res, next) => {
   try {
     const db = readDb();
     res.json({
@@ -18,12 +20,12 @@ app.get('/api/members', (req, res) => {
       }))
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
 // 新增成员
-app.post('/api/members', (req, res) => {
+app.post('/api/members', (req, res, next) => {
   try {
     const { name } = req.body;
     const db = readDb();
@@ -48,12 +50,12 @@ app.post('/api/members', (req, res) => {
 
     res.json({ success: true, message: '添加新成员成功', data: newMember });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
 // 修改成员重命名
-app.put('/api/members/:id', (req, res) => {
+app.put('/api/members/:id', (req, res, next) => {
   try {
     const memberId = req.params.id;
     const { name } = req.body;
@@ -79,11 +81,11 @@ app.put('/api/members/:id', (req, res) => {
 
     res.json({ success: true, message: '成员姓名修改成功' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
-app.put('/api/members/:id/roles', (req, res) => {
+app.put('/api/members/:id/roles', (req, res, next) => {
   try {
     const db = readDb();
     const member = db.members.find(item => item.id === req.params.id);
@@ -99,12 +101,12 @@ app.put('/api/members/:id/roles', (req, res) => {
     writeDb(db);
     res.json({ success: true, message: '唯一GP已更新。' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
 // 删除成员（包含出资安全过滤）
-app.delete('/api/members/:id', (req, res) => {
+app.delete('/api/members/:id', (req, res, next) => {
   try {
     const memberId = req.params.id;
     const db = readDb();
@@ -132,7 +134,7 @@ app.delete('/api/members/:id', (req, res) => {
 
     res.json({ success: true, message: `成员【${removed.name}】已成功移除`, data: removed });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 }

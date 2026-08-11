@@ -1,22 +1,24 @@
 const { createDisposalFeeSnapshot } = require('../lib/performance-fee-policy');
+const { handleApiError } = require('../lib/api-errors');
 
 function registerTransactionRoutes(app, deps, utils) {
   const { readDb, writeDb, getState, ensureIndexCache,
     isValidDate, normalizeRemark, randomUUID } = deps;
   const { toFiniteNumber, isSundayDate, validateValuationDate, calculateLedgerState,
-    findLedgerIssue, rejectLedgerIssue, rejectLockedPeriod, BALANCE_TOLERANCE } = utils;
+    findLedgerIssue, rejectLedgerIssue, rejectLockedPeriod, BALANCE_TOLERANCE,
+    peekEventSequence, commitEventSequence } = utils;
 
-app.get('/api/state', (req, res) => {
+app.get('/api/state', (req, res, next) => {
   try {
     const state = getState();
     res.json({ success: true, data: state });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
 // 2. 录入出入金记录
-app.post('/api/transaction', (req, res) => {
+app.post('/api/transaction', (req, res, next) => {
   try {
     const { member, type, amount, cnhAmount, date, remark } = req.body;
     const db = readDb();
@@ -72,7 +74,8 @@ app.post('/api/transaction', (req, res) => {
       cnhAmount: parsedCnhAmount,
       date,
       remark: normalizedRemark,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      sequenceNumber: peekEventSequence(db)
     };
     const performanceFeeSnapshot = type === 'withdraw'
       ? createDisposalFeeSnapshot(db.performanceFee)
@@ -101,19 +104,21 @@ app.post('/api/transaction', (req, res) => {
       newEvent.amount = computedEvent._actualAmount;
       newEvent.cnhAmount = computedEvent._cnhAmountComputed;
     }
+    db.lastEventSequence = newEvent.sequenceNumber;
     writeDb(db);
+    commitEventSequence(newEvent.sequenceNumber);
 
     // 静默后台触发指数同步
     ensureIndexCache([date]);
 
     res.json({ success: true, message: '交易记录登记成功', data: newEvent });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
 // 3. 录入估值更新记录
-app.post('/api/valuation', (req, res) => {
+app.post('/api/valuation', (req, res, next) => {
   try {
     const { totalNAV, date, remark } = req.body;
 
@@ -145,26 +150,29 @@ app.post('/api/valuation', (req, res) => {
       totalNAV: parsedNAV,
       date,
       remark: normalizedRemark,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      sequenceNumber: peekEventSequence(db)
     };
 
     db.events.push(newEvent);
     const validationState = calculateLedgerState(db);
     const ledgerIssue = findLedgerIssue(db, validationState);
     if (ledgerIssue) return rejectLedgerIssue(res, ledgerIssue);
+    db.lastEventSequence = newEvent.sequenceNumber;
     writeDb(db);
+    commitEventSequence(newEvent.sequenceNumber);
 
     // 静默后台触发指数同步
     ensureIndexCache([date]);
 
     res.json({ success: true, message: '资产估值更新成功', data: newEvent });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
 // 3.5. 内部份额转让划转
-app.post('/api/transfer', (req, res) => {
+app.post('/api/transfer', (req, res, next) => {
   try {
     const { fromMember, toMember, amount, cnhRate, date, remark } = req.body;
     const db = readDb();
@@ -219,7 +227,8 @@ app.post('/api/transfer', (req, res) => {
       cnhAmount: parsedAmount * parsedRate,
       date,
       remark: normalizedRemark,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      sequenceNumber: peekEventSequence(db)
     };
     const performanceFeeSnapshot = createDisposalFeeSnapshot(db.performanceFee);
     if (performanceFeeSnapshot) newEvent.performanceFee = performanceFeeSnapshot;
@@ -244,18 +253,20 @@ app.post('/api/transfer', (req, res) => {
       newEvent.amount = computedEvent._actualAmount;
       newEvent.cnhAmount = computedEvent._cnhAmountComputed;
     }
+    db.lastEventSequence = newEvent.sequenceNumber;
     writeDb(db);
+    commitEventSequence(newEvent.sequenceNumber);
 
     // 静默后台触发指数同步
     ensureIndexCache([date]);
 
     res.json({ success: true, message: '内部份额转让登记成功', data: newEvent });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
-app.delete('/api/event/:id', (req, res) => {
+app.delete('/api/event/:id', (req, res, next) => {
   try {
     const eventId = req.params.id;
     const db = readDb();
@@ -280,12 +291,12 @@ app.delete('/api/event/:id', (req, res) => {
       data: removedEvent
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
 // 4.5. 修改事件（支持交易/估值在线修改，一键级联重算）
-app.put('/api/event/:id', (req, res) => {
+app.put('/api/event/:id', (req, res, next) => {
   try {
     const eventId = req.params.id;
     const db = readDb();
@@ -481,7 +492,7 @@ app.put('/api/event/:id', (req, res) => {
 
     res.json({ success: true, message: '账目记录修改成功，系统已自动重算', data: event });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 }

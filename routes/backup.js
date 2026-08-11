@@ -8,6 +8,8 @@ const {
   isValidDisposalFeeSnapshot
 } = require('../lib/performance-fee-policy');
 const { mergeSettlementLedger, migrateSettlementLedger } = require('../lib/settlement-ledger');
+const { hasSequenceNumber, maxSequenceNumber, migrateEventSequences } = require('../lib/event-order');
+const { handleApiError } = require('../lib/api-errors');
 
 function registerBackupRoutes(app, deps, utils, tickerUtils) {
   const { readDb, readSettlements, readConfig, writeSnapshot,
@@ -16,7 +18,7 @@ function registerBackupRoutes(app, deps, utils, tickerUtils) {
   const { queueTickerRefresh } = tickerUtils;
 
 // 5. 数据一键导出备份：完整打包 data/db.json 与 data/config.json
-app.get('/api/backup/export', (req, res) => {
+app.get('/api/backup/export', (req, res, next) => {
   try {
     const db = readDb();
     const config = readConfig();
@@ -37,7 +39,7 @@ app.get('/api/backup/export', (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=family_fund_backup_${date}.zip`);
     res.send(zip.toBuffer());
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
@@ -45,7 +47,7 @@ app.get('/api/backup/export', (req, res) => {
 app.post('/api/backup/import', express.raw({
   type: ['application/zip', 'application/octet-stream'],
   limit: '10mb'
-}), (req, res) => {
+}), (req, res, next) => {
   try {
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
       return res.status(400).json({ success: false, message: '请选择有效的 ZIP 备份文件。' });
@@ -83,7 +85,8 @@ app.post('/api/backup/import', express.raw({
       return res.status(400).json({ success: false, message: 'ZIP 中的 JSON 数据损坏或无法解析。' });
     }
 
-    const { events, members, cnhRate, indexCache, benchmarkClosePolicy, performanceFee } = backupDb || {};
+    const { events, members, cnhRate, indexCache, benchmarkClosePolicy, performanceFee,
+      lastEventSequence: importedDbHighWater } = backupDb || {};
     if (!Array.isArray(events)) {
       return res.status(400).json({ success: false, message: '导入的数据格式不正确，缺少 events 数组' });
     }
@@ -114,10 +117,15 @@ app.post('/api/backup/import', express.raw({
     if (events.length > 10000) {
       return res.status(400).json({ success: false, message: '导入事件数量超限（最大 10000 条）' });
     }
+    if (importedDbHighWater !== undefined &&
+        (!Number.isSafeInteger(importedDbHighWater) || importedDbHighWater < 0)) {
+      return res.status(400).json({ success: false, message: '备份中的事件顺序号高水位无效。' });
+    }
     const eventIds = new Set();
     for (let e of events) {
       if (!e || typeof e !== 'object' || typeof e.id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(e.id) || eventIds.has(e.id) ||
-          !e.type || !e.date || !Number.isFinite(e.createdAt)) {
+          !e.type || !e.date || !Number.isFinite(e.createdAt) ||
+          (e.sequenceNumber !== undefined && !hasSequenceNumber(e))) {
         return res.status(400).json({ success: false, message: '导入的数据中存在格式不完整的事件项' });
       }
       eventIds.add(e.id);
@@ -208,14 +216,17 @@ app.post('/api/backup/import', express.raw({
     if (!backupConfig || !Array.isArray(backupConfig.tickers) || backupConfig.tickers.length < 1) {
       return res.status(400).json({ success: false, message: '备份中的标的配置无效（至少需要 1 个标的）。' });
     }
-    if (backupSettlements?.version !== 1 || !Array.isArray(backupSettlements.records)) {
+    if (backupSettlements?.version !== 1 || !Array.isArray(backupSettlements.records) ||
+        (backupSettlements.lastEventSequence !== undefined &&
+         (!Number.isSafeInteger(backupSettlements.lastEventSequence) || backupSettlements.lastEventSequence < 0))) {
       return res.status(400).json({ success: false, message: '备份中的独立结算账本格式无效。' });
     }
     const settlementIds = new Set();
     for (const record of backupSettlements.records) {
       if (!record || typeof record.id !== 'string' || settlementIds.has(record.id) ||
           !['performance_settlement', 'performance_settlement_reversal'].includes(record.type) ||
-          !isValidDate(record.date) || !Number.isFinite(record.createdAt)) {
+          !isValidDate(record.date) || !Number.isFinite(record.createdAt) ||
+          (record.sequenceNumber !== undefined && !hasSequenceNumber(record))) {
         return res.status(400).json({ success: false, message: '独立结算账本包含无效或重复记录。' });
       }
       if (record.type === 'performance_settlement' &&
@@ -230,6 +241,19 @@ app.post('/api/backup/import', express.raw({
     }
     let settlementMigration;
     try {
+      if (!settlementsEntry) {
+        // Legacy backups embedded settlement records inside events. Migrate
+        // that original array before splitting it, otherwise equal-timestamp
+        // normal and settlement events could lose their interleaving.
+        migrateEventSequences(events);
+      }
+      migrateEventSequences(db.events, backupSettlements.records);
+      const importedHighWater = Math.max(
+        importedDbHighWater || 0,
+        backupSettlements.lastEventSequence || 0,
+        maxSequenceNumber(db.events, backupSettlements.records)
+      );
+      if (importedHighWater > 0) db.lastEventSequence = importedHighWater;
       settlementMigration = migrateSettlementLedger(db, backupSettlements);
     } catch (error) {
       return res.status(400).json({ success: false, message: error.message });
@@ -270,7 +294,7 @@ app.post('/api/backup/import', express.raw({
       : '';
     res.json({ success: true, message: `ZIP 快照已恢复，账目、结算与系统配置均已原子覆盖并重新计算${migrationNotice}。` });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 }

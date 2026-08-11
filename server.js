@@ -3,6 +3,14 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 const storage = require('./lib/storage');
 const { mergeSettlementLedger, migrateSettlementLedger } = require('./lib/settlement-ledger');
+const { maxSequenceNumber, migrateEventSequences } = require('./lib/event-order');
+const {
+  InputError,
+  NotFoundError,
+  StorageError,
+  normalizeApiErrorResponses,
+  apiErrorHandler
+} = require('./lib/api-errors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -75,6 +83,7 @@ vendorAssets.forEach(({ url, file }) => {
   app.use(`/vendor/fonts/${family}/${version}/files`, express.static(filesDirectory, IMMUTABLE_ASSET_OPTIONS));
 });
 
+app.use('/api', normalizeApiErrorResponses);
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -86,17 +95,17 @@ function isValidDate(date) {
 
 function normalizeRemark(remark, fallback = '') {
   if (remark === undefined || remark === null) return fallback;
-  if (typeof remark !== 'string') throw new Error('备注必须为文本。');
+  if (typeof remark !== 'string') throw new InputError('备注必须为文本。');
   const normalized = remark.trim();
-  if (normalized.length > MAX_REMARK_LENGTH) throw new Error(`备注不能超过 ${MAX_REMARK_LENGTH} 个字符。`);
+  if (normalized.length > MAX_REMARK_LENGTH) throw new InputError(`备注不能超过 ${MAX_REMARK_LENGTH} 个字符。`);
   return normalized;
 }
 
 function normalizeMemberName(name) {
-  if (typeof name !== 'string') throw new Error('成员姓名必须为文本。');
+  if (typeof name !== 'string') throw new InputError('成员姓名必须为文本。');
   const normalized = name.trim();
   if (!normalized || normalized.length > MAX_MEMBER_NAME_LENGTH) {
-    throw new Error(`成员姓名长度必须在 1 到 ${MAX_MEMBER_NAME_LENGTH} 个字符之间。`);
+    throw new InputError(`成员姓名长度必须在 1 到 ${MAX_MEMBER_NAME_LENGTH} 个字符之间。`);
   }
   return normalized;
 }
@@ -106,7 +115,7 @@ let _stateCache = null;    // calculateState() 结果缓存
 let _stateDirty = true;    // 脏标记：数据变更后标记缓存失效
 let _settlementLedgerValidated = false;
 
-function readDb() {
+function readDbUnsafe() {
   let db = {
     ...storage.readDb(),
     indexCache: storage.readIndexCache()
@@ -117,7 +126,11 @@ function readDb() {
       event.type === 'performance_settlement' || event.type === 'performance_settlement_reversal'
     );
     let movedLegacyRecords = false;
+    let orderMigration = { migrated: false };
     if (legacy.length && settlementLedger.records.length === 0) {
+      // Preserve the exact interleaving of legacy normal and settlement events
+      // before moving settlement records to their dedicated ledger.
+      orderMigration = migrateEventSequences(db.events);
       settlementLedger = { version: 1, records: legacy };
       db = {
         ...db,
@@ -127,14 +140,38 @@ function readDb() {
       };
       movedLegacyRecords = true;
     }
+    const combinedOrderMigration = migrateEventSequences(db.events, settlementLedger.records);
+    const dbHighWater = db.lastEventSequence ?? 0;
+    const settlementHighWater = settlementLedger.lastEventSequence ?? 0;
+    if (!Number.isSafeInteger(dbHighWater) || dbHighWater < 0 ||
+        !Number.isSafeInteger(settlementHighWater) || settlementHighWater < 0) {
+      throw new Error('账本包含无效的事件顺序号高水位。');
+    }
+    const derivedHighWater = Math.max(
+      dbHighWater,
+      settlementHighWater,
+      maxSequenceNumber(db.events, settlementLedger.records)
+    );
+    const highWaterMigrated = derivedHighWater > 0 && db.lastEventSequence !== derivedHighWater;
+    if (highWaterMigrated) db.lastEventSequence = derivedHighWater;
     const migration = migrateSettlementLedger(db, settlementLedger);
     settlementLedger = migration.ledger;
-    if (movedLegacyRecords || migration.migrated) {
+    if (movedLegacyRecords || orderMigration.migrated || combinedOrderMigration.migrated ||
+        highWaterMigrated || migration.migrated) {
       storage.writeSnapshot(db, storage.readConfig(), settlementLedger);
     }
     _settlementLedgerValidated = true;
   }
   return mergeSettlementLedger(db, settlementLedger);
+}
+
+function readDb() {
+  try {
+    return readDbUnsafe();
+  } catch (error) {
+    if (error instanceof StorageError) throw error;
+    throw new StorageError('数据库读取失败。', { cause: error });
+  }
 }
 
 function writeDb(dbData) {
@@ -151,18 +188,26 @@ function writeDb(dbData) {
     _settlementLedgerValidated = false;
     _stateCache = null;
     _stateDirty = true;
-    throw error;
+    throw new StorageError('数据库写入失败。', { cause: error });
   }
 }
 
 function writeIndexCache(cacheData) {
-  storage.writeIndexCache(cacheData);
-  _stateCache = null;
-  _stateDirty = true;
+  try {
+    storage.writeIndexCache(cacheData);
+    _stateCache = null;
+    _stateDirty = true;
+  } catch (error) {
+    throw new StorageError('指数缓存写入失败。', { cause: error });
+  }
 }
 
 function readSettlements() {
-  return storage.readSettlements();
+  try {
+    return storage.readSettlements();
+  } catch (error) {
+    throw new StorageError('结算账本读取失败。', { cause: error });
+  }
 }
 
 function writeSettlements(data) {
@@ -175,7 +220,7 @@ function writeSettlements(data) {
     _settlementLedgerValidated = false;
     _stateCache = null;
     _stateDirty = true;
-    throw error;
+    throw new StorageError('结算账本写入失败。', { cause: error });
   }
 }
 
@@ -188,16 +233,25 @@ function getState() {
 }
 
 function readConfig() {
-  return storage.readConfig();
+  try {
+    return storage.readConfig();
+  } catch (error) {
+    throw new StorageError('配置读取失败。', { cause: error });
+  }
 }
 
 function writeConfig(configData) {
-  storage.writeConfig(configData);
+  try {
+    storage.writeConfig(configData);
+  } catch (error) {
+    throw new StorageError('配置写入失败。', { cause: error });
+  }
 }
 
 function writeSnapshot(dbData, configData, settlementsData) {
   try {
     storage.writeSnapshot(dbData, configData, settlementsData);
+    _settlementLedgerValidated = false;
     _stateCache = null;
     _stateDirty = true;
   } catch (error) {
@@ -205,7 +259,7 @@ function writeSnapshot(dbData, configData, settlementsData) {
     _settlementLedgerValidated = false;
     _stateCache = null;
     _stateDirty = true;
-    throw error;
+    throw new StorageError('快照写入失败。', { cause: error });
   }
 }
 
@@ -324,6 +378,9 @@ registerApiRoutes(app, {
   fetchTickerAthData: EXTERNAL_SYNC_ENABLED ? fetchTickerAthData : async () => ({}),
   randomUUID
 });
+
+app.use('/api', (req, _res, next) => next(new NotFoundError('未找到该 API 接口。')));
+app.use('/api', apiErrorHandler);
 // 从第三方公开汇率接口获取最新 USD/CNH 汇率
 function startServer({ port = PORT, host = '127.0.0.1' } = {}) {
   const server = app.listen(port, host, () => {

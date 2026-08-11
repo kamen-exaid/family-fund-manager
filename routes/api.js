@@ -4,6 +4,7 @@ const { registerMemberRoutes } = require('./members');
 const { registerTickerRoutes } = require('./tickers');
 const { registerSettingsRoutes } = require('./settings');
 const { registerBackupRoutes } = require('./backup');
+const { nextSequenceNumber } = require('../lib/event-order');
 
 function registerApiRoutes(app, deps) {
   const resolvedDeps = {
@@ -15,6 +16,7 @@ function registerApiRoutes(app, deps) {
   const { calculateStateFromDb, isValidDate, now: getNow } = resolvedDeps;
 
   const BALANCE_TOLERANCE = 0.000001;
+  let lastIssuedEventSequence = 0;
 
   function toFiniteNumber(value) {
     if (typeof value !== 'number' && typeof value !== 'string') return NaN;
@@ -117,10 +119,36 @@ function registerApiRoutes(app, deps) {
     return true;
   }
 
+  function peekEventSequence(db, ledger = resolvedDeps.readSettlements()) {
+    const persistedNext = nextSequenceNumber(db.events, ledger.records);
+    const dbHighWater = db.lastEventSequence ?? 0;
+    const ledgerHighWater = ledger.lastEventSequence ?? 0;
+    if (lastIssuedEventSequence >= Number.MAX_SAFE_INTEGER) {
+      throw new Error('事件顺序号已达到安全整数上限，无法继续创建事件。');
+    }
+    if (!Number.isSafeInteger(dbHighWater) || dbHighWater < 0 ||
+        !Number.isSafeInteger(ledgerHighWater) || ledgerHighWater < 0) {
+      throw new Error('事件顺序号高水位无效。');
+    }
+    const persistedHighWater = Math.max(dbHighWater, ledgerHighWater);
+    if (persistedHighWater >= Number.MAX_SAFE_INTEGER) {
+      throw new Error('事件顺序号高水位无效或已耗尽。');
+    }
+    return Math.max(persistedNext, persistedHighWater + 1, lastIssuedEventSequence + 1);
+  }
+
+  function commitEventSequence(sequenceNumber) {
+    if (!Number.isSafeInteger(sequenceNumber) || sequenceNumber <= 0) {
+      throw new Error('拒绝提交无效的事件顺序号。');
+    }
+    lastIssuedEventSequence = Math.max(lastIssuedEventSequence, sequenceNumber);
+  }
+
   const utils = {
     BALANCE_TOLERANCE, toFiniteNumber, isSundayDate, latestValuationDate,
     validateValuationDate, calculateLedgerState, findLedgerIssue,
-    rejectLedgerIssue, latestSettlementDate, rejectLockedPeriod
+    rejectLedgerIssue, latestSettlementDate, rejectLockedPeriod,
+    peekEventSequence, commitEventSequence
   };
 
   registerTransactionRoutes(app, resolvedDeps, utils);

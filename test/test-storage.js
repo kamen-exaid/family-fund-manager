@@ -27,6 +27,10 @@ try {
   const originalDb = storage.readDb();
   const nextDb = { ...originalDb, cnhRate: 7.3 };
   storage.writeDb(nextDb);
+  assert.throws(
+    () => storage.writeDb({ ...nextDb, lastEventSequence: Number.NaN }),
+    /invalid event sequence high-water mark/
+  );
 
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(storage.DB_FILE, 'utf8')), nextDb);
   const backupFiles = fs.readdirSync(backupDir).filter(name => name.startsWith('snapshot_backup_') && name.endsWith('.zip'));
@@ -49,6 +53,10 @@ try {
   };
   storage.writeSettlements(settlementLedger);
   assert.deepStrictEqual(storage.readSettlements(), settlementLedger);
+  const sequencedSettlementLedger = { ...settlementLedger, lastEventSequence: 9 };
+  storage.writeSettlements(sequencedSettlementLedger);
+  assert.deepStrictEqual(storage.readSettlements(), sequencedSettlementLedger);
+  storage.writeSettlements(settlementLedger);
   assert.notStrictEqual(storage.SETTLEMENTS_FILE, storage.DB_FILE);
 
   const backupsBeforeTickerWrite = fs.readdirSync(backupDir).length;

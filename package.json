@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test/test-model.js && node test/test-version.js && node test/test-storage.js && node test/test-yahoo.js && node test/test-ticker-cache.js && node test/test-ticker-panel-refresh.js && node test/test-calculator.js && node test/test-performance-settlement.js && node test/test-replay-performance.js && node test/test-settlement-ledger.js && node test/test-api-validation.js && node test/test-api-integration.js && node test/test-frontend-syntax.js && node test/test-security-policy.js && node test/test-css-entry.js && node test/test-submission-guard.js && node test/test-chart-renderer.js && node test/test-ledger-renderer.js && node test/test-governance-principles.js && node test/test-segmented-control.js && node test/test-custom-select.js"
+    "test": "node test/test-model.js && node test/test-version.js && node test/test-storage.js && node test/test-yahoo.js && node test/test-ticker-cache.js && node test/test-ticker-panel-refresh.js && node test/test-calculator.js && node test/test-performance-settlement.js && node test/test-replay-performance.js && node test/test-settlement-ledger.js && node test/test-task-007-009.js && node test/test-api-validation.js && node test/test-api-integration.js && node test/test-frontend-syntax.js && node test/test-security-policy.js && node test/test-css-entry.js && node test/test-submission-guard.js && node test/test-chart-renderer.js && node test/test-ledger-renderer.js && node test/test-governance-principles.js && node test/test-segmented-control.js && node test/test-custom-select.js"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",

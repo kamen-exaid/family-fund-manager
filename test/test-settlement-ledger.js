@@ -73,6 +73,14 @@ const currentMigration = migrateSettlementLedger(currentDb, {
 });
 assert.strictEqual(currentMigration.migrated, false);
 assert.strictEqual(currentMigration.ledger.records[0].algorithmVersion, 3);
+assert.throws(
+  () => migrateSettlementLedger(currentDb, {
+    version: 1,
+    records: [currentSettlement],
+    lastEventSequence: Number.NaN
+  }),
+  /事件顺序号高水位/
+);
 
 const versionComparisonDb = baseDb();
 const v1 = withSnapshot(versionComparisonDb, settlement(1, 'legacy'));

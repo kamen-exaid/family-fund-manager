@@ -7,7 +7,7 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function makeApi(now = () => new Date(), initialDb = null) {
+function makeApi(now = () => new Date(), initialDb = null, overrides = {}) {
   const routes = {};
   const app = {};
   for (const method of ['get', 'post', 'put', 'delete']) {
@@ -54,7 +54,8 @@ function makeApi(now = () => new Date(), initialDb = null) {
     normalizeMemberName: value => value,
     fetchTickerAthData: async () => ({}),
     randomUUID,
-    now
+    now,
+    ...overrides
   });
   return {
     routes,
@@ -222,6 +223,50 @@ async function request(handler, body, params = {}) {
     gpMember: 'b', date: '2026-01-12'
   });
   assert.strictEqual(sameDayConfirmedAfterReversal.status, 200);
+
+  const rawSettlementWriteFailureApi = makeApi(undefined, null, {
+    writeSettlements: () => { throw new Error('raw persistence failure'); }
+  });
+  assert.strictEqual((await request(rawSettlementWriteFailureApi.routes['post:/api/valuation'], {
+    totalNAV: 120, date: '2026-01-12'
+  })).status, 200);
+  const rawSettlementWriteFailure = await request(
+    rawSettlementWriteFailureApi.routes['post:/api/performance-settlement'],
+    { date: '2026-01-12' }
+  );
+  assert.strictEqual(rawSettlementWriteFailure.status, 500,
+    'an untyped persistence failure must never be downgraded to an input error');
+  assert.strictEqual(rawSettlementWriteFailure.body.code, 'INTERNAL_ERROR');
+
+  const sequenceReuseApi = makeApi();
+  const firstSequencedValuation = await request(
+    sequenceReuseApi.routes['post:/api/valuation'],
+    { totalNAV: 120, date: '2026-01-12' }
+  );
+  assert.strictEqual(firstSequencedValuation.status, 200);
+  assert.strictEqual((await request(
+    sequenceReuseApi.routes['delete:/api/event/:id'],
+    {},
+    { id: firstSequencedValuation.body.data.id }
+  )).status, 200);
+  const valuationAfterDeletion = await request(
+    sequenceReuseApi.routes['post:/api/valuation'],
+    { totalNAV: 130, date: '2026-01-12' }
+  );
+  assert(valuationAfterDeletion.body.data.sequenceNumber > firstSequencedValuation.body.data.sequenceNumber,
+    'deleting the latest event must not allow its sequence number to be reused');
+  assert.strictEqual((await request(
+    sequenceReuseApi.routes['delete:/api/event/:id'],
+    {},
+    { id: valuationAfterDeletion.body.data.id }
+  )).status, 200);
+  const restartedSequenceApi = makeApi(undefined, sequenceReuseApi.getDb());
+  const valuationAfterRestart = await request(
+    restartedSequenceApi.routes['post:/api/valuation'],
+    { totalNAV: 140, date: '2026-01-13' }
+  );
+  assert(valuationAfterRestart.body.data.sequenceNumber > valuationAfterDeletion.body.data.sequenceNumber,
+    'the persisted sequence high-water mark must survive a process restart');
 
   // Later cash flows must not prevent a historical year-end settlement. The
   // replay engine naturally excludes members whose first deposit is later.

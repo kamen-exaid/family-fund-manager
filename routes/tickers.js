@@ -1,3 +1,5 @@
+const { InputError, handleApiError } = require('../lib/api-errors');
+
 function registerTickerRoutes(app, deps) {
   const { readConfig, writeConfig, readTickerCache, writeTickerCache,
     fetchTickerAthData, now: getNow } = deps;
@@ -132,7 +134,7 @@ function queueTickerRefresh(config) {
   return tickerRefreshPromise;
 }
 
-app.get('/api/ticker-ath', async (req, res) => {
+app.get('/api/ticker-ath', async (req, res, next) => {
   res.set('Cache-Control', 'no-store');
   try {
     const config = readConfig();
@@ -166,22 +168,22 @@ app.get('/api/ticker-ath', async (req, res) => {
       updatedAt: cache.updatedAt
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
 // 获取当前配置的标的列表
-app.get('/api/settings/tickers', (req, res) => {
+app.get('/api/settings/tickers', (req, res, next) => {
   try {
     const config = readConfig();
     res.json({ success: true, data: config.tickers });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
 // 保存用户配置的标的列表
-app.post('/api/settings/tickers', (req, res) => {
+app.post('/api/settings/tickers', (req, res, next) => {
   try {
     const { tickers } = req.body;
     if (!Array.isArray(tickers)) {
@@ -192,13 +194,13 @@ app.post('/api/settings/tickers', (req, res) => {
     }
 
     const cleanedTickers = tickers.map(e => {
-      if (!e.ticker || !e.ticker.trim()) {
-        throw new Error('标的代码不能为空');
+      if (typeof e?.ticker !== 'string' || !e.ticker.trim()) {
+        throw new InputError('标的代码不能为空');
       }
       const cleanTicker = e.ticker.trim().toUpperCase();
       // [Fix #1] 白名单校验：仅允许股票代码合法字符（字母、数字、连字符、点、脱字符），长度 1-20
       if (!/^[\^A-Z0-9.\-]{1,20}$/.test(cleanTicker)) {
-        throw new Error(`标的代码格式非法（只允许字母、数字、.-^符号）: ${cleanTicker}`);
+        throw new InputError(`标的代码格式非法（只允许字母、数字、.-^符号）: ${cleanTicker}`);
       }
       return {
         ticker: cleanTicker
@@ -213,11 +215,11 @@ app.post('/api/settings/tickers', (req, res) => {
 
     res.json({ success: true, message: '标的配置保存成功！', data: cleanedTickers });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 
-app.post('/api/ticker-ath/refresh', async (req, res) => {
+app.post('/api/ticker-ath/refresh', async (req, res, next) => {
   res.set('Cache-Control', 'no-store');
   try {
     const config = readConfig();
@@ -233,7 +235,7 @@ app.post('/api/ticker-ath/refresh', async (req, res) => {
       updatedAt: cache.updatedAt
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    handleApiError(error, req, res, next);
   }
 });
 

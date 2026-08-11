@@ -75,6 +75,7 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
       totalNAV: 0, date: '2026-03-02', remark: 'invalid zero valuation'
     });
     assert.strictEqual(response.status, 400);
+    assert.strictEqual(response.body.code, 'INPUT_ERROR');
 
     response = await request(server, 'POST', '/api/valuation', {
       totalNAV: 120.12, date: '2026-03-02', remark: 'mark to market'
@@ -109,6 +110,7 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     const exportedConfig = JSON.parse(backupZip.readAsText('data/config.json'));
     const exportedSettlements = JSON.parse(backupZip.readAsText('data/settlements.json'));
     assert.strictEqual(exportedDb.events.length, 3);
+    assert.deepStrictEqual(exportedDb.events.map(event => event.sequenceNumber), [1, 2, 3]);
     assert.strictEqual(Object.prototype.hasOwnProperty.call(exportedDb, 'indexCache'), false);
     assert(Array.isArray(exportedConfig.tickers));
     assert.deepStrictEqual(exportedSettlements, { version: 1, records: [] });
@@ -246,6 +248,52 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     });
     assert.strictEqual(response.status, 200);
 
+    // A pre-split legacy backup can interleave a settlement with ordinary
+    // events at the same millisecond. The migration must retain that order.
+    const embeddedDb = {
+      cnhRate: 7.2,
+      benchmarkClosePolicy: 'previous',
+      performanceFee: { gpMemberId: 'father', annualRate: 0.06, feeRate: 0.25 },
+      members: [
+        { id: 'me', name: 'LP', roles: { lp: true, gp: false } },
+        { id: 'father', name: 'GP', roles: { lp: true, gp: true } }
+      ],
+      events: [
+        { id: 'embedded_d1', type: 'deposit', member: 'me', amount: 100, cnhAmount: 720, date: '2025-01-01', createdAt: 1 },
+        { id: 'embedded_v', type: 'valuation', totalNAV: 120, date: '2026-01-01', createdAt: 2 }
+      ]
+    };
+    const embeddedSettlement = {
+      id: 'embedded_s', type: 'performance_settlement', algorithmVersion: 3,
+      date: '2026-01-01', createdAt: 2, gpMember: 'father', lpMembers: ['me', 'father'],
+      annualRate: 0.06, feeRate: 0.25, remark: 'embedded equal timestamp fixture'
+    };
+    const embeddedLaterDeposit = {
+      id: 'embedded_d2', type: 'deposit', member: 'me', amount: 10, cnhAmount: 72,
+      date: '2026-01-01', createdAt: 2
+    };
+    embeddedDb.events.push(embeddedSettlement, embeddedLaterDeposit);
+    const embeddedState = calculateStateFromDb(embeddedDb);
+    const computedEmbedded = embeddedState.events.find(item => item.id === embeddedSettlement.id);
+    embeddedSettlement.snapshot = {
+      breakdown: computedEmbedded._breakdown,
+      totalFee: computedEmbedded._totalFee,
+      feeShares: computedEmbedded._feeShares,
+      navPerShare: computedEmbedded._navAtTx
+    };
+    const embeddedZip = new AdmZip();
+    embeddedZip.addFile('data/db.json', Buffer.from(JSON.stringify(embeddedDb)));
+    embeddedZip.addFile('data/config.json', Buffer.from(JSON.stringify(exportedConfig)));
+    let embeddedResponse = await requestBuffer(server, 'POST', '/api/backup/import', embeddedZip.toBuffer());
+    assert.strictEqual(embeddedResponse.status, 200);
+    embeddedResponse = await requestBuffer(server, 'GET', '/api/backup/export');
+    const embeddedRoundTrip = new AdmZip(embeddedResponse.body);
+    const embeddedRoundTripDb = JSON.parse(embeddedRoundTrip.readAsText('data/db.json'));
+    const embeddedRoundTripLedger = JSON.parse(embeddedRoundTrip.readAsText('data/settlements.json'));
+    assert.strictEqual(embeddedRoundTripDb.events.find(item => item.id === 'embedded_v').sequenceNumber, 2);
+    assert.strictEqual(embeddedRoundTripLedger.records.find(item => item.id === 'embedded_s').sequenceNumber, 3);
+    assert.strictEqual(embeddedRoundTripDb.events.find(item => item.id === 'embedded_d2').sequenceNumber, 4);
+
     // Full cross-version lifecycle: import an active v1 settlement, reverse
     // it, confirm v2 on the same date, then export/import without state drift.
     const legacyBackupIndexCache = {
@@ -327,6 +375,10 @@ function requestBuffer(server, method, pathname, body, contentType = 'applicatio
     const afterRoundTrip = await request(server, 'GET', '/api/state');
     assert.deepStrictEqual(afterRoundTrip.body.data.summary, beforeRoundTrip.body.data.summary);
     assert.deepStrictEqual(afterRoundTrip.body.data.members, beforeRoundTrip.body.data.members);
+
+    response = await request(server, 'GET', '/api/does-not-exist');
+    assert.strictEqual(response.status, 404);
+    assert.strictEqual(response.body.code, 'NOT_FOUND');
   } finally {
     await new Promise(resolve => server.close(resolve));
     fs.rmSync(dataDir, { recursive: true, force: true });
