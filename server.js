@@ -118,7 +118,8 @@ let _settlementLedgerValidated = false;
 function readDbUnsafe() {
   let db = {
     ...storage.readDb(),
-    indexCache: storage.readIndexCache()
+    indexCache: storage.readIndexCache(),
+    cnhRate: storage.readCnhRateCache().rate
   };
   let settlementLedger = storage.readSettlements();
   if (!_settlementLedgerValidated) {
@@ -199,6 +200,16 @@ function writeIndexCache(cacheData) {
     _stateDirty = true;
   } catch (error) {
     throw new StorageError('指数缓存写入失败。', { cause: error });
+  }
+}
+
+function writeCnhRate(rate, options) {
+  try {
+    storage.writeCnhRateCache(rate, options);
+    _stateCache = null;
+    _stateDirty = true;
+  } catch (error) {
+    throw new StorageError('汇率缓存写入失败。', { cause: error });
   }
 }
 
@@ -369,6 +380,7 @@ registerApiRoutes(app, {
   writeSnapshot,
   readIndexCache: storage.readIndexCache,
   writeIndexCache,
+  writeCnhRate,
   ensureIndexCache: EXTERNAL_SYNC_ENABLED ? ensureIndexCache : () => {},
   calculateStateFromDb,
   fetchCnhRateFromApi,
@@ -394,9 +406,7 @@ function startServer({ port = PORT, host = '127.0.0.1' } = {}) {
   if (EXTERNAL_SYNC_ENABLED) fetchCnhRateFromApi().then(rate => {
     if (rate) {
       try {
-        const db = readDb();
-        db.cnhRate = rate;
-        writeDb(db);
+        writeCnhRate(rate, { source: 'startup-sync' });
         console.log(`🌍 [Auto-Sync] 系统成功自适应获取全球最新汇率：1 USD = ${rate} CNH`);
       } catch (err) {
         console.error('Failed to auto-save fetched CNH rate:', err);

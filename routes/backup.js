@@ -12,7 +12,7 @@ const { hasSequenceNumber, maxSequenceNumber, migrateEventSequences } = require(
 const { InputError, handleApiError } = require('../lib/api-errors');
 
 function registerBackupRoutes(app, deps, utils, tickerUtils) {
-  const { readDb, readSettlements, readConfig, writeSnapshot,
+  const { readDb, readSettlements, readConfig, writeSnapshot, writeCnhRate = () => {},
     writeIndexCache = () => {}, ensureIndexCache, isValidDate } = deps;
   const { toFiniteNumber, findLedgerIssue, rejectLedgerIssue } = utils;
   const { queueTickerRefresh } = tickerUtils;
@@ -25,7 +25,7 @@ app.get('/api/backup/export', (req, res, next) => {
     const config = readConfig();
     const settlements = readSettlements();
     const zip = new AdmZip();
-    const { indexCache: _indexCache, ...coreDb } = db;
+    const { indexCache: _indexCache, cnhRate: _cnhRate, ...coreDb } = db;
     const baseDb = {
       ...coreDb,
       events: db.events.filter(event =>
@@ -208,7 +208,6 @@ app.post('/api/backup/import', express.raw({
       })),
       events: events.filter(event =>
         event.type !== 'performance_settlement' && event.type !== 'performance_settlement_reversal'),
-      cnhRate: importedCnhRate,
       benchmarkClosePolicy: 'previous',
       performanceFee: {
         gpMemberId: importedGpMemberId,
@@ -277,6 +276,9 @@ app.post('/api/backup/import', express.raw({
     }
 
     writeSnapshot(db, { tickers: importedTickers }, settlementMigration.ledger);
+    // Older backups may contain this field. Restore it into market cache, not
+    // back into the ledger; newer exports deliberately omit it.
+    writeCnhRate(importedCnhRate, { source: 'backup-import' });
     try {
       writeIndexCache(importedIndexCache);
     } catch (error) {

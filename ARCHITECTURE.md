@@ -43,7 +43,8 @@ graph TB
     end
 
     subgraph Data["持久化数据层 data/"]
-        DB["db.json 成员/普通事件/汇率/业绩报酬配置"]
+        DB["db.json 成员/普通事件/业绩报酬配置"]
+        CNH_CACHE["cnh-rate-cache.json 当前汇率缓存"]
         CONFIG["config.json 标的配置"]
         INDEX_CACHE["index-cache.json 指数历史收盘缓存"]
         SETTLEMENTS["settlements.json 结算/冲销审计记录"]

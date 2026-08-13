@@ -71,7 +71,8 @@ PORT=3001 npm start
 
 | 路径 | 内容 |
 | --- | --- |
-| `data/db.json` | 成员、普通账目、汇率和业绩报酬配置 |
+| `data/db.json` | 成员、普通账目和业绩报酬配置 |
+| `data/cnh-rate-cache.json` | 当前 USD/CNH 汇率缓存（非账本数据） |
 | `data/config.json` | 自选标的配置 |
 | `data/settlements.json` | 结算、冲销、算法版本和锁定快照 |
 | `data/index-cache.json` | 指数历史缓存，可重建 |

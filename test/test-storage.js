@@ -17,6 +17,10 @@ function loadStorage(dataDir, backupDir) {
 }
 
 const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'family-fund-storage-'));
+const coreDb = db => {
+  const { cnhRate, ...core } = db;
+  return core;
+};
 
 try {
   const danglingDataDir = path.join(testRoot, 'data-dangling-gp');
@@ -108,11 +112,11 @@ try {
     /invalid event sequence high-water mark/
   );
 
-  assert.deepStrictEqual(JSON.parse(fs.readFileSync(storage.DB_FILE, 'utf8')), nextDb);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(storage.DB_FILE, 'utf8')), coreDb(nextDb));
   const backupFiles = fs.readdirSync(backupDir).filter(name => name.startsWith('snapshot_backup_') && name.endsWith('.zip'));
   assert.strictEqual(backupFiles.length, 1);
   const firstBackup = new AdmZip(path.join(backupDir, backupFiles[0]));
-  assert.deepStrictEqual(JSON.parse(firstBackup.readAsText('data/db.json')), nextDb);
+  assert.deepStrictEqual(JSON.parse(firstBackup.readAsText('data/db.json')), coreDb(nextDb));
   assert.deepStrictEqual(JSON.parse(firstBackup.readAsText('data/config.json')), storage.readConfig());
   assert.deepStrictEqual(JSON.parse(firstBackup.readAsText('data/settlements.json')), { version: 1, records: [] });
 
@@ -120,7 +124,7 @@ try {
   const snapshotDb = { ...nextDb, cnhRate: 7.35 };
   const snapshotConfig = { tickers: [{ ticker: 'AAPL' }] };
   storage.writeSnapshot(snapshotDb, snapshotConfig);
-  assert.deepStrictEqual(storage.readDb(), snapshotDb);
+  assert.deepStrictEqual(storage.readDb(), coreDb(snapshotDb));
   assert.deepStrictEqual(storage.readConfig(), snapshotConfig);
   assert.deepStrictEqual(storage.readSettlements(), { version: 1, records: [] });
   const settlementLedger = {
@@ -188,7 +192,7 @@ try {
   }
   assert.strictEqual(fs.readFileSync(storage.DB_FILE, 'utf8'), dbBeforeRollbackTest);
   assert.strictEqual(fs.readFileSync(configFile, 'utf8'), configBeforeRollbackTest);
-  assert.deepStrictEqual(storage.readDb(), snapshotDb);
+  assert.deepStrictEqual(storage.readDb(), coreDb(snapshotDb));
   assert.notDeepStrictEqual(originalConfig, snapshotConfig);
 
   // A three-file restore is one logical commit. If settlements.json cannot be
@@ -221,7 +225,7 @@ try {
   assert.strictEqual(fs.readFileSync(storage.DB_FILE, 'utf8'), dbBeforeSettlementFailure);
   assert.strictEqual(fs.readFileSync(configFile, 'utf8'), configBeforeSettlementFailure);
   assert.strictEqual(fs.readFileSync(storage.SETTLEMENTS_FILE, 'utf8'), settlementsBeforeFailure);
-  assert.deepStrictEqual(storage.readDb(), snapshotDb);
+  assert.deepStrictEqual(storage.readDb(), coreDb(snapshotDb));
   assert.deepStrictEqual(storage.readConfig(), snapshotConfig);
   assert.deepStrictEqual(storage.readSettlements(), settlementLedger);
 

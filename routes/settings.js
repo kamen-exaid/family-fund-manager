@@ -1,7 +1,7 @@
 const { InputError, ExternalServiceError, handleApiError } = require('../lib/api-errors');
 
 function registerSettingsRoutes(app, deps, utils) {
-  const { readDb, writeDb, ensureIndexCache, fetchCnhRateFromApi } = deps;
+  const { readDb, writeDb, writeCnhRate = () => {}, ensureIndexCache, fetchCnhRateFromApi } = deps;
   const { toFiniteNumber } = utils;
 
 // 4.8. 更新全局系统参数（汇率配置）
@@ -15,6 +15,8 @@ app.post('/api/settings', (req, res, next) => {
       if (!Number.isFinite(parsedRate) || parsedRate <= 0) {
         throw new InputError('汇率参数必须大于 0');
       }
+      writeCnhRate(parsedRate, { source: 'manual' });
+      // Keep this request's in-memory view consistent for its response.
       db.cnhRate = parsedRate;
     }
 
@@ -25,7 +27,7 @@ app.post('/api/settings', (req, res, next) => {
       db.benchmarkClosePolicy = 'previous';
     }
 
-    writeDb(db);
+    if (benchmarkClosePolicy !== undefined) writeDb(db);
     if (benchmarkClosePolicy !== undefined && db.events.length > 0) {
       ensureIndexCache(db.events.map(event => event.date));
     }
@@ -48,9 +50,7 @@ app.post('/api/settings/sync-rate', async (req, res, next) => {
     if (!rate) {
       throw new ExternalServiceError('从公开汇率接口获取数据失败，请检查网络或稍后重试');
     }
-    const db = readDb();
-    db.cnhRate = rate;
-    writeDb(db);
+    writeCnhRate(rate, { source: 'manual-sync' });
     res.json({ success: true, message: `汇率成功同步为 ${rate}`, cnhRate: rate });
   } catch (error) {
     handleApiError(error, req, res, next);
