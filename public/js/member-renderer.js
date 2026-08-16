@@ -5,7 +5,7 @@
 window.FundMemberRenderer = {
   renderGrid({ state, members, elements, utils, isDark }) {
     const { grid, countBadge } = elements;
-    const { escapeHtml, formatMoney, formatCnhWan, getAvatarText, getMemberAvatarColor } = utils;
+    const { escapeHtml, formatMoney, getAvatarText, getMemberAvatarColor } = utils;
     countBadge.textContent = `成员人数: ${members.length} 人`;
 
     if (members.length === 0) {
@@ -47,7 +47,7 @@ window.FundMemberRenderer = {
             </div>
             <div class="member-asset font-outfit" style="display:flex;flex-direction:column;line-height:1.25;margin-bottom:2px;">
               <span class="privacy-sensitive" style="font-size:1.15rem;font-weight:700;">$${formatMoney(account.currentValue)}</span>
-              <span class="privacy-sensitive" style="font-size:0.72rem;font-weight:600;color:var(--color-cyan);">≈ ¥${formatCnhWan(account.cnhCurrentValue)} <small>CNH</small></span>
+              <span class="privacy-sensitive" style="font-size:0.72rem;font-weight:600;color:var(--color-cyan);">≈ ¥${formatMoney(account.cnhCurrentValue)} <small>CNH</small></span>
             </div>
             <div class="member-shares privacy-sensitive" style="font-size:0.72rem;color:var(--color-text-muted);line-height:1.2;margin-bottom:4px;">${account.shares.toFixed(4)} 份</div>
             <div class="member-sub-info" style="display:flex;justify-content:space-between;font-size:0.68rem;padding-top:4px;border-top:1px dashed var(--color-card-divider);color:var(--color-text-muted);"><span>入金 <span class="privacy-sensitive">$${formatMoney(account.totalDeposit)}</span></span><span>出金 <span class="privacy-sensitive">$${formatMoney(account.totalWithdraw)}</span></span></div>

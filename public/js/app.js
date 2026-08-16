@@ -40,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
     formatMonthDay,
     escapeHtml,
     formatMoney,
-    formatCnhWan,
     createChartGradient,
     getSeriesColors,
     hexToRgba
@@ -461,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Three-card overview: assets, NAV and return rate.
     elFundTotalNav.innerHTML = `<span>$${formatMoney(s.totalNAV)}</span><span class="metric-inline metric-profit-inline ${s.profit >= 0 ? 'text-green' : 'text-magenta'}">${s.profit >= 0 ? '+' : ''}$${formatMoney(s.profit)}</span>`;
-    elFundTotalShares.innerHTML = `<span class="metric-sub-primary">≈ ¥${formatCnhWan(s.cnhTotalNAV)}</span><span class="metric-inline ${s.cnhProfit >= 0 ? 'text-green' : 'text-magenta'}" title="包含汇率变动影响">CNH收益（含汇率） ${s.cnhProfit >= 0 ? '+' : ''}¥${formatCnhWan(s.cnhProfit)}</span>`;
+    elFundTotalShares.innerHTML = `<span class="metric-sub-primary">≈ ¥${formatMoney(s.cnhTotalNAV)}</span><span class="metric-inline ${s.cnhProfit >= 0 ? 'text-green' : 'text-magenta'}" title="包含汇率变动影响">CNH收益（含汇率） ${s.cnhProfit >= 0 ? '+' : ''}¥${formatMoney(s.cnhProfit)}</span>`;
     elFundTotalShares.classList.add('privacy-sensitive');
 
     elFundProfitRate.innerHTML = `<span>${s.profitRate > 0 ? '+' : ''}${s.profitRate.toFixed(2)}%</span>`;
@@ -476,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state: appState,
       members: membersList,
       elements: { grid: elMembersGridContainer, countBadge: elMemberCountBadge },
-      utils: { escapeHtml, formatMoney, formatCnhWan, getAvatarText, getMemberAvatarColor },
+      utils: { escapeHtml, formatMoney, getAvatarText, getMemberAvatarColor },
       isDark: checkIfDark()
     });
   }
@@ -632,7 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state: appState,
       members: membersList,
       elements: { filterMember, filterType, ledgerTbody },
-      utils: { escapeHtml, formatMoney, formatCnhWan },
+      utils: { escapeHtml, formatMoney },
       onEdit: handleEditEvent,
       onDelete: handleDeleteEvent
     });

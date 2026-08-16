@@ -103,12 +103,6 @@
     });
   }
 
-  function formatCnhWan(amount) {
-    if (amount === undefined || amount === null || isNaN(amount)) return '0.00万';
-    const wan = amount / 10000;
-    return wan.toFixed(2) + '万';
-  }
-
   function createChartGradient(ctx, colorStart, colorEnd) {
     const gradient = ctx.createLinearGradient(0, 0, 0, 250);
     gradient.addColorStop(0, colorStart);
@@ -126,7 +120,6 @@
     formatMonthDay,
     escapeHtml,
     formatMoney,
-    formatCnhWan,
     createChartGradient
   };
 })();

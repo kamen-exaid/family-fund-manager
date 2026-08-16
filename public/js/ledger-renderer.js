@@ -5,7 +5,7 @@
 window.FundLedgerRenderer = {
   render({ state, members, elements, utils, onEdit, onDelete }) {
     const { filterMember, filterType, ledgerTbody } = elements;
-    const { escapeHtml, formatMoney, formatCnhWan } = utils;
+    const { escapeHtml, formatMoney } = utils;
     const memberFilter = filterMember.value;
     const typeFilter = filterType.value;
     ledgerTbody.replaceChildren();
@@ -99,10 +99,10 @@ window.FundLedgerRenderer = {
       append(sharesHtml, 'font-outfit');
       const totalNav = event._totalNAVAfter || 0;
       const valueHtml = event.type === 'deposit'
-        ? `<div class="amount-double-line"><span class="amount-usd privacy-sensitive">$${formatMoney(totalNav)}</span><span class="amount-cnh privacy-sensitive" style="font-size:0.68rem;">≈ ¥${formatCnhWan(totalNav * (state.summary.cnhRate || 7.2))}</span></div>`
+        ? `<div class="amount-double-line"><span class="amount-usd privacy-sensitive">$${formatMoney(totalNav)}</span><span class="amount-cnh privacy-sensitive" style="font-size:0.68rem;">≈ ¥${formatMoney(totalNav * (state.summary.cnhRate || 7.2))}</span></div>`
         : event.type === 'performance_settlement'
           ? `<div class="amount-double-line"><span style="font-size:.62rem;color:var(--color-text-muted);">结算后基金资产</span><span class="amount-usd privacy-sensitive">$${formatMoney(totalNav)}</span></div>`
-        : `<div class="amount-double-line"><span class="amount-usd privacy-sensitive">$${formatMoney(totalNav)}</span></div>`;
+          : `<div class="amount-double-line"><span class="amount-usd privacy-sensitive">$${formatMoney(totalNav)}</span></div>`;
       append(valueHtml);
 
       const actions = document.createElement('td');
