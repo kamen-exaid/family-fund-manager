@@ -32,6 +32,61 @@
   gap: 8px;
 }
 
+.custom-benchmark-name-group { margin-bottom: 16px; }
+
+.custom-benchmark-column-labels,
+.custom-benchmark-component-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 36px;
+  gap: 10px;
+  align-items: center;
+}
+
+.custom-benchmark-column-labels {
+  padding: 0 8px 6px;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.custom-benchmark-components {
+  display: flex;
+  max-height: 280px;
+  margin-bottom: 10px;
+  padding-right: 4px;
+  overflow-y: auto;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-benchmark-component-row {
+  padding: 8px;
+  border: 1px solid var(--color-panel-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.custom-benchmark-weight-wrap { position: relative; }
+.custom-benchmark-weight-wrap input { width: 100%; padding-right: 28px; }
+.custom-benchmark-weight-wrap span {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  color: var(--color-text-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.custom-benchmark-total {
+  margin: 0 4px 12px;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-align: right;
+}
+.custom-benchmark-total strong { margin-left: 6px; color: var(--color-text-main); }
+.custom-benchmark-total.is-invalid strong { color: var(--color-negative); }
+.custom-benchmark-actions { display: flex; justify-content: space-between; gap: 12px; }
+
 .operations-panel .form-group {
   gap: 5px;
 }

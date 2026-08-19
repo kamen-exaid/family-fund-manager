@@ -92,6 +92,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const chkCompAssets = document.getElementById('chk-comp-assets');
   const chkCompSp500 = document.getElementById('chk-comp-sp500');
   const chkCompNdx = document.getElementById('chk-comp-ndx');
+  const chkCompCustom = document.getElementById('chk-comp-custom');
+  const chkCompCustom2 = document.getElementById('chk-comp-custom-2');
+  const customBenchmarkLabel = document.getElementById('custom-benchmark-label');
+  const customBenchmarkLabelText = document.getElementById('custom-benchmark-label-text');
+  const customBenchmarkLabel2 = document.getElementById('custom-benchmark-label-2');
+  const customBenchmarkLabelText2 = document.getElementById('custom-benchmark-label-text-2');
+  const btnConfigCustomBenchmark = document.getElementById('btn-config-custom-benchmark');
+  const btnConfigCustomBenchmark2 = document.getElementById('btn-config-custom-benchmark-2');
   const elTrendStatsGrid = document.getElementById('trend-stats-grid');
   const benchmarkPolicyGroup = document.getElementById('benchmark-policy-group');
   const benchmarkPolicyButtons = [...document.querySelectorAll('[data-benchmark-policy]')];
@@ -189,6 +197,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const tickerConfigList = document.getElementById('ticker-config-list');
   const btnAddTickerRow = document.getElementById('btn-add-ticker-row');
   const btnSaveTickerConfig = document.getElementById('btn-save-ticker-config');
+
+  const customBenchmarkModal = document.getElementById('custom-benchmark-modal');
+  const customBenchmarkModalTitle = document.getElementById('custom-benchmark-modal-title');
+  const btnCloseCustomBenchmarkModal = document.getElementById('btn-close-custom-benchmark-modal');
+  const customBenchmarkName = document.getElementById('custom-benchmark-name');
+  const customBenchmarkComponents = document.getElementById('custom-benchmark-components');
+  const customBenchmarkTotal = document.getElementById('custom-benchmark-total');
+  const btnAddCustomBenchmarkRow = document.getElementById('btn-add-custom-benchmark-row');
+  const btnSaveCustomBenchmark = document.getElementById('btn-save-custom-benchmark');
+  const btnRemoveCustomBenchmark = document.getElementById('btn-remove-custom-benchmark');
 
   const { switchTo: switchOperationView } = window.FundOperationPanel.create({
     panel: operationPanel,
@@ -315,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
       formatMoney
     });
     window.FundChartControls.init({
-      elements: { filterMember, filterType, chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx },
+      elements: { filterMember, filterType, chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx, chkCompCustom, chkCompCustom2 },
       chartRenderer: window.FundChartRenderer,
       segmentedControl: window.FundSegmentedControl,
       renderLedger,
@@ -335,6 +353,21 @@ document.addEventListener('DOMContentLoaded', () => {
       escapeHtml,
       showToast,
       loadTickerAthData
+    });
+
+    window.FundCustomBenchmark.init({
+      elements: {
+        chkCompCustom, customBenchmarkLabel, customBenchmarkLabelText,
+        chkCompCustom2, customBenchmarkLabel2, customBenchmarkLabelText2,
+        btnConfigCustomBenchmark, btnConfigCustomBenchmark2,
+        customBenchmarkModal, customBenchmarkModalTitle, btnCloseCustomBenchmarkModal,
+        customBenchmarkName, customBenchmarkComponents, customBenchmarkTotal,
+        btnAddCustomBenchmarkRow, btnSaveCustomBenchmark, btnRemoveCustomBenchmark
+      },
+      api: Api,
+      modal: window.FundModal,
+      loadAllData,
+      showToast
     });
   }
 
@@ -356,6 +389,13 @@ document.addEventListener('DOMContentLoaded', () => {
       membersList = await Api.getMembers();
       appState = await Api.getState();
       settingsController.syncBenchmarkPolicy(appState.settings?.benchmarkClosePolicy || 'previous');
+      window.FundCustomBenchmark.sync(
+        [appState.settings?.customBenchmark || null, appState.settings?.customBenchmark2 || null],
+        [
+          appState.settings?.customBenchmarkCacheReady !== false,
+          appState.settings?.customBenchmark2CacheReady !== false
+        ]
+      );
 
       // 更新动态下拉选项（出入金下拉 + 流水筛选下拉）
       populateDynamicSelectors();
@@ -371,8 +411,10 @@ document.addEventListener('DOMContentLoaded', () => {
         openModal(memberModal);
         showToast('请先在成员设置中指定主GP；同一成员可以同时选择LP和GP。', 'warning');
       }
+      return appState;
     } catch (err) {
       showToast('获取系统账务状态失败: ' + err.message, 'error');
+      return null;
     }
   }
 
@@ -796,7 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
       members: membersList,
       settings: { activeTimeSlice, theme: themeController.get() },
       charts: { navTrendChart, memberAllocationChart },
-      elements: { chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx, trendStatsGrid: elTrendStatsGrid },
+      elements: { chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx, chkCompCustom, chkCompCustom2, trendStatsGrid: elTrendStatsGrid },
       ui: { formatMoney, getThemeColors, isDarkTheme, createChartGradient, getSeriesColors, hexToRgba, getMemberAvatarColor }
     });
     navTrendChart = rendered.navTrendChart;

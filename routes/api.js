@@ -3,6 +3,7 @@ const { registerSettlementRoutes } = require('./settlements');
 const { registerMemberRoutes } = require('./members');
 const { registerTickerRoutes } = require('./tickers');
 const { registerSettingsRoutes } = require('./settings');
+const { registerCustomBenchmarkRoutes } = require('./custom-benchmark');
 const { registerBackupRoutes } = require('./backup');
 const { nextSequenceNumber } = require('../lib/event-order');
 const { InputError, ConflictError } = require('../lib/api-errors');
@@ -143,6 +144,7 @@ function registerApiRoutes(app, deps) {
   registerSettlementRoutes(app, resolvedDeps, utils);
   const tickerUtils = registerTickerRoutes(app, resolvedDeps);
   registerSettingsRoutes(app, resolvedDeps, utils);
+  registerCustomBenchmarkRoutes(app, resolvedDeps);
   registerBackupRoutes(app, resolvedDeps, utils, tickerUtils);
   registerMemberRoutes(app, resolvedDeps);
 }

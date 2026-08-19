@@ -162,6 +162,16 @@ try {
   storage.writeIndexCache(indexCache);
   assert.deepStrictEqual(storage.readIndexCache(), indexCache);
   assert.strictEqual(fs.readdirSync(backupDir).length, backupsBeforeIndexWrite);
+  const customBenchmarkCache = {
+    '2026-08-04': {
+      signature: 'VOO:100.0000',
+      components: { VOO: { price: 612.5, priceDate: '2026-08-03' } }
+    }
+  };
+  storage.writeCustomBenchmarkCache(customBenchmarkCache);
+  assert.deepStrictEqual(storage.readCustomBenchmarkCache(), customBenchmarkCache);
+  assert.strictEqual(fs.readdirSync(backupDir).length, backupsBeforeIndexWrite);
+  assert.notStrictEqual(storage.CUSTOM_BENCHMARK_CACHE_FILE, storage.INDEX_CACHE_FILE);
   assert.strictEqual(Object.prototype.hasOwnProperty.call(
     JSON.parse(fs.readFileSync(storage.DB_FILE, 'utf8')),
     'indexCache'
@@ -390,6 +400,30 @@ try {
     ...legacyIndexCache
   });
   assert.strictEqual(fs.readdirSync(legacyBackupDir).length, 0);
+
+  // The first v3.13.0 build nested custom quotes under each index date. Move
+  // those records into their own disposable cache and clean the index file.
+  const splitCacheDataDir = path.join(testRoot, 'data-split-custom-cache');
+  const splitCacheBackupDir = path.join(testRoot, 'backups-split-custom-cache');
+  fs.mkdirSync(splitCacheDataDir, { recursive: true });
+  const legacyCustomEntry = {
+    signature: 'VOO:100.0000',
+    components: { VOO: { price: 612.5, priceDate: '2026-08-03' } }
+  };
+  fs.writeFileSync(path.join(splitCacheDataDir, 'index-cache.json'), JSON.stringify({
+    '2026-08-04': { ...indexCache['2026-08-04'], custom: legacyCustomEntry }
+  }, null, 2));
+  const splitCacheStorage = loadStorage(splitCacheDataDir, splitCacheBackupDir);
+  assert.deepStrictEqual(splitCacheStorage.readCustomBenchmarkCache(), {
+    '2026-08-04': legacyCustomEntry
+  });
+  assert.deepStrictEqual(splitCacheStorage.readIndexCache(), {
+    '2026-08-04': indexCache['2026-08-04']
+  });
+  assert.deepStrictEqual(
+    JSON.parse(fs.readFileSync(splitCacheStorage.CUSTOM_BENCHMARK_CACHE_FILE, 'utf8')),
+    { '2026-08-04': legacyCustomEntry }
+  );
 
   // A corrupt disposable cache degrades to an in-memory empty cache once per
   // process instead of reparsing the same bad file and flooding logs on every

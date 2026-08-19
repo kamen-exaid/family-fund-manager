@@ -10,7 +10,7 @@
 - 成员、LP 份额和唯一 GP 管理
 - 入金、出金、基金估值和成员间份额转让
 - 基金净值、成员权益、收益走势及流水查询
-- 标普 500、纳斯达克 100 对比和自选标的行情
+- 标普 500、纳斯达克 100、两个可独立配置的单标的/百分比组合业绩对比，以及自选标的行情
 - 按资金批次计算业绩报酬，支持预览、锁账和倒序冲销
 - 自动 ZIP 快照，以及完整数据的导出、校验和恢复
 
@@ -73,9 +73,10 @@ PORT=3001 npm start
 | --- | --- |
 | `data/db.json` | 成员、普通账目和业绩报酬配置 |
 | `data/cnh-rate-cache.json` | 当前 USD/CNH 汇率缓存（非账本数据） |
-| `data/config.json` | 自选标的配置 |
+| `data/config.json` | 自选标的与两个自定义对比组合配置 |
 | `data/settlements.json` | 结算、冲销、算法版本和锁定快照 |
 | `data/index-cache.json` | 指数历史缓存，可重建 |
+| `data/custom-benchmark-cache.json` | 自定义对比标的历史缓存，可重建 |
 | `data/ticker-cache.json` | 标的行情缓存，可重建 |
 | `backups/` | 写入前生成的完整 ZIP 快照，滚动保留最近 15 份 |
 

@@ -34,6 +34,8 @@
   --series-nav: #2c61b6;
   --series-sp500: #f0bf3b;
   --series-ndx: #f38180;
+  --series-custom: #18a999;
+  --series-custom2: #9b6bdf;
   --color-purple: #5856d6;
 
   --color-text-main: #1f2937;
@@ -94,6 +96,8 @@
     --series-nav: #2c61b6;
     --series-sp500: #f0bf3b;
     --series-ndx: #f38180;
+    --series-custom: #40c8b5;
+    --series-custom2: #b58af0;
     --color-purple: #5e5ce6;
 
     --color-text-main: #f3f4f6;
@@ -150,6 +154,8 @@ body.theme-light {
   --series-nav: #2c61b6;
   --series-sp500: #f0bf3b;
   --series-ndx: #f38180;
+  --series-custom: #18a999;
+  --series-custom2: #9b6bdf;
   --color-purple: #5856d6;
 
   --color-text-main: #1f2937;
@@ -203,6 +209,8 @@ body.theme-dark {
   --series-nav: #2c61b6;
   --series-sp500: #f0bf3b;
   --series-ndx: #f38180;
+  --series-custom: #40c8b5;
+  --series-custom2: #b58af0;
   --color-purple: #5e5ce6;
 
   --color-text-main: #f3f4f6;

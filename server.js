@@ -118,6 +118,7 @@ let _settlementLedgerValidated = false;
 function readDbUnsafe() {
   let db = {
     ...storage.readDb(),
+    customBenchmarkCache: storage.readCustomBenchmarkCache(),
     indexCache: storage.readIndexCache(),
     cnhRate: storage.readCnhRateCache().rate
   };
@@ -203,6 +204,16 @@ function writeIndexCache(cacheData) {
   }
 }
 
+function writeCustomBenchmarkCache(cacheData) {
+  try {
+    storage.writeCustomBenchmarkCache(cacheData);
+    _stateCache = null;
+    _stateDirty = true;
+  } catch (error) {
+    throw new StorageError('自定义标的缓存写入失败。', { cause: error });
+  }
+}
+
 function writeCnhRate(rate, options) {
   try {
     storage.writeCnhRateCache(rate, options);
@@ -254,6 +265,8 @@ function readConfig() {
 function writeConfig(configData) {
   try {
     storage.writeConfig(configData);
+    _stateCache = null;
+    _stateDirty = true;
   } catch (error) {
     throw new StorageError('配置写入失败。', { cause: error });
   }
@@ -290,7 +303,21 @@ const {
 async function ensureIndexCache(dates) {
   if (!dates || dates.length === 0) return;
   const indexCache = storage.readIndexCache();
+  const customBenchmarkCache = storage.readCustomBenchmarkCache();
   const benchmarkClosePolicy = 'previous';
+  const {
+    normalizeCustomBenchmark,
+    customBenchmarkSignature,
+    isUsableCustomEntry,
+    customEntryForSlot,
+    mergeCustomEntryForSlot
+  } = require('./lib/custom-benchmark');
+  const config = storage.readConfig();
+  const customBenchmarks = [
+    normalizeCustomBenchmark(config.customBenchmark),
+    normalizeCustomBenchmark(config.customBenchmark2)
+  ];
+  const customSignatures = customBenchmarks.map(customBenchmarkSignature);
   const isValidSourceDate = (sourceDate, navDate) => sourceDate < navDate;
 
   // Legacy entries have no source-date fields and may contain the same day's close.
@@ -299,13 +326,22 @@ async function ensureIndexCache(dates) {
   // gives YTD benchmark calculations a stable, event-independent anchor.
   const anchorDates = dates.map(date => `${date.slice(0, 4)}-01-01`);
   const uniqueDates = [...new Set([...dates, ...anchorDates])];
-  const missingDates = uniqueDates.filter(dateStr => {
+  const missingIndexDates = uniqueDates.filter(dateStr => {
     const cached = indexCache[dateStr];
     return !cached ||
       cached.policy !== benchmarkClosePolicy ||
       !cached.spxPriceDate || !isValidSourceDate(cached.spxPriceDate, dateStr) ||
       !cached.ndxPriceDate || !isValidSourceDate(cached.ndxPriceDate, dateStr);
   });
+  const missingCustomDatesBySlot = customBenchmarks.map((benchmark, slot) => benchmark
+    ? uniqueDates.filter(dateStr => !isUsableCustomEntry(
+      customEntryForSlot(customBenchmarkCache[dateStr], slot),
+      dateStr,
+      benchmark
+    ))
+    : []);
+  const missingCustomDates = [...new Set(missingCustomDatesBySlot.flat())];
+  const missingDates = [...new Set([...missingIndexDates, ...missingCustomDates])];
   if (missingDates.length === 0) return;
 
   console.log(`[Yahoo Sync Worker] Detecting ${missingDates.length} missing dates in cache. Fetching in background...`);
@@ -318,18 +354,24 @@ async function ensureIndexCache(dates) {
     const startSec = Math.floor(new Date(oldestDate).getTime() / 1000) - 14 * 24 * 3600;
     const nowSec = Math.floor(Date.now() / 1000);
 
-    const [spxMap, ndxMap] = await Promise.all([
-      fetchYahooPrices('^GSPC', startSec, nowSec),
-      fetchYahooPrices('^NDX', startSec, nowSec)
-    ]);
+    const customTickers = customBenchmarks.flatMap((benchmark, slot) =>
+      missingCustomDatesBySlot[slot].length ? benchmark.components.map(item => item.ticker) : []);
+    const requestedTickers = [
+      ...(missingIndexDates.length ? ['^GSPC', '^NDX'] : []),
+      ...(missingCustomDates.length ? customTickers : [])
+    ];
+    const priceMaps = Object.fromEntries(await Promise.all(
+      [...new Set(requestedTickers)].map(async ticker => [ticker, await fetchYahooPrices(ticker, startSec, nowSec)])
+    ));
 
-    const fetchedUpdates = {};
-    missingDates.forEach(dateStr => {
-      const spxClose = findCloseForPolicy(dateStr, spxMap, benchmarkClosePolicy);
-      const ndxClose = findCloseForPolicy(dateStr, ndxMap, benchmarkClosePolicy);
+    const fetchedIndexUpdates = {};
+    const fetchedCustomUpdates = {};
+    missingIndexDates.forEach(dateStr => {
+      const spxClose = findCloseForPolicy(dateStr, priceMaps['^GSPC'], benchmarkClosePolicy);
+      const ndxClose = findCloseForPolicy(dateStr, priceMaps['^NDX'], benchmarkClosePolicy);
 
       if (spxClose && ndxClose) {
-        fetchedUpdates[dateStr] = {
+        fetchedIndexUpdates[dateStr] = {
           spx: parseFloat(spxClose.price.toFixed(2)),
           ndx: parseFloat(ndxClose.price.toFixed(2)),
           spxPriceDate: spxClose.date,
@@ -339,16 +381,59 @@ async function ensureIndexCache(dates) {
       }
     });
 
-    if (Object.keys(fetchedUpdates).length > 0) {
+    customBenchmarks.forEach((benchmark, slot) => {
+      if (!benchmark) return;
+      missingCustomDatesBySlot[slot].forEach(dateStr => {
+        const components = {};
+        for (const { ticker } of benchmark.components) {
+          const close = findCloseForPolicy(dateStr, priceMaps[ticker], benchmarkClosePolicy);
+          if (!close) return;
+          components[ticker] = { price: Number(close.price.toFixed(6)), priceDate: close.date };
+        }
+        if (!fetchedCustomUpdates[dateStr]) fetchedCustomUpdates[dateStr] = {};
+        fetchedCustomUpdates[dateStr][slot] = {
+          signature: customSignatures[slot],
+          components
+        };
+      });
+    });
+
+    if (Object.keys(fetchedIndexUpdates).length > 0) {
       // Re-read the dedicated cache so concurrent background refreshes merge
       // their results without touching or backing up the financial ledger.
       const latestCache = storage.readIndexCache();
-      const mergedCache = {
-        ...latestCache,
-        ...fetchedUpdates
-      };
-      console.log(`[Yahoo Sync Worker] Successfully synced indices for dates:`, Object.keys(fetchedUpdates));
+      const mergedCache = { ...latestCache };
+      for (const [date, update] of Object.entries(fetchedIndexUpdates)) {
+        mergedCache[date] = { ...(latestCache[date] || {}), ...update };
+      }
       writeIndexCache(mergedCache);
+      console.log(`[Yahoo Sync Worker] Successfully synced indices for dates:`, Object.keys(fetchedIndexUpdates));
+    }
+
+    if (Object.keys(fetchedCustomUpdates).length > 0) {
+      const latestConfig = storage.readConfig();
+      const latestBenchmarks = [
+        normalizeCustomBenchmark(latestConfig.customBenchmark),
+        normalizeCustomBenchmark(latestConfig.customBenchmark2)
+      ];
+      const latestCache = storage.readCustomBenchmarkCache();
+      const mergedCache = { ...latestCache };
+      let changed = false;
+      for (const [date, entriesBySlot] of Object.entries(fetchedCustomUpdates)) {
+        let nextEntry = latestCache[date];
+        for (const [slotText, entry] of Object.entries(entriesBySlot)) {
+          const slot = Number(slotText);
+          const isCurrent = entry.signature === customBenchmarkSignature(latestBenchmarks[slot]);
+          if (!isCurrent) continue;
+          nextEntry = mergeCustomEntryForSlot(nextEntry, slot, entry);
+          changed = true;
+        }
+        if (nextEntry) mergedCache[date] = nextEntry;
+      }
+      if (changed) {
+        writeCustomBenchmarkCache(mergedCache);
+        console.log(`[Yahoo Sync Worker] Successfully synced custom benchmarks for dates:`, Object.keys(fetchedCustomUpdates));
+      }
     }
   } catch (err) {
     console.error(`[Yahoo Sync Worker Error]:`, err.message);
@@ -360,7 +445,12 @@ async function ensureIndexCache(dates) {
  * 重新按时间顺序计算每个事件发生时的净值、份额、及当前各成员资产状况。
  */
 function calculateState() {
-  return calculateStateFromDb(readDb());
+  const config = storage.readConfig();
+  return calculateStateFromDb({
+    ...readDb(),
+    customBenchmark: config.customBenchmark || null,
+    customBenchmark2: config.customBenchmark2 || null
+  });
 }
 
 const { calculateStateFromDb } = require('./lib/calculator');
@@ -380,6 +470,8 @@ registerApiRoutes(app, {
   writeSnapshot,
   readIndexCache: storage.readIndexCache,
   writeIndexCache,
+  readCustomBenchmarkCache: storage.readCustomBenchmarkCache,
+  writeCustomBenchmarkCache,
   writeCnhRate,
   ensureIndexCache: EXTERNAL_SYNC_ENABLED ? ensureIndexCache : () => {},
   calculateStateFromDb,

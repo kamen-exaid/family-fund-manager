@@ -10,6 +10,7 @@ const {
 const { mergeSettlementLedger, migrateSettlementLedger } = require('../lib/settlement-ledger');
 const { hasSequenceNumber, maxSequenceNumber, migrateEventSequences } = require('../lib/event-order');
 const { InputError, handleApiError } = require('../lib/api-errors');
+const { normalizeCustomBenchmark } = require('../lib/custom-benchmark');
 
 function registerBackupRoutes(app, deps, utils, tickerUtils) {
   const { readDb, readSettlements, readConfig, writeSnapshot, writeCnhRate = () => {},
@@ -25,7 +26,12 @@ app.get('/api/backup/export', (req, res, next) => {
     const config = readConfig();
     const settlements = readSettlements();
     const zip = new AdmZip();
-    const { indexCache: _indexCache, cnhRate: _cnhRate, ...coreDb } = db;
+    const {
+      indexCache: _indexCache,
+      customBenchmarkCache: _customBenchmarkCache,
+      cnhRate: _cnhRate,
+      ...coreDb
+    } = db;
     const baseDb = {
       ...coreDb,
       events: db.events.filter(event =>
@@ -275,7 +281,13 @@ app.post('/api/backup/import', express.raw({
       rejectImport('备份中的标的代码不能重复。');
     }
 
-    writeSnapshot(db, { tickers: importedTickers }, settlementMigration.ledger);
+    const importedConfig = {
+      tickers: importedTickers,
+      customBenchmark: normalizeCustomBenchmark(backupConfig.customBenchmark, InputError),
+      customBenchmark2: normalizeCustomBenchmark(backupConfig.customBenchmark2, InputError)
+    };
+
+    writeSnapshot(db, importedConfig, settlementMigration.ledger);
     // Older backups may contain this field. Restore it into market cache, not
     // back into the ledger; newer exports deliberately omit it.
     writeCnhRate(importedCnhRate, { source: 'backup-import' });
@@ -286,7 +298,7 @@ app.post('/api/backup/import', express.raw({
       // successful core-ledger restore into an ambiguous failed import.
       console.error('Failed to restore optional index cache:', error.message);
     }
-    void queueTickerRefresh({ tickers: importedTickers });
+    void queueTickerRefresh(importedConfig);
 
     // 批量导入触发指数同步
     if (events && events.length > 0) {

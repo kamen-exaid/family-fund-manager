@@ -68,5 +68,11 @@ const Api = {
     return requestApi('/api/ticker-ath/refresh', { method: 'POST', cache: 'no-store' });
   },
   async getTickers() { return (await requestApi('/api/settings/tickers')).data; },
-  async saveTickers(tickers) { return jsonRequest('/api/settings/tickers', 'POST', { tickers }); }
+  async saveTickers(tickers) { return jsonRequest('/api/settings/tickers', 'POST', { tickers }); },
+  async getCustomBenchmark(slot = 0) {
+    return (await requestApi(`/api/settings/custom-benchmark?slot=${slot}`)).data;
+  },
+  async saveCustomBenchmark(customBenchmark, slot = 0) {
+    return jsonRequest('/api/settings/custom-benchmark', 'POST', { customBenchmark, slot });
+  }
 };

@@ -522,7 +522,7 @@ body.theme-light .btn-sync-rate:hover {
 
 .comparisons-checkboxes {
   display: grid !important;
-  grid-template-columns: repeat(4, 1fr) !important;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)) !important;
   gap: 12px !important;
   width: 100% !important;
 }
@@ -595,6 +595,24 @@ body.theme-light .btn-sync-rate:hover {
 
 #chk-comp-ndx {
   --checkbox-color: var(--series-ndx);
+}
+
+#chk-comp-custom { --checkbox-color: var(--series-custom); }
+#chk-comp-custom-2 { --checkbox-color: var(--series-custom2); }
+
+.custom-benchmark-config-btn {
+  display: inline-flex;
+  min-height: 28px;
+  padding: 4px 10px;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 0.7rem;
+}
+
+.custom-benchmark-config-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 @media (prefers-color-scheme: dark) {

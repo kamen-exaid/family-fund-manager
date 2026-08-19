@@ -3,7 +3,10 @@
     elements, chartRenderer, segmentedControl, renderLedger, renderCharts,
     getNavTrendChart, getRenderTrendStats, setActiveTimeSlice
   }) {
-    const { filterMember, filterType, chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx } = elements;
+    const {
+      filterMember, filterType, chkCompNav, chkCompAssets,
+      chkCompSp500, chkCompNdx, chkCompCustom, chkCompCustom2
+    } = elements;
     const activateSegmentOption = segmentedControl.activate.bind(segmentedControl);
 
     // 流水筛选
@@ -15,7 +18,9 @@
       [chkCompAssets, 0],
       [chkCompNav, 1],
       [chkCompSp500, 2],
-      [chkCompNdx, 3]
+      [chkCompNdx, 3],
+      [chkCompCustom, 4],
+      [chkCompCustom2, 5]
     ]);
 
     const updateCompVisibility = event => {
@@ -49,6 +54,8 @@
     chkCompAssets.addEventListener('change', updateCompVisibility);
     chkCompSp500.addEventListener('change', updateCompVisibility);
     chkCompNdx.addEventListener('change', updateCompVisibility);
+    chkCompCustom.addEventListener('change', updateCompVisibility);
+    chkCompCustom2.addEventListener('change', updateCompVisibility);
 
     // 时间区间选择按钮绑定
     const timeSlicerGroup = document.getElementById('time-slicer-group');

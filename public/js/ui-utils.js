@@ -35,7 +35,8 @@
 
   function getSeriesColors() {
     const styles = getComputedStyle(document.body);
-    return Object.fromEntries(['assets', 'nav', 'sp500', 'ndx'].map(name => [name, styles.getPropertyValue(`--series-${name}`).trim()]));
+    return Object.fromEntries(['assets', 'nav', 'sp500', 'ndx', 'custom', 'custom2']
+      .map(name => [name, styles.getPropertyValue(`--series-${name}`).trim()]));
   }
 
   function hexToRgba(color, alpha) {

@@ -123,6 +123,17 @@ async function startExternalFailureServer() {
     response = await request(server, 'DELETE', `/api/event/${valuationId}`);
     assert.strictEqual(response.status, 400);
 
+    const customBenchmark1 = { name: '组合一', components: [{ ticker: 'VOO', weight: 100 }] };
+    const customBenchmark2 = { name: '组合二', components: [{ ticker: 'QQQM', weight: 100 }] };
+    response = await request(server, 'POST', '/api/settings/custom-benchmark', {
+      slot: 0, customBenchmark: customBenchmark1
+    });
+    assert.strictEqual(response.status, 200);
+    response = await request(server, 'POST', '/api/settings/custom-benchmark', {
+      slot: 1, customBenchmark: customBenchmark2
+    });
+    assert.strictEqual(response.status, 200);
+
     const exported = await requestBuffer(server, 'GET', '/api/backup/export');
     assert.strictEqual(exported.status, 200);
     assert.strictEqual(exported.headers['content-type'], 'application/zip');
@@ -133,7 +144,10 @@ async function startExternalFailureServer() {
     assert.strictEqual(exportedDb.events.length, 3);
     assert.deepStrictEqual(exportedDb.events.map(event => event.sequenceNumber), [1, 2, 3]);
     assert.strictEqual(Object.prototype.hasOwnProperty.call(exportedDb, 'indexCache'), false);
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(exportedDb, 'customBenchmarkCache'), false);
     assert(Array.isArray(exportedConfig.tickers));
+    assert.deepStrictEqual(exportedConfig.customBenchmark, customBenchmark1);
+    assert.deepStrictEqual(exportedConfig.customBenchmark2, customBenchmark2);
     assert.deepStrictEqual(exportedSettlements, { version: 1, records: [] });
 
     const invalidDisposalVersionBackup = new AdmZip();

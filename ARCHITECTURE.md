@@ -47,6 +47,7 @@ graph TB
         CNH_CACHE["cnh-rate-cache.json 当前汇率缓存"]
         CONFIG["config.json 标的配置"]
         INDEX_CACHE["index-cache.json 指数历史收盘缓存"]
+        CUSTOM_BENCH_CACHE["custom-benchmark-cache.json 自定义标的历史缓存"]
         SETTLEMENTS["settlements.json 结算/冲销审计记录"]
         TICKER_CACHE["ticker-cache.json 标的行情缓存"]
         MARKER[".settlements-initialized 账本初始化标记"]
@@ -107,7 +108,7 @@ flowchart LR
         NAV["总资产 / 总份额 / 单位净值"]
         MEM["各成员份额 / 资产 / 盈亏"]
         HIST["NAV 历史走势"]
-        BENCH["SP500 / NDX 归一化对比"]
+        BENCH["SP500 / NDX / 双自定义组合归一化对比"]
         LOT["LP 批次明细 / 高水位"]
     end
 

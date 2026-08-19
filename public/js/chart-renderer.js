@@ -230,6 +230,20 @@ window.FundChartRenderer = {
         navTrendChart.data.datasets[3].pointHoverBackgroundColor = colors.ndx;
         navTrendChart.data.datasets[3].pointHoverBorderColor = colors.ndx;
       }
+      if (navTrendChart.data.datasets[4]) {
+        navTrendChart.data.datasets[4].borderColor = colors.custom;
+        navTrendChart.data.datasets[4].pointBackgroundColor = colors.custom;
+        navTrendChart.data.datasets[4].pointBorderColor = colors.custom;
+        navTrendChart.data.datasets[4].pointHoverBackgroundColor = colors.custom;
+        navTrendChart.data.datasets[4].pointHoverBorderColor = colors.custom;
+      }
+      if (navTrendChart.data.datasets[5]) {
+        navTrendChart.data.datasets[5].borderColor = colors.custom2;
+        navTrendChart.data.datasets[5].pointBackgroundColor = colors.custom2;
+        navTrendChart.data.datasets[5].pointBorderColor = colors.custom2;
+        navTrendChart.data.datasets[5].pointHoverBackgroundColor = colors.custom2;
+        navTrendChart.data.datasets[5].pointHoverBorderColor = colors.custom2;
+      }
 
       navTrendChart.update();
     }
@@ -257,12 +271,22 @@ window.FundChartRenderer = {
   render({ state, members, settings, charts, elements, ui }) {
     const { activeTimeSlice } = settings;
     const { navTrendChart, memberAllocationChart } = charts;
-    const { chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx, trendStatsGrid } = elements;
+    const {
+      chkCompNav, chkCompAssets, chkCompSp500, chkCompNdx,
+      chkCompCustom, chkCompCustom2, trendStatsGrid
+    } = elements;
+    const customCheckbox = chkCompCustom || { checked: false };
+    const customCheckbox2 = chkCompCustom2 || { checked: false };
     const { formatMoney, isDarkTheme, createChartGradient, getMemberAvatarColor } = ui;
     const resolveMemberAvatarColor = getMemberAvatarColor || ((memberKey, dark, index) => ({
       background: (dark ? ['#31445B', '#5C4930', '#424A52', '#315541'] : ['#E8EEF7', '#F9EDD8', '#ECEFF1', '#E5F2EA'])[index % 4]
     }));
-    const seriesColors = ui.getSeriesColors?.() || { assets: '#5a57cc', nav: '#2c61b6', sp500: '#f0bf3b', ndx: '#f38180' };
+    const seriesColors = ui.getSeriesColors?.() || {
+      assets: '#5a57cc', nav: '#2c61b6', sp500: '#f0bf3b', ndx: '#f38180',
+      custom: '#18a999', custom2: '#9b6bdf'
+    };
+    if (!seriesColors.custom) seriesColors.custom = '#18a999';
+    if (!seriesColors.custom2) seriesColors.custom2 = '#9b6bdf';
     const hexToRgba = ui.hexToRgba || ((color, alpha) => {
       const value = Number.parseInt(color.replace('#', ''), 16);
       return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
@@ -272,14 +296,16 @@ window.FundChartRenderer = {
     let filtered = cutoff ? history.filter(item => item.date >= cutoff) : history;
     if (!filtered.length && history.length) filtered = [history.at(-1)];
 
-    const base = filtered[0] || { navPerShare: 1, sp500NAV: 1, ndxNAV: 1 };
+    const base = filtered[0] || { navPerShare: 1, sp500NAV: 1, ndxNAV: 1, customNAV: 1, custom2NAV: 1 };
     const labels = filtered.length ? filtered.map(item => item.date) : ['尚未入金'];
     const nav = filtered.length ? filtered.map(item => Number((item.navPerShare / base.navPerShare).toFixed(4))) : [1];
     const assets = filtered.length ? filtered.map(item => item.totalNAV) : [0];
     const benchmarkSeries = (rawField, normalizedField, sourceDateField) => {
       if (!filtered.length) return [1];
       if (activeTimeSlice !== 'YTD') {
-        return filtered.map(item => Number((item[normalizedField] / base[normalizedField]).toFixed(4)));
+        return filtered.map(item => Number.isFinite(item[normalizedField]) && Number.isFinite(base[normalizedField]) && base[normalizedField] > 0
+          ? Number((item[normalizedField] / base[normalizedField]).toFixed(4))
+          : null);
       }
 
       const ytdYear = cutoff.slice(0, 4);
@@ -300,6 +326,15 @@ window.FundChartRenderer = {
     };
     const spx = benchmarkSeries('spx', 'sp500NAV', 'spxPriceDate');
     const ndx = benchmarkSeries('ndx', 'ndxNAV', 'ndxPriceDate');
+    const custom = benchmarkSeries('customNAV', 'customNAV', 'customPriceDate');
+    const custom2 = benchmarkSeries('custom2NAV', 'custom2NAV', 'custom2PriceDate');
+    const customName = state.settings?.customBenchmark?.name || '自定义标的';
+    const customName2 = state.settings?.customBenchmark2?.name || '自定义标的 2';
+    const escapeLabel = value => String(value).replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+    const safeCustomName = escapeLabel(customName);
+    const safeCustomName2 = escapeLabel(customName2);
 
     const isYtd = activeTimeSlice === 'YTD';
     const calculate = (values, isYtdBenchmark = false) => {
@@ -314,12 +349,16 @@ window.FundChartRenderer = {
     const series = [
       { label: '单位净值', color: seriesColors.nav, values: nav, visible: chkCompNav.checked, isBenchmark: false },
       { label: '标普500指数', color: seriesColors.sp500, values: spx, visible: chkCompSp500.checked, isBenchmark: true },
-      { label: '纳斯达克100指数', color: seriesColors.ndx, values: ndx, visible: chkCompNdx.checked, isBenchmark: true }
+      { label: '纳斯达克100指数', color: seriesColors.ndx, values: ndx, visible: chkCompNdx.checked, isBenchmark: true },
+      { label: customName, safeLabel: safeCustomName, color: seriesColors.custom, values: custom, visible: customCheckbox.checked, isBenchmark: true },
+      { label: customName2, safeLabel: safeCustomName2, color: seriesColors.custom2, values: custom2, visible: customCheckbox2.checked, isBenchmark: true }
     ];
     const renderStats = (activeIndex = null) => {
       series[0].visible = chkCompNav.checked;
       series[1].visible = chkCompSp500.checked;
       series[2].visible = chkCompNdx.checked;
+      series[3].visible = customCheckbox.checked;
+      series[4].visible = customCheckbox2.checked;
       const visible = series.filter(item => item.visible);
       trendStatsGrid.innerHTML = visible.length
         ? visible.map(item => {
@@ -329,7 +368,7 @@ window.FundChartRenderer = {
           const stats = calculate(item.values.slice(0, end + 1), isYtdBenchmark);
           const dateText = isHover && labels[end] ? `截至 ${labels[end]}` : '全周期';
           return `<div class="trend-stat-card" style="--series-color:${item.color};">
-            <div class="trend-stat-name">${item.label}</div>
+            <div class="trend-stat-name">${item.safeLabel || item.label}</div>
             <div class="trend-stat-date ${isHover ? 'is-hovering' : 'is-resting'}">${dateText}</div>
             <div class="trend-stat-values">
               <span><em>区间收益</em><strong class="privacy-sensitive ${stats.gain >= 0 ? 'positive' : 'negative'}">${percent(stats.gain)}</strong></span>
@@ -414,6 +453,36 @@ window.FundChartRenderer = {
         cubicInterpolationMode: 'monotone',
         yAxisID: 'y-nav',
         hidden: !chkCompNdx.checked
+      },
+      {
+        label: customName,
+        data: custom,
+        borderColor: seriesColors.custom,
+        borderWidth: 1.8,
+        fill: false,
+        tension: 0.38,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        borderCapStyle: 'round',
+        borderJoinStyle: 'round',
+        cubicInterpolationMode: 'monotone',
+        yAxisID: 'y-nav',
+        hidden: !customCheckbox.checked
+      },
+      {
+        label: customName2,
+        data: custom2,
+        borderColor: seriesColors.custom2,
+        borderWidth: 1.8,
+        fill: false,
+        tension: 0.38,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        borderCapStyle: 'round',
+        borderJoinStyle: 'round',
+        cubicInterpolationMode: 'monotone',
+        yAxisID: 'y-nav',
+        hidden: !customCheckbox2.checked
       }
     ];
     const navFillAlpha = dark ? 0.36 : 0.30;

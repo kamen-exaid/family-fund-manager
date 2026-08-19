@@ -248,4 +248,32 @@ assert.strictEqual(ytdRendered.trendSeries[2].values[0], 1, 'NDX at first YTD va
 assert.strictEqual(ytdRendered.trendSeries[2].values[1], 1.1633);
 assert.match(stats.innerHTML, /\+16\.33%/);
 
+const dualBenchmarkRendered = window.FundChartRenderer.render({
+  state: {
+    members: state.members,
+    settings: {
+      customBenchmark: { name: '组合一' },
+      customBenchmark2: { name: '组合二' }
+    },
+    charts: {
+      navHistory: [
+        { date: '2026-01-02', navPerShare: 1, totalNAV: 100, sp500NAV: 1, ndxNAV: 1, customNAV: 1, custom2NAV: 1 },
+        { date: '2026-01-09', navPerShare: 1.02, totalNAV: 102, sp500NAV: 1.01, ndxNAV: 1.03, customNAV: 1.04, custom2NAV: 1.08 }
+      ]
+    }
+  },
+  members,
+  settings: { activeTimeSlice: 'ALL', theme: 'dark' },
+  charts: rendered,
+  elements: {
+    ...elements,
+    chkCompCustom: { checked: true },
+    chkCompCustom2: { checked: true }
+  },
+  ui
+});
+assert.strictEqual(dualBenchmarkRendered.trendSeries[4].label, '组合二');
+assert.deepStrictEqual(dualBenchmarkRendered.trendSeries[4].values, [1, 1.08]);
+assert.strictEqual(dualBenchmarkRendered.navTrendChart.data.datasets[5].label, '组合二');
+
 console.log('Chart renderer interaction regression tests passed.');
