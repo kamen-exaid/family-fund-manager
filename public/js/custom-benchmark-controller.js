@@ -75,6 +75,22 @@
       return total;
     };
 
+    const syncNameField = () => {
+      const rows = [...customBenchmarkComponents.querySelectorAll('.custom-benchmark-component-row')];
+      if (rows.length === 1) {
+        const ticker = rows[0].querySelector('.custom-benchmark-ticker')?.value.trim().toUpperCase() || '';
+        customBenchmarkName.value = ticker;
+        customBenchmarkName.disabled = true;
+        customBenchmarkName.placeholder = '单标的自动使用标的代码';
+      } else {
+        customBenchmarkName.disabled = false;
+        customBenchmarkName.placeholder = '例如：我的科技组合';
+        if (!customBenchmarkName.value.trim()) {
+          customBenchmarkName.value = '自定义组合';
+        }
+      }
+    };
+
     const addRow = (component = { ticker: '', weight: '' }) => {
       if (customBenchmarkComponents.children.length >= 10) {
         showToast('自定义标的最多支持 10 个成分', 'warning');
@@ -93,10 +109,16 @@
       const weightInput = row.querySelector('.custom-benchmark-weight');
       tickerInput.value = component.ticker || '';
       weightInput.value = component.weight ?? '';
-      tickerInput.addEventListener('input', () => { tickerInput.value = tickerInput.value.toUpperCase(); });
+      tickerInput.addEventListener('input', () => {
+        tickerInput.value = tickerInput.value.toUpperCase();
+        if (customBenchmarkComponents.querySelectorAll('.custom-benchmark-component-row').length === 1) {
+          customBenchmarkName.value = tickerInput.value.trim();
+        }
+      });
       weightInput.addEventListener('input', updateTotal);
       row.querySelector('.custom-benchmark-remove-row').addEventListener('click', () => {
         row.remove();
+        syncNameField();
         updateTotal();
       });
       customBenchmarkComponents.appendChild(row);
@@ -104,10 +126,16 @@
     };
 
     const renderConfig = benchmark => {
-      customBenchmarkName.value = benchmark?.name || '自定义组合';
       customBenchmarkComponents.replaceChildren();
-      (benchmark?.components?.length ? benchmark.components : [{ ticker: '', weight: 100 }]).forEach(addRow);
+      const components = benchmark?.components?.length ? benchmark.components : [{ ticker: '', weight: 100 }];
+      components.forEach(addRow);
       btnRemoveCustomBenchmark.hidden = !benchmark;
+      if (components.length === 1) {
+        customBenchmarkName.value = components[0]?.ticker || '';
+      } else {
+        customBenchmarkName.value = benchmark?.name || '自定义组合';
+      }
+      syncNameField();
       updateTotal();
     };
 
@@ -125,16 +153,19 @@
       });
     });
 
-    btnAddCustomBenchmarkRow.addEventListener('click', () => addRow());
+    btnAddCustomBenchmarkRow.addEventListener('click', () => {
+      addRow();
+      syncNameField();
+    });
 
     btnSaveCustomBenchmark.addEventListener('click', async () => {
-      const name = customBenchmarkName.value.trim();
       const components = [...customBenchmarkComponents.querySelectorAll('.custom-benchmark-component-row')]
         .map(row => ({
           ticker: row.querySelector('.custom-benchmark-ticker').value.trim().toUpperCase(),
           weight: Number(row.querySelector('.custom-benchmark-weight').value)
         }));
-      if (!name) return showToast('请填写自定义标的名称', 'error');
+      const name = components.length === 1 ? (components[0]?.ticker || '') : customBenchmarkName.value.trim();
+      if (!name) return showToast(components.length === 1 ? '请填写标的代码' : '请填写自定义标的名称', 'error');
       if (!components.length || components.some(item => !item.ticker || !Number.isFinite(item.weight) || item.weight <= 0)) {
         return showToast('请完整填写每个标的代码和有效权重', 'error');
       }

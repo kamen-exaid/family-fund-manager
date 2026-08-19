@@ -24,9 +24,17 @@ assert.deepStrictEqual(benchmark.components, [
   { ticker: 'AAPL', weight: 60 },
   { ticker: 'VOO', weight: 40 }
 ]);
+assert.strictEqual(benchmark.name, '科技与大盘', 'multi-component benchmark must keep custom name');
+assert.strictEqual(benchmark2.name, 'MSFT', 'single-component benchmark must automatically use ticker as name');
 assert.strictEqual(
-  normalizeCustomBenchmark({ name: '黄金', components: [{ ticker: 'GC=F', weight: 100 }] }).components[0].ticker,
-  'GC=F'
+  normalizeCustomBenchmark({ name: '黄金', components: [{ ticker: 'GC=F', weight: 100 }] }).name,
+  'GC=F',
+  'single-component benchmark must use ticker as name even if a name is provided'
+);
+assert.strictEqual(
+  normalizeCustomBenchmark({ components: [{ ticker: 'NVDA', weight: 100 }] }).name,
+  'NVDA',
+  'single-component benchmark without name must use ticker as name'
 );
 assert.throws(
   () => normalizeCustomBenchmark({ name: '错误组合', components: [{ ticker: 'AAPL', weight: 90 }] }),

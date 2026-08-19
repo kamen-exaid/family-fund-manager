@@ -124,15 +124,20 @@ async function startExternalFailureServer() {
     assert.strictEqual(response.status, 400);
 
     const customBenchmark1 = { name: '组合一', components: [{ ticker: 'VOO', weight: 100 }] };
-    const customBenchmark2 = { name: '组合二', components: [{ ticker: 'QQQM', weight: 100 }] };
+    const customBenchmark2 = {
+      name: '科技组合',
+      components: [{ ticker: 'QQQM', weight: 60 }, { ticker: 'AAPL', weight: 40 }]
+    };
     response = await request(server, 'POST', '/api/settings/custom-benchmark', {
       slot: 0, customBenchmark: customBenchmark1
     });
     assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.data.name, 'VOO', 'single-component benchmark name must normalize to ticker');
     response = await request(server, 'POST', '/api/settings/custom-benchmark', {
       slot: 1, customBenchmark: customBenchmark2
     });
     assert.strictEqual(response.status, 200);
+    assert.strictEqual(response.body.data.name, '科技组合', 'multi-component benchmark name must preserve custom name');
 
     const exported = await requestBuffer(server, 'GET', '/api/backup/export');
     assert.strictEqual(exported.status, 200);
@@ -146,8 +151,14 @@ async function startExternalFailureServer() {
     assert.strictEqual(Object.prototype.hasOwnProperty.call(exportedDb, 'indexCache'), false);
     assert.strictEqual(Object.prototype.hasOwnProperty.call(exportedDb, 'customBenchmarkCache'), false);
     assert(Array.isArray(exportedConfig.tickers));
-    assert.deepStrictEqual(exportedConfig.customBenchmark, customBenchmark1);
-    assert.deepStrictEqual(exportedConfig.customBenchmark2, customBenchmark2);
+    assert.deepStrictEqual(exportedConfig.customBenchmark, {
+      name: 'VOO',
+      components: [{ ticker: 'VOO', weight: 100 }]
+    });
+    assert.deepStrictEqual(exportedConfig.customBenchmark2, {
+      name: '科技组合',
+      components: [{ ticker: 'QQQM', weight: 60 }, { ticker: 'AAPL', weight: 40 }]
+    });
     assert.deepStrictEqual(exportedSettlements, { version: 1, records: [] });
 
     const invalidDisposalVersionBackup = new AdmZip();
