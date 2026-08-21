@@ -1,0 +1,123 @@
+.demo-banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  width: min(720px, calc(100vw - 32px));
+  min-height: 44px;
+  padding: 8px 10px 8px 16px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.24);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+  box-shadow: 0 12px 36px rgba(24, 39, 75, 0.16);
+  color: var(--color-text-main);
+  font-size: 0.78rem;
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+  transform: translateX(-50%);
+}
+
+.demo-banner-copy,
+.demo-banner-copy strong {
+  display: flex;
+  align-items: center;
+}
+
+.demo-banner-copy {
+  gap: 14px;
+  min-width: 0;
+}
+
+.demo-banner-copy strong {
+  flex: 0 0 auto;
+  gap: 7px;
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.demo-banner-copy > span {
+  color: var(--color-text-muted);
+}
+
+.demo-banner-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(var(--color-primary-rgb), 0.12);
+}
+
+.demo-banner-exit {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.18);
+  border-radius: 9px;
+  background: rgba(var(--color-primary-rgb), 0.08);
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.demo-mode {
+  --demo-banner-offset: 52px;
+}
+
+.demo-mode .app-sidebar,
+.demo-mode .app-container {
+  margin-top: var(--demo-banner-offset);
+}
+
+.demo-mode .layout-right {
+  top: calc(var(--fixed-panel-top) + var(--demo-banner-offset));
+}
+
+.demo-mode [data-demo-entry] {
+  display: none;
+}
+
+.demo-panel-note {
+  margin: -2px 0 12px;
+  padding: 9px 11px;
+  border: 1px solid rgba(var(--color-primary-rgb), 0.16);
+  border-radius: 10px;
+  background: rgba(var(--color-primary-rgb), 0.055);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.demo-mode .operations-panel .op-form :disabled {
+  color: var(--color-text-muted);
+  -webkit-text-fill-color: var(--color-text-muted);
+}
+
+.demo-mode [aria-disabled="true"] {
+  cursor: not-allowed !important;
+  opacity: 0.48;
+}
+
+@media (max-width: 720px) {
+  .demo-mode {
+    --demo-banner-offset: 68px;
+  }
+
+  .demo-banner {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .demo-banner-copy {
+    align-items: flex-start;
+    gap: 8px;
+    flex-direction: column;
+  }
+
+  .demo-banner-copy > span {
+    line-height: 1.35;
+  }
+
+}

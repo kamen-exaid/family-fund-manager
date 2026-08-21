@@ -454,6 +454,12 @@ function calculateState() {
 }
 
 const { calculateStateFromDb } = require('./lib/calculator');
+const { registerDemoRoutes } = require('./routes/demo');
+
+registerDemoRoutes(app, {
+  calculateStateFromDb,
+  publicDirectory: path.join(__dirname, 'public')
+});
 
 const { registerApiRoutes } = require('./routes/api');
 

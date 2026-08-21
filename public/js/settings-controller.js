@@ -2,7 +2,7 @@
   function create({ elements, api, segmentedControl, getState, setState, renderCharts, showToast }) {
     const { benchmarkPolicyGroup, benchmarkPolicyButtons, privacyButtons } = elements;
     let refreshToken = 0;
-    let privacyMode = true;
+    let privacyMode = !window.FundDemoMode?.enabled;
 
     function syncBenchmarkPolicy(policy = 'previous') {
       const activeButton = benchmarkPolicyButtons.find(button => button.dataset.benchmarkPolicy === policy)

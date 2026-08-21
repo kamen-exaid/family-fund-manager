@@ -31,7 +31,7 @@
       </svg>
       <span>
         <strong>家庭财富账本</strong>
-        <small>WEALTH LEDGER <b class="sidebar-version">v3.13.1</b></small>
+        <small>WEALTH LEDGER <b class="sidebar-version">v3.14.0</b></small>
       </span>
     </a>
 
@@ -76,6 +76,14 @@
         </svg>
         <span>基金管理准则</span>
       </button>
+      <a class="sidebar-nav-item sidebar-action" href="/demo" data-demo-entry>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="14" rx="2" />
+          <path d="M8 22h8M12 18v4" />
+          <path d="m10 9 5 3-5 3V9Z" />
+        </svg>
+        <span>演示模式</span>
+      </a>
       <button class="sidebar-nav-item sidebar-action" type="button" data-sidebar-action="members">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3" />
@@ -106,7 +114,7 @@
         <div class="logo-text">
           <h1>家庭基金账目管理系统</h1>
           <span class="sub-logo">Family Private Wealth &amp; NAV Ledger &nbsp;<span
-              class="version-badge">v3.13.1</span></span>
+              class="version-badge">v3.14.0</span></span>
         </div>
       </div>
       <div class="header-actions">
@@ -692,6 +700,54 @@
     </section>
   </div>
 
+  <div class="modal-overlay onboarding-overlay" id="onboarding-modal" role="dialog" aria-modal="true"
+    aria-labelledby="onboarding-title" aria-hidden="true" data-modal-persistent="true">
+    <div class="modal-content onboarding-modal-content glass-panel premium-border" tabindex="-1">
+      <section class="onboarding-hero">
+        <div class="onboarding-copy">
+          <span class="onboarding-eyebrow">Family Wealth Ledger</span>
+          <h2 id="onboarding-title">从第一笔入金开始，建立清晰可信的家庭基金账本</h2>
+          <p>系统会按时间重放每一笔资金与估值变化，自动计算单位净值、成员权益和业绩报酬。你可以先浏览完整演示，也可以立即建立自己的账本。</p>
+        </div>
+        <div class="onboarding-visual" aria-hidden="true">
+          <div class="onboarding-visual-value">
+            <span>NAV / SHARE</span>
+            <strong>1.2846</strong>
+          </div>
+          <svg class="onboarding-mini-chart" viewBox="0 0 260 72" preserveAspectRatio="none">
+            <path d="M0 63 C30 58 38 46 66 50 S104 55 126 34 S164 40 188 20 S228 25 260 4 L260 72 L0 72Z" />
+            <path d="M0 63 C30 58 38 46 66 50 S104 55 126 34 S164 40 188 20 S228 25 260 4" />
+          </svg>
+        </div>
+      </section>
+      <div class="onboarding-body">
+        <div class="onboarding-feature-grid">
+          <article class="onboarding-feature">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+            <strong>事件账本</strong><span>完整记录入金、出金、估值和份额转让。</span>
+          </article>
+          <article class="onboarding-feature">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg>
+            <strong>双币种核算</strong><span>同时追踪美元资产与人民币实际投入。</span>
+          </article>
+          <article class="onboarding-feature">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-7"/></svg>
+            <strong>业绩对比</strong><span>对照指数和自定义组合查看长期表现。</span>
+          </article>
+          <article class="onboarding-feature">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="9"/></svg>
+            <strong>LP / GP 结算</strong><span>按批次、高水位和持有时间计算报酬。</span>
+          </article>
+        </div>
+        <div class="onboarding-actions">
+          <a class="btn btn-secondary flex-center" id="btn-view-demo" href="/demo">查看演示数据</a>
+          <button class="btn btn-primary flex-center" id="btn-start-ledger" type="button">开始建立账本</button>
+        </div>
+        <p class="onboarding-note">演示数据与正式账本完全隔离，不会写入你的 data 目录。</p>
+      </div>
+    </div>
+  </div>
+
   <!-- Backup & Restore Modal -->
   <div class="modal-overlay" id="principles-modal" role="dialog" aria-modal="true"
     aria-labelledby="principles-modal-title" aria-hidden="true">
@@ -1141,6 +1197,8 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Main JavaScript App -->
+  <script src="js/demo-mode.js"></script>
+  <script src="js/onboarding-controller.js"></script>
   <script src="js/api.js"></script>
   <script src="js/ui-utils.js"></script>
   <script src="js/modal-manager.js"></script>

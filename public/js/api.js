@@ -2,6 +2,11 @@
  * Frontend API client with consistent HTTP, timeout, and JSON error handling.
  */
 const API_TIMEOUT_MS = 15000;
+const API_PREFIX = window.FundDemoMode?.enabled ? '/api/demo' : '/api';
+
+function resolveApiUrl(url) {
+  return url.startsWith('/api/') ? `${API_PREFIX}${url.slice(4)}` : url;
+}
 
 async function requestApi(url, options = {}) {
   const controller = new AbortController();
@@ -10,7 +15,7 @@ async function requestApi(url, options = {}) {
   try {
     let response;
     try {
-      response = await fetch(url, { ...options, signal: controller.signal });
+      response = await fetch(resolveApiUrl(url), { ...options, signal: controller.signal });
     } catch (error) {
       if (error.name === 'AbortError') throw new Error('请求超时，请检查网络后重试');
       throw new Error('网络连接失败，请检查服务是否可用');

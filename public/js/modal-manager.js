@@ -29,13 +29,15 @@
 
   function bindAccessible(modal, closeButton) {
     if (!modal) return;
+    const isPersistent = () => modal.dataset.modalPersistent === 'true';
     closeButton?.addEventListener('click', () => close(modal));
     modal.addEventListener('click', event => {
-      if (event.target === modal) close(modal);
+      if (event.target === modal && !isPersistent()) close(modal);
     });
     modal.addEventListener('keydown', event => {
       if (!modal.classList.contains('active')) return;
       if (event.key === 'Escape') {
+        if (isPersistent()) return;
         event.preventDefault();
         close(modal);
         return;

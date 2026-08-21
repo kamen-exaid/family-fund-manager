@@ -4,7 +4,9 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  const welcomeMessages = [
+  const welcomeMessages = window.FundDemoMode?.enabled ? [
+    'Explore the Demo'
+  ] : [
     'Hello, Investor',
     'Welcome Back, Investor',
     'Good to See You',
@@ -59,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let renderTrendStats = null;
   let isTrendStatsHovering = false;
   let hasPromptedGpSetup = false;
+  let onboardingController = null;
 
   // --- DOM 元素定义 ---
   const elSystemTime = document.getElementById('system-time');
@@ -67,6 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const memberViewTabs = document.querySelector('.tab-buttons');
   const btnPrivacyToggle = document.getElementById('btn-privacy-toggle');
   const btnSettlementPrivacyToggle = document.getElementById('btn-settlement-privacy-toggle');
+  const onboardingModal = document.getElementById('onboarding-modal');
+  const btnStartLedger = document.getElementById('btn-start-ledger');
 
   // Dashboard Metrics
   const elFundTotalNav = document.getElementById('fund-total-nav');
@@ -294,6 +299,12 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast
     });
     const { openMembersPanel, openBackupPanel } = managementController;
+    onboardingController = window.FundOnboarding.init({
+      elements: { onboardingModal, btnStartLedger },
+      modal: window.FundModal,
+      management: managementController,
+      isDemoMode: window.FundDemoMode?.enabled === true
+    });
 
     window.FundAppShell.init({
       elements: {
@@ -405,7 +416,8 @@ document.addEventListener('DOMContentLoaded', () => {
       renderMembersGrid();
       renderLedger();
       renderCharts();
-      if (!hasPromptedGpSetup && membersList.length && !membersList.some(member => member.primaryGp)) {
+      const onboardingShown = onboardingController?.showIfEmpty(appState) === true;
+      if (!onboardingShown && !hasPromptedGpSetup && membersList.length && !membersList.some(member => member.primaryGp)) {
         hasPromptedGpSetup = true;
         renderMembersEditorList();
         openModal(memberModal);

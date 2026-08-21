@@ -23,6 +23,7 @@
       if (event.key !== 'Escape') return;
       const topmostModal = [...document.querySelectorAll('.modal-overlay.active')].at(-1);
       if (!topmostModal) return;
+      if (topmostModal.dataset.modalPersistent === 'true') return;
       event.preventDefault();
       modal.close(topmostModal);
     });
