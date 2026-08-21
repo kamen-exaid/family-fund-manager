@@ -36,9 +36,13 @@ npm start
 
 全新安装或账本尚无任何流水时，首页会显示功能欢迎页，可选择进入只读 Demo，或开始配置成员并建立正式账本。
 
+![空账本首次使用引导](preview/welcome.png)
+
 ### 只读 Demo
 
 启动服务后访问 <http://localhost:3000/demo>，可以浏览从 2022 年开始的周度样例账本、成员权益、业绩走势和流水记录。对标组合 1 为 AAPL 30% + GOOGL 30% + VGT 40%，组合 2 为 VGT 100%；历史行情与汇率快照来自 Yahoo Finance 并固化在项目内。Demo 使用独立数据且禁止写入，不会修改 `data/` 中的正式账本；录入面板保留用于界面预览，但全部表单与提交操作均已锁定。
+
+![只读 Demo 数据看板](preview/demo.png)
 
 需要把离线 Demo 快照更新到最新一周时，运行 `npm run demo:refresh`。
 
